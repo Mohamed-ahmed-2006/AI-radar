@@ -5,6 +5,7 @@ import { POST } from "../../app/api/ingest/openai/route";
 import {
   ingestOpenAiPricing,
   ingestAnthropicPricing,
+  ingestXaiPricing,
   OpenAiPricingIngestionError,
   type OpenAiCollectorResult,
   type OpenAiPricingPipelineRepository,
@@ -36,6 +37,23 @@ function rawRecords(): Record<string, unknown>[] {
   );
 }
 
+function xaiRecords(): Record<string, unknown>[] {
+  return Array.from({ length: 7 }, (_, modelIndex) => ["short", "long"].map((context_tier, tierIndex) => ({
+    provider: "xAI", model_name: `grok-${modelIndex + 1}`, pricing_mode: "standard", context_tier,
+    input_price_per_1m_tokens: modelIndex + tierIndex + 1,
+    cached_input_price_per_1m_tokens: 0.5,
+    output_price_per_1m_tokens: modelIndex + tierIndex + 3,
+    pricing_unit: "USD per 1M tokens",
+  }))).flat();
+}
+
+function eventConflictKeys(inputs: readonly ChangeEventInput[]): string[] {
+  return inputs.map((input) => JSON.stringify([
+    input.runId ?? null, input.modelId ?? null, input.changeType,
+    input.fieldName ?? null, input.pricingMode ?? null, input.contextTier ?? null,
+  ]));
+}
+
 function collector(data: unknown[], runId: string, success = true): () => Promise<OpenAiCollectorResult> {
   return async () => ({
     success,
@@ -56,7 +74,9 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
   readonly events: ChangeEventInput[] = [];
   readonly sources: SourceRow[] = [];
   latest: LatestPricingSnapshotRow[] = [];
+  comparable: LatestPricingSnapshotRow[] = [];
   failSnapshots = false;
+  failEvents = false;
   private readonly providers: ProviderRow[] = [];
 
   async upsertProvider(input: { slug: string; name: string; homepageUrl?: string | null }): Promise<ProviderRow> {
@@ -102,6 +122,7 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
     const run = this.requireRun(runId);
     run.status = counts.recordsRejected ? "partial" : "succeeded"; run.completed_at = timestamp;
     run.records_seen = counts.recordsSeen; run.records_accepted = counts.recordsAccepted; run.records_rejected = counts.recordsRejected;
+    this.comparable = [...this.latest];
     return run;
   }
   async upsertModels(inputs: readonly { providerId: string; modelName: string; seenAt: string }[]): Promise<ModelRow[]> {
@@ -116,7 +137,7 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
     });
   }
   async listModels(): Promise<ModelRow[]> { return this.models; }
-  async getLatestPricingSnapshots(): Promise<LatestPricingSnapshotRow[]> { return this.latest; }
+  async getComparablePricingSnapshots(): Promise<LatestPricingSnapshotRow[]> { return this.comparable; }
   async savePricingSnapshots(inputs: readonly PricingSnapshotInput[]): Promise<{ id: string; model_id: string; pricing_mode: string; context_tier: string }[]> {
     if (this.failSnapshots) throw new Error("database write failed");
     this.latest = inputs.map((input, index) => {
@@ -135,7 +156,11 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
     });
     return this.latest.map((row) => ({ id: row.id, model_id: row.model_id, pricing_mode: row.pricing_mode, context_tier: row.context_tier }));
   }
-  async saveChangeEvents(inputs: readonly ChangeEventInput[]): Promise<unknown[]> { this.events.push(...inputs); return [...inputs]; }
+  async saveChangeEvents(inputs: readonly ChangeEventInput[]): Promise<unknown[]> {
+    if (this.failEvents) throw new Error("change event write failed");
+    this.events.push(...inputs);
+    return [...inputs];
+  }
   private requireRun(id: string): CollectionRunRow {
     const run = this.runs.find((item) => item.id === id);
     if (!run) throw new Error("missing run");
@@ -146,7 +171,9 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
 test("pricing pipeline persists six records, detects changes, and never deactivates models", async () => {
   const repository = new MemoryRepository();
   const first = await ingestOpenAiPricing({ repository, collect: collector(rawRecords(), "external-1"), now: () => new Date(timestamp) });
-  assert.deepEqual({ accepted: first.acceptedCount, rejected: first.rejectedCount, changes: first.changesDetected }, { accepted: 6, rejected: 0, changes: 6 });
+  assert.deepEqual({ accepted: first.acceptedCount, rejected: first.rejectedCount, changes: first.changesDetected }, { accepted: 6, rejected: 0, changes: 3 });
+  assert.equal(new Set(eventConflictKeys(repository.events)).size, repository.events.length);
+  assert(repository.events.every((event) => event.changeType !== "model_added" || event.contextTier === null));
 
   const same = await ingestOpenAiPricing({ repository, collect: collector(rawRecords(), "external-2"), now: () => new Date(timestamp) });
   assert.equal(same.changesDetected, 0);
@@ -187,6 +214,52 @@ test("pipeline records Bright Data and persistence failures as failed runs", asy
     OpenAiPricingIngestionError,
   );
   assert.equal(persistenceFailure.runs[0]?.status, "failed");
+});
+
+test("retry recovers events after a failed event batch without duplicating snapshots", async () => {
+  const repository = new MemoryRepository();
+  repository.failEvents = true;
+  await assert.rejects(
+    () => ingestXaiPricing({ repository, collect: collector(xaiRecords().slice(0, 2), "xai-retry"), now: () => new Date(timestamp) }),
+    OpenAiPricingIngestionError,
+  );
+  assert.equal(repository.runs[0]?.status, "failed");
+  assert.equal(repository.latest.length, 2);
+  assert.equal(repository.events.length, 0);
+
+  repository.failEvents = false;
+  const retry = await ingestXaiPricing({
+    repository, collect: collector(xaiRecords().slice(0, 2), "xai-retry"), now: () => new Date(timestamp),
+  });
+  assert.equal(retry.idempotent, false);
+  assert.equal(repository.runs[0]?.status, "succeeded");
+  assert.equal(repository.latest.length, 2);
+  assert.equal(repository.events.filter((event) => event.changeType === "model_added").length, 1);
+});
+
+test("xAI-style short and long records emit one model event per model and retain tier-specific price changes", async () => {
+  const repository = new MemoryRepository();
+  const first = await ingestXaiPricing({
+    repository, collect: collector(xaiRecords(), "xai-first"), now: () => new Date(timestamp),
+  });
+  assert.equal(first.changesDetected, 7);
+  assert.equal(repository.events.filter((event) => event.changeType === "model_added").length, 7);
+  assert.equal(new Set(eventConflictKeys(repository.events)).size, repository.events.length);
+
+  repository.events.length = 0;
+  const increased = xaiRecords().map((record) => ({
+    ...record,
+    input_price_per_1m_tokens: (record.input_price_per_1m_tokens as number) + 1,
+  }));
+  const second = await ingestXaiPricing({
+    repository, collect: collector(increased, "xai-second"), now: () => new Date(timestamp),
+  });
+  assert.equal(second.changesDetected, 14);
+  const priceChanges = repository.events.filter((event) => event.changeType === "price_increased");
+  assert.equal(priceChanges.length, 14);
+  assert.equal(new Set(eventConflictKeys(priceChanges)).size, 14);
+  assert(priceChanges.some((event) => event.contextTier === "short"));
+  assert(priceChanges.some((event) => event.contextTier === "long"));
 });
 
 test("Anthropic uses the shared pipeline with its own provider and source provenance", async () => {

@@ -491,12 +491,90 @@ export interface ChangeEventInput {
   runId?: string | null;
   modelId?: string | null;
   fieldName?: string | null;
+  pricingMode?: string | null;
+  contextTier?: string | null;
   oldValue?: Json;
   newValue?: Json;
   previousSnapshotId?: string | null;
   currentSnapshotId?: string | null;
   summary?: string | null;
   detectedAt?: string;
+}
+
+/**
+ * Latest price state from completed runs only. Change detection intentionally
+ * excludes failed runs because snapshots can persist before event persistence
+ * fails in the current non-transactional ingestion workflow.
+ */
+export async function getComparablePricingSnapshots(
+  db: SupabaseServerClient,
+  options: LatestPricingQuery = {},
+): Promise<LatestPricingSnapshotRow[]> {
+  let query = db
+    .from("latest_comparable_pricing_snapshots")
+    .select()
+    .order("provider_slug")
+    .order("model_name");
+  if (options.providerSlug) query = query.eq("provider_slug", options.providerSlug);
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
+  if (options.modelIds?.length) query = query.in("model_id", options.modelIds);
+  if (options.pricingMode) query = query.eq("pricing_mode", options.pricingMode);
+  if (options.contextTier) query = query.eq("context_tier", options.contextTier);
+  if (options.limit) query = query.limit(options.limit);
+  return unwrap("getComparablePricingSnapshots", await query);
+}
+
+function changeEventConflictIdentity(input: ChangeEventInput): string {
+  return JSON.stringify([
+    input.runId ?? null,
+    input.modelId ?? null,
+    input.changeType,
+    input.fieldName ?? null,
+    input.pricingMode ?? null,
+    input.contextTier ?? null,
+  ]);
+}
+
+function changeEventSemanticValue(input: ChangeEventInput): string {
+  return JSON.stringify({
+    providerId: input.providerId,
+    sourceId: input.sourceId ?? null,
+    runId: input.runId ?? null,
+    modelId: input.modelId ?? null,
+    changeType: input.changeType,
+    fieldName: input.fieldName ?? null,
+    pricingMode: input.pricingMode ?? null,
+    contextTier: input.contextTier ?? null,
+    oldValue: input.oldValue ?? null,
+    newValue: input.newValue ?? null,
+    previousSnapshotId: input.previousSnapshotId ?? null,
+    currentSnapshotId: input.currentSnapshotId ?? null,
+    summary: input.summary ?? null,
+    detectedAt: input.detectedAt ?? null,
+  });
+}
+
+/**
+ * Guarantees a single row for each database conflict identity in an upsert
+ * batch. Exact repeats are idempotent; non-identical repeats fail before any
+ * database call so tier-specific changes can never be silently discarded.
+ */
+export function dedupeChangeEventInputs(
+  inputs: readonly ChangeEventInput[],
+): ChangeEventInput[] {
+  const unique = new Map<string, ChangeEventInput>();
+  for (const input of inputs) {
+    const key = changeEventConflictIdentity(input);
+    const existing = unique.get(key);
+    if (!existing) {
+      unique.set(key, input);
+      continue;
+    }
+    if (changeEventSemanticValue(existing) !== changeEventSemanticValue(input)) {
+      throw new Error(`Non-identical change events share database identity ${key}`);
+    }
+  }
+  return [...unique.values()];
 }
 
 export async function saveChangeEvent(
@@ -509,25 +587,29 @@ export async function saveChangeEvent(
 
 /**
  * Persists detected changes. Re-running change detection over the same run
- * upserts rather than duplicating, via (run, model, type, field).
+ * upserts rather than duplicating, via the complete event identity including
+ * a pricing mode/context tier whenever the event is tier-scoped.
  */
 export async function saveChangeEvents(
   db: SupabaseServerClient,
   inputs: readonly ChangeEventInput[],
 ): Promise<ChangeEventRow[]> {
-  if (inputs.length === 0) return [];
+  const uniqueInputs = dedupeChangeEventInputs(inputs);
+  if (uniqueInputs.length === 0) return [];
   return unwrap(
     "saveChangeEvents",
     await db
       .from("change_events")
       .upsert(
-        inputs.map((input) => ({
+        uniqueInputs.map((input) => ({
           provider_id: input.providerId,
           source_id: input.sourceId ?? null,
           run_id: input.runId ?? null,
           model_id: input.modelId ?? null,
           change_type: input.changeType,
           field_name: input.fieldName ?? null,
+          pricing_mode: input.pricingMode ?? null,
+          context_tier: input.contextTier ?? null,
           old_value: input.oldValue ?? null,
           new_value: input.newValue ?? null,
           previous_snapshot_id: input.previousSnapshotId ?? null,
@@ -535,7 +617,10 @@ export async function saveChangeEvents(
           summary: input.summary ?? null,
           ...(input.detectedAt && { detected_at: input.detectedAt }),
         })),
-        { onConflict: "run_id,model_id,change_type,field_name" },
+        {
+          onConflict:
+            "run_id,model_id,change_type,field_name,pricing_mode,context_tier",
+        },
       )
       .select(),
   );

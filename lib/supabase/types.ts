@@ -106,6 +106,9 @@ export type ChangeEventRow = {
   model_id: string | null;
   change_type: ChangeType;
   field_name: string | null;
+  /** Null for whole-model lifecycle events; set for tier-scoped changes. */
+  pricing_mode: string | null;
+  context_tier: string | null;
   old_value: Json | null;
   new_value: Json | null;
   previous_snapshot_id: string | null;
@@ -177,6 +180,7 @@ export type Database = {
     };
     Views: {
       latest_pricing_snapshots: View<LatestPricingSnapshotRow>;
+      latest_comparable_pricing_snapshots: View<LatestPricingSnapshotRow>;
       source_health: View<SourceHealthRow>;
     };
     Functions: Record<never, never>;

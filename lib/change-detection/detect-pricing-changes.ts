@@ -61,6 +61,37 @@ function metadataEvent(
   };
 }
 
+function modelIdentity(record: Pick<NormalizedPricingRecord, "provider" | "modelName">): string {
+  return JSON.stringify([record.provider, record.modelName]);
+}
+
+/**
+ * A first/last pricing observation is a model-level lifecycle event, even if
+ * the source publishes it in several context tiers. Adding/removing one tier
+ * while another remains is still a tier-scoped pricing identity event.
+ */
+function collapseModelLifecycleEvents(
+  events: readonly ChangeEvent[],
+  previous: readonly NormalizedPricingRecord[],
+  current: readonly NormalizedPricingRecord[],
+): ChangeEvent[] {
+  const previousModels = new Set(previous.map(modelIdentity));
+  const currentModels = new Set(current.map(modelIdentity));
+  const emittedModelEvents = new Set<string>();
+
+  return events.filter((event) => {
+    const identity = modelIdentity(event);
+    const isWholeModelAddition = event.type === "model_added" && !previousModels.has(identity);
+    const isWholeModelRemoval = event.type === "model_removed" && !currentModels.has(identity);
+    if (!isWholeModelAddition && !isWholeModelRemoval) return true;
+
+    const key = `${event.type}:${identity}`;
+    if (emittedModelEvents.has(key)) return false;
+    emittedModelEvents.add(key);
+    return true;
+  });
+}
+
 /**
  * Compares two complete pricing snapshots. The result has stable ordering and
  * intentionally contains no generated IDs or timestamps.
@@ -155,7 +186,7 @@ export function detectPricingChanges(
     }
   }
 
-  return events
+  return collapseModelLifecycleEvents(events, previous, current)
     .map((event) => ChangeEventSchema.parse(event))
     .sort((left, right) => {
       const leftIdentity = pricingRecordIdentity(left);

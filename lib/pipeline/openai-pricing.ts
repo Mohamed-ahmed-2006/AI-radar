@@ -12,7 +12,7 @@ import {
   completeCollectionRun,
   createSupabaseAdminClient,
   failCollectionRun,
-  getLatestPricingSnapshots,
+  getComparablePricingSnapshots,
   listModels,
   saveChangeEvents,
   savePricingSnapshots,
@@ -83,7 +83,7 @@ export interface OpenAiPricingPipelineRepository {
     seenAt: string;
   }[]): Promise<ModelRow[]>;
   listModels(options: { providerId: string }): Promise<ModelRow[]>;
-  getLatestPricingSnapshots(options: {
+  getComparablePricingSnapshots(options: {
     providerSlug: string;
     sourceId: string;
   }): Promise<LatestPricingSnapshotRow[]>;
@@ -107,7 +107,7 @@ function createRepository(): OpenAiPricingPipelineRepository {
     completeCollectionRun: (runId, counts) => completeCollectionRun(db, runId, counts),
     upsertModels: (input) => upsertModels(db, input),
     listModels: (options) => listModels(db, options),
-    getLatestPricingSnapshots: (options) => getLatestPricingSnapshots(db, options),
+    getComparablePricingSnapshots: (options) => getComparablePricingSnapshots(db, options),
     savePricingSnapshots: (input) => savePricingSnapshots(db, input),
     saveChangeEvents: (input) => saveChangeEvents(db, input),
   };
@@ -252,7 +252,7 @@ export async function ingestPricingProvider(
     });
   }
 
-  if (run.status !== "running") {
+  if (run.status === "succeeded" || run.status === "partial") {
     return {
       success: true,
       collectionRunId: run.id,
@@ -307,12 +307,18 @@ export async function ingestPricingProvider(
     );
     const knownModels = await repository.listModels({ providerId: provider.id });
     const modelsByName = new Map([...knownModels, ...models].map((model) => [model.model_name, model]));
-    const previousRows = await repository.getLatestPricingSnapshots({
+    const previousRows = await repository.getComparablePricingSnapshots({
       providerSlug: providerDefinition.slug,
       sourceId: source.id,
     });
     const previous = previousRows.map(snapshotToRecord);
     const changes = detectPricingChanges(previous, accepted);
+    const previousModels = new Set(
+      previous.map((record) => JSON.stringify([record.provider, record.modelName])),
+    );
+    const currentModels = new Set(
+      accepted.map((record) => JSON.stringify([record.provider, record.modelName])),
+    );
 
     const snapshots = await repository.savePricingSnapshots(accepted.map((record) => {
       const model = modelsByName.get(record.modelName);
@@ -345,6 +351,10 @@ export async function ingestPricingProvider(
     await repository.saveChangeEvents(changes.map((change) => {
       const model = modelsByName.get(change.modelName);
       if (!model) throw new Error(`Model ${change.modelName} was not found for change event`);
+      const modelIdentity = JSON.stringify([change.provider, change.modelName]);
+      const isWholeModelLifecycle =
+        (change.type === "model_added" && !previousModels.has(modelIdentity)) ||
+        (change.type === "model_removed" && !currentModels.has(modelIdentity));
       const snapshotKey = JSON.stringify([model.id, change.pricingMode, change.contextTier]);
       const currentSnapshotId = snapshotByIdentity.get(snapshotKey) ?? null;
       return {
@@ -354,6 +364,8 @@ export async function ingestPricingProvider(
         modelId: model.id,
         changeType: change.type,
         fieldName: "field" in change ? change.field : null,
+        pricingMode: isWholeModelLifecycle ? null : change.pricingMode,
+        contextTier: isWholeModelLifecycle ? null : change.contextTier,
         oldValue: change.type === "model_removed" ? eventValue(change) :
           ("oldValue" in change ? change.oldValue : null),
         newValue: change.type === "model_added" ? eventValue(change) :

@@ -78,6 +78,16 @@ test("reports a newly added model or context tier", () => {
   assert.deepEqual(events[0].record, longTier);
 });
 
+test("emits one model_added event when a new model has short and long tiers", () => {
+  const short = pricingRecord({ model_name: "gpt-new", context_tier: "short" });
+  const long = pricingRecord({ model_name: "gpt-new", context_tier: "long" });
+  const events = detectPricingChanges([], [short, long]);
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "model_added");
+  assert.equal(events[0].modelName, "gpt-new");
+});
+
 test("reports a removed model or context tier", () => {
   const existing = pricingRecord();
   const longTier = pricingRecord({ context_tier: "long" });
