@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx tsx --test tests/**/*.test.ts",
+    "ingest:openai": "npx tsx scripts/ingestion/trigger-openai-pricing.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
