@@ -25,7 +25,7 @@ test("OpenAIPricingRecordSchema validates verified collector output fixture", ()
   assert.equal(parsed[0].source_url, "https://developers.openai.com/api/docs/pricing");
 });
 
-test("parseOpenAIPricingRecord coerces valid numeric strings", () => {
+test("parseOpenAIPricingRecord preserves strict canonical validation", () => {
   const raw = {
     provider: "OpenAI",
     model_name: "gpt-4o",
@@ -34,11 +34,7 @@ test("parseOpenAIPricingRecord coerces valid numeric strings", () => {
     source_url: "https://developers.openai.com/api/docs/pricing",
   };
 
-  const parsed = parseOpenAIPricingRecord(raw);
-  assert.equal(parsed.input_price_per_1m_tokens, 2.5);
-  assert.equal(parsed.output_price_per_1m_tokens, 10);
-  assert.equal(parsed.pricing_mode, "standard");
-  assert.equal(parsed.context_tier, "standard");
+  assert.throws(() => parseOpenAIPricingRecord(raw), BrightDataParseError);
 });
 
 test("parseOpenAIPricingRecord throws BrightDataParseError on missing required fields", () => {

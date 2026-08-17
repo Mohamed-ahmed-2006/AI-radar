@@ -19,8 +19,8 @@ function FreshnessBar({
   expectedIntervalMinutes,
   status,
 }: {
-  stalenessMinutes: number;
-  expectedIntervalMinutes: number;
+  stalenessMinutes: number | null;
+  expectedIntervalMinutes: number | null;
   status: SourceFreshness["status"];
 }) {
   const pct = stalenessPercent(stalenessMinutes, expectedIntervalMinutes);
@@ -87,7 +87,9 @@ export function SourceFreshnessPanel({
                 </div>
                 <div className="text-right shrink-0">
                   <span className="text-[10px] font-mono text-radar-text-muted tabular-nums">
-                    {source.stalenessMinutes}m / {source.expectedIntervalMinutes}m
+                    {source.stalenessMinutes === null || source.expectedIntervalMinutes === null
+                      ? "interval not configured"
+                      : `${source.stalenessMinutes}m / ${source.expectedIntervalMinutes}m`}
                   </span>
                 </div>
               </div>
@@ -107,8 +109,8 @@ export function SourceFreshnessPanel({
                 </span>
                 <span>
                   Last attempt:{" "}
-                  <time dateTime={source.lastAttemptAt}>
-                    {formatAbsoluteTime(source.lastAttemptAt)}
+                  <time dateTime={source.lastAttemptAt ?? undefined}>
+                    {source.lastAttemptAt ? formatAbsoluteTime(source.lastAttemptAt) : "never"}
                   </time>
                 </span>
               </div>

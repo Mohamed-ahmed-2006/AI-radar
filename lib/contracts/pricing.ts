@@ -76,7 +76,15 @@ export const RawBrightDataPricingRecordSchema = z.object({
   output_price_per_1m_tokens: optionalRawPriceSchema,
   pricing_unit: z.string().min(1).max(100),
   source_url: SourceUrlSchema,
-});
+}).refine(
+  (record) => [
+    record.input_price_per_1m_tokens,
+    record.cached_input_price_per_1m_tokens,
+    record.cache_write_price_per_1m_tokens,
+    record.output_price_per_1m_tokens,
+  ].some((price) => price !== null && price !== undefined),
+  "Pricing record must include at least one price",
+);
 
 export const NormalizedPricingRecordSchema = z.object({
   provider: ProviderIdentitySchema,
@@ -89,7 +97,15 @@ export const NormalizedPricingRecordSchema = z.object({
   outputPricePer1MTokens: priceSchema.nullable(),
   pricingUnit: z.string().min(1).max(100),
   provenance: PricingProvenanceSchema,
-});
+}).refine(
+  (record) => [
+    record.inputPricePer1MTokens,
+    record.cachedInputPricePer1MTokens,
+    record.cacheWritePricePer1MTokens,
+    record.outputPricePer1MTokens,
+  ].some((price) => price !== null),
+  "Pricing record must include at least one price",
+);
 
 export const NormalizedPricingSnapshotSchema = z
   .array(NormalizedPricingRecordSchema)

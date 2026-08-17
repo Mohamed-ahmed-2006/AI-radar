@@ -15,6 +15,7 @@
  */
 
 import { fetchOpenAIPricing } from "../../lib/brightdata";
+import { RawBrightDataPricingRecordSchema } from "../../lib/contracts";
 
 function parseArgs(args: string[]) {
   const options: {
@@ -109,9 +110,13 @@ async function main() {
     console.log(`Result Count: ${result.metadata.resultCount}`);
 
     if (result.success) {
+      const validRecords = result.data.flatMap((record) => {
+        const parsed = RawBrightDataPricingRecordSchema.safeParse(record);
+        return parsed.success ? [parsed.data] : [];
+      });
       console.log("\nSample Extracted Records (up to 5):");
       console.table(
-        result.data.slice(0, 5).map((r) => ({
+        validRecords.slice(0, 5).map((r) => ({
           model: r.model_name,
           input: `$${r.input_price_per_1m_tokens}`,
           cached_input: r.cached_input_price_per_1m_tokens != null ? `$${r.cached_input_price_per_1m_tokens}` : "N/A",
@@ -119,7 +124,7 @@ async function main() {
           unit: r.pricing_unit,
         }))
       );
-      console.log(`\nTotal models retrieved: ${result.data.length}`);
+      console.log(`\nTotal records retrieved: ${result.data.length} (${validRecords.length} contract-valid)`);
     } else {
       console.error("\nRun Failed:");
       console.error(result.metadata.error || result.error?.message || "Unknown error");

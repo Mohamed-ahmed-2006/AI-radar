@@ -47,7 +47,7 @@ test("fetchOpenAIPricing runs collector with default parameters and parses verif
   assert.equal(passedCollectorId, DEFAULT_OPENAI_COLLECTOR_ID);
   assert.deepEqual(JSON.parse(passedBody), [{ url: DEFAULT_OPENAI_PRICING_SOURCE_URL }]);
   assert.equal(result.data.length, 3);
-  assert.equal(result.data[0].model_name, "gpt-5.6-sol");
+  assert.equal((result.data[0] as { model_name: string }).model_name, "gpt-5.6-sol");
   assert.equal(result.metadata.resultCount, 3);
   assert.equal(result.metadata.status, "success");
 });

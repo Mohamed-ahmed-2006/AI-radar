@@ -1,6 +1,4 @@
 import { BrightDataClient } from "../client";
-import { parseOpenAIPricingRecord } from "../schemas";
-import type { OpenAIPricingRecord } from "../schemas";
 import type { CollectorPollProgress, CollectorRunResult } from "../types";
 
 export const DEFAULT_OPENAI_COLLECTOR_ID = "c_msx3bqlyjtv2qustx";
@@ -46,11 +44,12 @@ export interface FetchOpenAIPricingOptions {
  * Executes the OpenAI Pricing Collector via Bright Data Scraper Studio.
  *
  * @param options - Configuration and override options
- * @returns Result with parsed OpenAIPricingRecord array and run metadata
+ * @returns Result with transport-decoded records and run metadata. Validation
+ * is performed per record by the server-only ingestion pipeline.
  */
 export async function fetchOpenAIPricing(
   options: FetchOpenAIPricingOptions = {}
-): Promise<CollectorRunResult<OpenAIPricingRecord>> {
+): Promise<CollectorRunResult<unknown>> {
   const client = options.client ?? BrightDataClient.fromEnv();
 
   const collectorId = (
@@ -67,10 +66,9 @@ export async function fetchOpenAIPricing(
 
   const inputs = sourceUrl ? [{ url: sourceUrl }] : [];
 
-  return client.runCollector<Record<string, unknown>, OpenAIPricingRecord>({
+  return client.runCollector<Record<string, unknown>, unknown>({
     collectorId,
     inputs,
-    parser: parseOpenAIPricingRecord,
     pollIntervalMs: options.pollIntervalMs,
     pollTimeoutMs: options.pollTimeoutMs,
     onProgress: options.onProgress,

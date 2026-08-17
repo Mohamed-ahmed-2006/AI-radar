@@ -54,13 +54,13 @@ export function ProviderHealthOverview({
                     <div>
                       <dt className="text-radar-text-muted inline">Error rate </dt>
                       <dd className="inline font-mono text-radar-text-secondary">
-                        {(provider.errorRate24h * 100).toFixed(1)}%
+                        {provider.errorRate24h === null ? "—" : `${(provider.errorRate24h * 100).toFixed(1)}%`}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-radar-text-muted inline">P95 latency </dt>
                       <dd className="inline font-mono text-radar-text-secondary">
-                        {provider.latencyP95Ms}ms
+                        {provider.latencyP95Ms === null ? "—" : `${provider.latencyP95Ms}ms`}
                       </dd>
                     </div>
                     <div>

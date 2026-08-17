@@ -54,11 +54,11 @@ export function SourceProvenance({ records, loading }: SourceProvenanceProps) {
                   </dl>
                 </div>
                 <time
-                  dateTime={record.scrapedAt}
+                  dateTime={record.scrapedAt ?? undefined}
                   className="text-[10px] text-radar-text-muted whitespace-nowrap shrink-0 tabular-nums"
                   title="Scraped at"
                 >
-                  {formatAbsoluteTime(record.scrapedAt)}
+                  {record.scrapedAt ? formatAbsoluteTime(record.scrapedAt) : "not collected"}
                 </time>
               </div>
             </li>

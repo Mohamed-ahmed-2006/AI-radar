@@ -2,7 +2,7 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 
-import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
 import type { Database } from "./types";
 
 export type SupabaseBrowserClient = ReturnType<typeof createSupabaseBrowserClient>;
@@ -14,6 +14,6 @@ let cached: ReturnType<typeof createBrowserClient<Database>> | undefined;
  * public-select / no-write under RLS.
  */
 export function createSupabaseBrowserClient() {
-  cached ??= createBrowserClient<Database>(getSupabaseUrl(), getSupabaseAnonKey());
+  cached ??= createBrowserClient<Database>(getSupabaseUrl(), getSupabasePublishableKey());
   return cached;
 }

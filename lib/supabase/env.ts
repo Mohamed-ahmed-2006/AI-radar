@@ -23,12 +23,24 @@ export function getSupabaseUrl(): string {
   );
 }
 
-export function getSupabaseAnonKey(): string {
+export function getSupabasePublishableKey(): string {
   return required(
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY)",
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
 }
+
+export function isSupabaseReadConfigured(): boolean {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  );
+}
+
+/** @deprecated Prefer getSupabasePublishableKey. */
+export const getSupabaseAnonKey = getSupabasePublishableKey;
 
 export function assertServerOnly(what: string): void {
   if (typeof window !== "undefined") {
@@ -37,9 +49,9 @@ export function assertServerOnly(what: string): void {
 }
 
 export function requireServiceRoleKey(): string {
-  assertServerOnly("SUPABASE_SERVICE_ROLE_KEY");
+  assertServerOnly("SUPABASE_SECRET_KEY");
   return required(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    "SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)",
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
 }

@@ -13,10 +13,10 @@ interface PricingMatrixProps {
   loading?: boolean;
 }
 
-function RateCell({ value, label }: { value: number; label: string }) {
+function RateCell({ value, label }: { value: number | null; label: string }) {
   return (
     <td className="radar-table-cell text-right tabular-nums">
-      <span className="text-radar-text-primary">{formatCurrency(value)}</span>
+      <span className="text-radar-text-primary">{value === null ? "—" : formatCurrency(value)}</span>
       <span className="sr-only"> per million tokens ({label})</span>
     </td>
   );
@@ -98,13 +98,13 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
                       <Badge variant={statusVariant}>{model.status}</Badge>
                     </td>
                     <td className="radar-table-cell text-right font-mono text-xs text-radar-text-secondary tabular-nums">
-                      {formatContextWindow(model.contextWindow)}
+                      {model.contextWindow === null ? "—" : formatContextWindow(model.contextWindow)}
                     </td>
                     {short ? (
                       <>
                         <RateCell value={short.inputPerMillion} label="short input" />
                         <RateCell
-                          value={short.cachedInputPerMillion ?? 0}
+                          value={short.cachedInputPerMillion ?? null}
                           label="short cached input"
                         />
                         <RateCell value={short.outputPerMillion} label="short output" />
@@ -118,7 +118,7 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
                       <>
                         <RateCell value={long.inputPerMillion} label="long input" />
                         <RateCell
-                          value={long.cachedInputPerMillion ?? 0}
+                          value={long.cachedInputPerMillion ?? null}
                           label="long cached input"
                         />
                         <RateCell value={long.outputPerMillion} label="long output" />

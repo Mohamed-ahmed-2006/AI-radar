@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test tests/**/*.test.ts",
+    "test": "npx tsx --test tests/**/*.test.ts tests/**/*.test.mjs",
     "ingest:openai": "npx tsx scripts/ingestion/trigger-openai-pricing.ts"
   },
   "dependencies": {

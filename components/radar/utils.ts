@@ -64,9 +64,9 @@ export function healthStatusLabel(status: HealthStatus): string {
 }
 
 export function stalenessPercent(
-  stalenessMinutes: number,
-  expectedIntervalMinutes: number,
+  stalenessMinutes: number | null,
+  expectedIntervalMinutes: number | null,
 ): number {
-  if (expectedIntervalMinutes <= 0) return 0;
+  if (stalenessMinutes === null || expectedIntervalMinutes === null || expectedIntervalMinutes <= 0) return 0;
   return Math.min(100, Math.round((stalenessMinutes / expectedIntervalMinutes) * 100));
 }

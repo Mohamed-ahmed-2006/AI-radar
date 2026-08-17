@@ -13,10 +13,10 @@ export type ChangeType =
 export type PricingTier = "short" | "long";
 
 export interface PricingRate {
-  tier: PricingTier;
-  inputPerMillion: number;
-  outputPerMillion: number;
-  cachedInputPerMillion?: number;
+  tier: string;
+  inputPerMillion: number | null;
+  outputPerMillion: number | null;
+  cachedInputPerMillion?: number | null;
 }
 
 export interface ModelPricing {
@@ -26,7 +26,7 @@ export interface ModelPricing {
   slug: string;
   status: "active" | "deprecated" | "preview";
   rates: PricingRate[];
-  contextWindow: number;
+  contextWindow: number | null;
   lastVerifiedAt: string;
 }
 
@@ -49,8 +49,8 @@ export interface ProviderHealth {
   modelsTracked: number;
   lastCollectionAt: string | null;
   collectorId: string;
-  errorRate24h: number;
-  latencyP95Ms: number;
+  errorRate24h: number | null;
+  latencyP95Ms: number | null;
   notes?: string;
 }
 
@@ -60,10 +60,10 @@ export interface SourceFreshness {
   provider: string;
   collectorType: string;
   lastSuccessAt: string | null;
-  lastAttemptAt: string;
+  lastAttemptAt: string | null;
   status: HealthStatus;
-  stalenessMinutes: number;
-  expectedIntervalMinutes: number;
+  stalenessMinutes: number | null;
+  expectedIntervalMinutes: number | null;
 }
 
 export interface ProvenanceRecord {
@@ -72,7 +72,7 @@ export interface ProvenanceRecord {
   url: string;
   collector: string;
   datasetVersion: string;
-  scrapedAt: string;
+  scrapedAt: string | null;
 }
 
 export interface EcosystemSummary {
@@ -86,8 +86,8 @@ export interface EcosystemSummary {
 }
 
 export interface RadarDashboardData {
-  /** Always true for fixture data — remove when wired to live API */
-  isMock: true;
+  /** True only when the explicit development/demo fixture is displayed. */
+  isMock: boolean;
   fixtureVersion: string;
   ecosystem: EcosystemSummary;
   changes: ChangeEvent[];

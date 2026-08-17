@@ -136,7 +136,7 @@ create table models (
 );
 
 comment on table models is 'A model offered by a provider, identified by the provider-native name.';
-comment on column models.is_active is 'False once the model stops appearing in collection results.';
+comment on column models.is_active is 'False only when an authoritative model-inventory/deprecation source confirms removal. Pricing collectors must not deactivate models for absence.';
 
 create unique index models_provider_name_key on models (provider_id, model_name);
 create index models_provider_id_idx on models (provider_id);

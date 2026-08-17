@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
   assertServerOnly,
-  getSupabaseAnonKey,
+  getSupabasePublishableKey,
   getSupabaseUrl,
   requireServiceRoleKey,
 } from "./env";
@@ -25,7 +25,7 @@ export function createSupabaseServerClient(): SupabaseServerClient {
   assertServerOnly("createSupabaseServerClient");
   readClient ??= createClient<Database>(
     getSupabaseUrl(),
-    getSupabaseAnonKey(),
+    getSupabasePublishableKey(),
     noSessionAuth,
   );
   return readClient;

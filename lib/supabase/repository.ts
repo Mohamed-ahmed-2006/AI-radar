@@ -408,6 +408,7 @@ export async function savePricingSnapshots(
 
 export interface LatestPricingQuery {
   providerSlug?: string;
+  sourceId?: string;
   modelIds?: readonly string[];
   pricingMode?: string;
   contextTier?: string;
@@ -427,6 +428,7 @@ export async function getLatestPricingSnapshots(
   if (options.providerSlug) {
     query = query.eq("provider_slug", options.providerSlug);
   }
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
   if (options.modelIds?.length) query = query.in("model_id", options.modelIds);
   if (options.pricingMode) query = query.eq("pricing_mode", options.pricingMode);
   if (options.contextTier) query = query.eq("context_tier", options.contextTier);
@@ -545,6 +547,7 @@ export async function getRecentChangeEvents(
     providerId?: string;
     modelId?: string;
     changeTypes?: readonly ChangeType[];
+    since?: string;
     limit?: number;
   } = {},
 ): Promise<ChangeEventRow[]> {
@@ -555,6 +558,7 @@ export async function getRecentChangeEvents(
     .limit(options.limit ?? 50);
   if (options.providerId) query = query.eq("provider_id", options.providerId);
   if (options.modelId) query = query.eq("model_id", options.modelId);
+  if (options.since) query = query.gte("detected_at", options.since);
   if (options.changeTypes?.length) {
     query = query.in("change_type", options.changeTypes);
   }
