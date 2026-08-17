@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test tests/**/*.test.ts tests/**/*.test.mjs",
+    "test": "tsx --test tests/**/*.test.ts tests/**/*.test.mjs",
+    "typecheck": "tsc --noEmit",
     "ingest:openai": "npx tsx scripts/ingestion/trigger-openai-pricing.ts"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "eslint-config-next": "16.3.1",
     "supabase": "^2.114.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }

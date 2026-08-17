@@ -5,6 +5,7 @@ import { POST } from "../../app/api/ingest/openai/route";
 import {
   ingestOpenAiPricing,
   ingestAnthropicPricing,
+  ingestGeminiPricing,
   ingestXaiPricing,
   OpenAiPricingIngestionError,
   type OpenAiCollectorResult,
@@ -106,6 +107,7 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
       id: `run-${this.nextRun++}`, source_id: input.sourceId, status: "running", external_run_id: input.externalRunId ?? null,
       triggered_by: input.triggeredBy ?? "manual", started_at: timestamp, completed_at: null, records_seen: 0, records_accepted: 0,
       records_rejected: 0, error_message: null, error_details: null, created_at: timestamp,
+      validation_errors: [],
     };
     this.runs.push(run);
     return run;
@@ -129,7 +131,14 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
     return inputs.map((input) => {
       let model = this.models.find((item) => item.provider_id === input.providerId && item.model_name === input.modelName);
       if (!model) {
-        model = { id: `model-${this.models.length + 1}`, provider_id: input.providerId, model_name: input.modelName, display_name: null, metadata: {}, is_active: true, first_seen_at: input.seenAt, last_seen_at: input.seenAt, created_at: timestamp, updated_at: timestamp };
+        model = {
+          id: `model-${this.models.length + 1}`, provider_id: input.providerId,
+          model_name: input.modelName, display_name: null, metadata: {}, is_active: true,
+          lifecycle_state: null, deprecated_on: null, retirement_date: null,
+          retirement_not_before_date: null, lifecycle_source_id: null,
+          lifecycle_observed_at: null, first_seen_at: input.seenAt,
+          last_seen_at: input.seenAt, created_at: timestamp, updated_at: timestamp,
+        };
         this.models.push(model);
       }
       model.last_seen_at = input.seenAt;
@@ -190,13 +199,17 @@ test("pricing pipeline persists six records, detects changes, and never deactiva
   assert.equal(removed.changesDetected, 1);
   assert.equal(repository.events.at(-1)?.changeType, "model_removed");
   assert(repository.models.every((model) => model.is_active));
+  repository.models[0].lifecycle_state = "active";
+  await ingestOpenAiPricing({ repository, collect: collector(decreased.slice(2), "external-5b"), now: () => new Date(timestamp) });
+  assert.equal(repository.models[0].lifecycle_state, "active", "pricing disappearance cannot change lifecycle state");
+  assert.equal(repository.models[0].is_active, true, "pricing disappearance cannot deactivate a model");
 
   const malformed = await ingestOpenAiPricing({ repository, collect: collector([...decreased.slice(1), { provider: "OpenAI" }], "external-6"), now: () => new Date(timestamp) });
   assert.equal(malformed.rejectedCount, 1);
 
   const replay = await ingestOpenAiPricing({ repository, collect: collector(decreased.slice(1), "external-5"), now: () => new Date(timestamp) });
   assert.equal(replay.idempotent, true);
-  assert.equal(repository.runs.length, 6);
+  assert.equal(repository.runs.length, 7);
 });
 
 test("pipeline records Bright Data and persistence failures as failed runs", async () => {
@@ -292,4 +305,65 @@ test("ingest endpoint rejects absent or incorrect secrets without returning secr
     if (previous === undefined) delete process.env.AI_RADAR_INGEST_SECRET;
     else process.env.AI_RADAR_INGEST_SECRET = previous;
   }
+});
+
+// The non-negotiable invariant: a model vanishing from *any* pricing page must
+// never retire, deprecate, deactivate, or otherwise touch lifecycle state.
+// Asserted per provider, because each has its own adapter and identity path.
+const pricingIsolationCases = [
+  { slug: "openai", providerName: "OpenAI", ingest: ingestOpenAiPricing },
+  { slug: "anthropic", providerName: "Anthropic", ingest: ingestAnthropicPricing },
+  { slug: "gemini", providerName: "Google", ingest: ingestGeminiPricing },
+  { slug: "xai", providerName: "xAI", ingest: ingestXaiPricing },
+] as const;
+
+for (const { slug, providerName, ingest } of pricingIsolationCases) {
+  test(`${slug} pricing absence never mutates lifecycle state or is_active`, async () => {
+    const repository = new MemoryRepository();
+    const priced = (names: readonly string[]) => names.map((model_name) => ({
+      provider: providerName, model_name, pricing_mode: "standard", context_tier: "short",
+      input_price_per_1m_tokens: 3, output_price_per_1m_tokens: 15,
+      pricing_unit: "USD per 1M tokens",
+    }));
+    const both = ["alpha-1", "beta-2"];
+
+    await ingest({
+      repository, collect: collector(priced(both), `${slug}-1`), now: () => new Date(timestamp),
+    });
+    assert.equal(repository.models.length, 2);
+
+    // An authoritative lifecycle source has since published state for both.
+    for (const model of repository.models) {
+      model.lifecycle_state = "deprecated";
+      model.deprecated_on = "2026-08-17";
+      model.retirement_not_before_date = "2027-08-05";
+      model.lifecycle_source_id = "source-lifecycle";
+    }
+
+    // The pricing page now lists only one of them.
+    await ingest({
+      repository, collect: collector(priced(["alpha-1"]), `${slug}-2`), now: () => new Date(timestamp),
+    });
+
+    for (const model of repository.models) {
+      assert.equal(model.is_active, true, `${slug}: ${model.model_name} must stay active`);
+      assert.equal(model.lifecycle_state, "deprecated", `${slug}: lifecycle state is untouched`);
+      assert.equal(model.deprecated_on, "2026-08-17", `${slug}: deprecation date is untouched`);
+      assert.equal(model.retirement_date, null, `${slug}: no retirement date invented`);
+      assert.equal(
+        model.retirement_not_before_date, "2027-08-05",
+        `${slug}: retirement lower bound is untouched`,
+      );
+      assert.equal(model.lifecycle_source_id, "source-lifecycle", `${slug}: lifecycle source kept`);
+    }
+    assert.equal(repository.models.length, 2, `${slug}: the dropped model is not deleted`);
+  });
+}
+
+test("the repository exposes no way for a collector to deactivate models on absence", async () => {
+  const repository = await import("../../lib/supabase/repository");
+  assert.equal(
+    "deactivateMissingModels" in repository, false,
+    "absence-based deactivation must not exist; only applyModelLifecycleProjections writes is_active",
+  );
 });

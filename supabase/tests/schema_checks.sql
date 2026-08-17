@@ -101,7 +101,7 @@ where r.external_run_id = 'snap_001';
 -- Re-running detection over the same run must not duplicate (expect 2 total).
 insert into change_events (provider_id, run_id, model_id, change_type, field_name)
 select provider_id, run_id, model_id, change_type, field_name from change_events
-on conflict (run_id, model_id, change_type, field_name) do nothing;
+on conflict (run_id, model_id, change_type, field_name, pricing_mode, context_tier) do nothing;
 select count(*) as change_event_count from change_events;
 
 \echo '--- TEST 6: run status/completion consistency is enforced ---'
@@ -172,6 +172,15 @@ where c.contype = 'f'
 \echo '--- TEST 11: RLS blocks writes but allows reads for anon ---'
 grant usage on schema public to anon;
 grant select on all tables in schema public to anon;
+-- The blanket grant above would re-open the diagnostic columns the lifecycle
+-- migration deliberately withholds, so restore that restriction immediately.
+-- TEST 14 depends on this environment matching production.
+revoke select on collection_runs from anon;
+grant select (
+  id, source_id, status, external_run_id, triggered_by, started_at,
+  completed_at, records_seen, records_accepted, records_rejected,
+  error_message, created_at
+) on collection_runs to anon;
 grant insert on providers to anon;
 set role anon;
 select count(*) as anon_can_read_providers from providers;
@@ -183,4 +192,114 @@ begin
 exception when insufficient_privilege then
   raise notice 'PASS: anon cannot write';
 end $$;
+reset role;
+
+\echo '--- TEST 12: lifecycle history and retirement semantics ---'
+insert into providers (slug, name, homepage_url)
+values ('anthropic', 'Anthropic', 'https://www.anthropic.com')
+on conflict (slug) do update set name = excluded.name;
+
+insert into sources (provider_id, kind, collector_id, source_url, label)
+select id, 'models', 'c_msxj0fk3153bu9oz7l',
+       'https://platform.claude.com/docs/en/about-claude/model-deprecations',
+       'Anthropic lifecycle'
+from providers where slug = 'anthropic';
+
+insert into models (provider_id, model_name)
+select id, 'Claude Opus 4.1' from providers where slug = 'anthropic';
+
+insert into model_aliases (provider_id, model_id, source_id, alias, alias_type)
+select p.id, m.id, s.id, 'claude-opus-4-1-20250805', 'api_model_id'
+from providers p
+join models m on m.provider_id = p.id
+join sources s on s.provider_id = p.id and s.kind = 'models'
+where p.slug = 'anthropic';
+
+insert into collection_runs (
+  source_id, external_run_id, status, completed_at, records_seen, records_accepted
+)
+select id, run_id, 'succeeded', now(), 1, 1
+from sources
+cross join (values ('anthropic_lifecycle_1'), ('anthropic_lifecycle_2')) runs(run_id)
+where collector_id = 'c_msxj0fk3153bu9oz7l';
+
+insert into lifecycle_snapshots (
+  run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
+  retirement_date, retirement_not_before_date, source_url, observed_at
+)
+select r.id, s.id, p.id, m.id, 'claude-opus-4-1-20250805',
+       case r.external_run_id
+         when 'anthropic_lifecycle_1' then 'deprecated'::lifecycle_state
+         else 'retired'::lifecycle_state
+       end,
+       case r.external_run_id
+         when 'anthropic_lifecycle_2' then date '2026-12-17'
+         else null
+       end,
+       case r.external_run_id
+         when 'anthropic_lifecycle_1' then date '2026-08-05'
+         else null
+       end,
+       s.source_url,
+       case r.external_run_id
+         when 'anthropic_lifecycle_1' then now()
+         else now() + interval '1 hour'
+       end
+from collection_runs r
+join sources s on s.id = r.source_id
+join providers p on p.id = s.provider_id
+join models m on m.provider_id = p.id
+where r.external_run_id in ('anthropic_lifecycle_1', 'anthropic_lifecycle_2');
+
+select count(*) as lifecycle_history_rows from lifecycle_snapshots;
+select api_model_id, lifecycle_state, retirement_date,
+       retirement_not_before_date
+from latest_lifecycle_snapshots
+where provider_slug = 'anthropic';
+
+do $$
+begin
+  insert into lifecycle_snapshots (
+    run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
+    retirement_date, retirement_not_before_date, source_url, observed_at
+  )
+  select run_id, source_id, provider_id, model_id,
+         'claude-invalid-retirement', 'active', current_date, current_date,
+         source_url, now()
+  from lifecycle_snapshots limit 1;
+  raise exception 'FAIL: exact and not-before retirement dates were both accepted';
+exception when check_violation then
+  raise notice 'PASS: retirement semantics are mutually exclusive';
+end $$;
+
+\echo '--- TEST 13: re-ingesting one lifecycle run is idempotent ---'
+insert into lifecycle_snapshots (
+  run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
+  source_url, observed_at
+)
+select run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
+       source_url, observed_at
+from lifecycle_snapshots
+on conflict (run_id, api_model_id) do nothing;
+select count(*) as lifecycle_rows_after_replay from lifecycle_snapshots;
+
+\echo '--- TEST 14: collector diagnostics are not public ---'
+set role anon;
+do $$
+begin
+  perform validation_errors from collection_runs;
+  raise exception 'FAIL: anon can read collection_runs.validation_errors';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read validation_errors';
+end $$;
+do $$
+begin
+  perform error_details from collection_runs;
+  raise exception 'FAIL: anon can read collection_runs.error_details';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read error_details';
+end $$;
+-- The health panel still works: it never selects the diagnostic columns.
+select count(*) as anon_can_read_source_health from source_health;
+select count(*) as anon_can_read_lifecycle from latest_lifecycle_snapshots;
 reset role;

@@ -7,6 +7,7 @@ import type {
 import {
   createSupabaseServerClient,
   getLatestPricingSnapshots,
+  getLatestLifecycleSnapshots,
   getRecentChangeEvents,
   getSourceHealth,
 } from "../supabase";
@@ -29,6 +30,7 @@ function dashboardChangeType(type: string): DashboardChangeEvent["type"] {
   if (type === "model_added") return "model_launch";
   if (type === "model_removed") return "model_removal";
   if (type === "price_increased" || type === "price_decreased") return "price_change";
+  if (type === "lifecycle_changed") return "deprecation";
   return "schema_update";
 }
 
@@ -46,8 +48,9 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-  const [snapshots, sourceHealth, recentEvents, recentEvents24h, priceEvents7d] = await Promise.all([
+  const [snapshots, lifecycle, sourceHealth, recentEvents, recentEvents24h, priceEvents7d] = await Promise.all([
     getLatestPricingSnapshots(db),
+    getLatestLifecycleSnapshots(db),
     getSourceHealth(db),
     getRecentChangeEvents(db, { limit: 100 }),
     getRecentChangeEvents(db, { since: oneDayAgo, limit: 500 }),
@@ -59,6 +62,14 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   ]);
   const providerNameById = new Map<string, string>();
   const modelsByKey = new Map<string, ModelPricing>();
+  const lifecycleByModel = new Map<string, (typeof lifecycle)[number]>();
+  for (const observation of lifecycle) {
+    providerNameById.set(observation.provider_id, observation.provider_name);
+    const existing = lifecycleByModel.get(observation.model_id);
+    if (!existing || existing.observed_at < observation.observed_at) {
+      lifecycleByModel.set(observation.model_id, observation);
+    }
+  }
 
   for (const snapshot of snapshots) {
     providerNameById.set(snapshot.provider_id, snapshot.provider_name);
@@ -68,7 +79,7 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
       provider: snapshot.provider_name,
       name: snapshot.model_name,
       slug: snapshot.model_name,
-      status: "active" as const,
+      status: lifecycleByModel.get(snapshot.model_id)?.lifecycle_state ?? "active",
       contextWindow: null,
       lastVerifiedAt: snapshot.observed_at,
       rates: [],

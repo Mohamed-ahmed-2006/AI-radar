@@ -24,7 +24,7 @@ export interface ModelPricing {
   provider: string;
   name: string;
   slug: string;
-  status: "active" | "deprecated" | "preview";
+  status: "active" | "legacy" | "deprecated" | "retired" | "preview";
   rates: PricingRate[];
   contextWindow: number | null;
   lastVerifiedAt: string;

@@ -2,6 +2,7 @@ export * from "./client";
 export * from "./errors";
 export * from "./schemas";
 export * from "./collectors/openai";
+export * from "./collectors/anthropic-lifecycle";
 export * from "./collectors/pricing";
 export * from "./adapters/pricing";
 export type * from "./types";

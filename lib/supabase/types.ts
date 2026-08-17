@@ -23,7 +23,10 @@ export type ChangeType =
   | "model_removed"
   | "price_increased"
   | "price_decreased"
-  | "metadata_changed";
+  | "metadata_changed"
+  | "lifecycle_changed";
+
+export type LifecycleState = "active" | "legacy" | "deprecated" | "retired";
 
 export type ProviderRow = {
   id: string;
@@ -53,6 +56,12 @@ export type ModelRow = {
   display_name: string | null;
   metadata: Json;
   is_active: boolean;
+  lifecycle_state: LifecycleState | null;
+  deprecated_on: string | null;
+  retirement_date: string | null;
+  retirement_not_before_date: string | null;
+  lifecycle_source_id: string | null;
+  lifecycle_observed_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   created_at: string;
@@ -72,6 +81,7 @@ export type CollectionRunRow = {
   records_rejected: number;
   error_message: string | null;
   error_details: Json | null;
+  validation_errors: Json;
   created_at: string;
 };
 
@@ -98,6 +108,37 @@ export type PricingSnapshotRow = {
   content_hash: string;
 };
 
+export type ModelAliasRow = {
+  id: string;
+  provider_id: string;
+  model_id: string;
+  source_id: string | null;
+  alias: string;
+  alias_type: "api_model_id" | "source_name";
+  first_seen_at: string;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LifecycleSnapshotRow = {
+  id: string;
+  run_id: string;
+  source_id: string;
+  provider_id: string;
+  model_id: string;
+  api_model_id: string;
+  lifecycle_state: LifecycleState;
+  deprecated_on: string | null;
+  retirement_date: string | null;
+  retirement_not_before_date: string | null;
+  source_url: string;
+  raw: Json | null;
+  observed_at: string;
+  created_at: string;
+  content_hash: string;
+};
+
 export type ChangeEventRow = {
   id: string;
   provider_id: string;
@@ -113,6 +154,8 @@ export type ChangeEventRow = {
   new_value: Json | null;
   previous_snapshot_id: string | null;
   current_snapshot_id: string | null;
+  previous_lifecycle_snapshot_id: string | null;
+  current_lifecycle_snapshot_id: string | null;
   summary: string | null;
   detected_at: string;
   created_at: string;
@@ -120,6 +163,12 @@ export type ChangeEventRow = {
 
 /** Row of the `latest_pricing_snapshots` view. */
 export type LatestPricingSnapshotRow = PricingSnapshotRow & {
+  model_name: string;
+  provider_slug: string;
+  provider_name: string;
+};
+
+export type LatestLifecycleSnapshotRow = LifecycleSnapshotRow & {
   model_name: string;
   provider_slug: string;
   provider_name: string;
@@ -171,16 +220,33 @@ export type Database = {
       providers: Table<ProviderRow, "slug" | "name">;
       sources: Table<SourceRow, "provider_id" | "source_url">;
       models: Table<ModelRow, "provider_id" | "model_name">;
+      model_aliases: Table<
+        ModelAliasRow,
+        "provider_id" | "model_id" | "alias" | "alias_type"
+      >;
       collection_runs: Table<CollectionRunRow, "source_id">;
       pricing_snapshots: Table<
         PricingSnapshotRow,
         "run_id" | "source_id" | "provider_id" | "model_id"
+      >;
+      lifecycle_snapshots: Table<
+        LifecycleSnapshotRow,
+        | "run_id"
+        | "source_id"
+        | "provider_id"
+        | "model_id"
+        | "api_model_id"
+        | "lifecycle_state"
+        | "source_url"
+        | "observed_at"
       >;
       change_events: Table<ChangeEventRow, "provider_id" | "change_type">;
     };
     Views: {
       latest_pricing_snapshots: View<LatestPricingSnapshotRow>;
       latest_comparable_pricing_snapshots: View<LatestPricingSnapshotRow>;
+      latest_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
+      latest_comparable_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
       source_health: View<SourceHealthRow>;
     };
     Functions: Record<never, never>;
@@ -188,6 +254,7 @@ export type Database = {
       source_kind: SourceKind;
       run_status: RunStatus;
       change_type: ChangeType;
+      lifecycle_state: LifecycleState;
     };
     CompositeTypes: Record<never, never>;
   };

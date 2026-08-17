@@ -1,0 +1,31 @@
+[
+  {
+    "product_page_url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+    "input": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+    },
+    "api_model_name": "claude-sonnet-4-5-20250929",
+    "current_state": "Active",
+    "tentative_retirement_date": "Not sooner than September 29, 2026"
+  },
+  {
+    "product_page_url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+    "input": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+    },
+    "api_model_name": "claude-opus-4-1-20250805",
+    "current_state": "Retired",
+    "deprecated_date": "June 5, 2026",
+    "tentative_retirement_date": "August 5, 2026"
+  },
+  {
+    "product_page_url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+    "input": {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+    },
+    "api_model_name": "claude-3-7-sonnet-20250219",
+    "current_state": "Deprecated",
+    "deprecated_date": "July 15, 2026",
+    "tentative_retirement_date": "Not sooner than September 15, 2026"
+  }
+]

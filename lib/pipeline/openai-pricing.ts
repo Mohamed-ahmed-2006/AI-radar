@@ -8,6 +8,7 @@ import {
   type ChangeEvent,
   type NormalizedPricingRecord,
 } from "../contracts";
+import { planAnthropicModelMatches } from "../models/identity";
 import {
   completeCollectionRun,
   createSupabaseAdminClient,
@@ -298,8 +299,21 @@ export async function ingestPricingProvider(
   };
 
   try {
+    const modelNames = [...new Set(accepted.map((record) => record.modelName))];
+    const existingModels = await repository.listModels({ providerId: provider.id });
+    // Pricing is not an authoritative identity source. It may reuse a canonical
+    // row when the match is unambiguous, but an ambiguous display name must
+    // degrade to its own row — never abort every other model's price.
+    const anthropicPlans = providerDefinition.slug === "anthropic"
+      ? planAnthropicModelMatches(modelNames, existingModels, [], { onAmbiguity: "create" })
+      : null;
+    const namesToCreate = anthropicPlans
+      ? anthropicPlans
+          .filter((plan) => plan.createModelName !== null)
+          .map((plan) => plan.createModelName as string)
+      : modelNames;
     const models = await repository.upsertModels(
-      [...new Set(accepted.map((record) => record.modelName))].map((modelName) => ({
+      namesToCreate.map((modelName) => ({
         providerId: provider.id,
         modelName,
         seenAt: observedAt,
@@ -307,6 +321,13 @@ export async function ingestPricingProvider(
     );
     const knownModels = await repository.listModels({ providerId: provider.id });
     const modelsByName = new Map([...knownModels, ...models].map((model) => [model.model_name, model]));
+    if (anthropicPlans) {
+      for (const plan of anthropicPlans) {
+        const model = plan.model ?? modelsByName.get(plan.createModelName as string);
+        if (!model) throw new Error(`Model ${plan.apiModelId} was not returned by persistence`);
+        modelsByName.set(plan.apiModelId, model);
+      }
+    }
     const previousRows = await repository.getComparablePricingSnapshots({
       providerSlug: providerDefinition.slug,
       sourceId: source.id,

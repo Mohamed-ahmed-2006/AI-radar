@@ -14,6 +14,10 @@ import type {
   CollectionRunRow,
   Json,
   LatestPricingSnapshotRow,
+  LatestLifecycleSnapshotRow,
+  LifecycleSnapshotRow,
+  LifecycleState,
+  ModelAliasRow,
   ModelRow,
   PricingSnapshotRow,
   ProviderRow,
@@ -162,7 +166,6 @@ export async function upsertModels(
           model_name: input.modelName,
           display_name: input.displayName ?? null,
           metadata: input.metadata ?? {},
-          is_active: true,
           last_seen_at: input.seenAt ?? now,
         })),
         { onConflict: "provider_id,model_name" },
@@ -171,25 +174,10 @@ export async function upsertModels(
   );
 }
 
-/**
- * Flags every model of a provider that was not in the latest collection as
- * inactive. Feeds `model_removed` change detection.
- */
-export async function deactivateMissingModels(
-  db: SupabaseServerClient,
-  providerId: string,
-  seenModelIds: readonly string[],
-): Promise<ModelRow[]> {
-  let query = db
-    .from("models")
-    .update({ is_active: false })
-    .eq("provider_id", providerId)
-    .eq("is_active", true);
-  if (seenModelIds.length > 0) {
-    query = query.not("id", "in", `(${seenModelIds.join(",")})`);
-  }
-  return unwrap("deactivateMissingModels", await query.select());
-}
+// Deliberately absent: a "deactivate models missing from this collection"
+// helper. Absence from any collector — pricing or otherwise — is not evidence
+// about a model's lifecycle. `is_active` and the lifecycle columns are written
+// only by `applyModelLifecycleProjections`, from an authoritative source.
 
 export async function listModels(
   db: SupabaseServerClient,
@@ -199,6 +187,107 @@ export async function listModels(
   if (options.providerId) query = query.eq("provider_id", options.providerId);
   if (options.activeOnly) query = query.eq("is_active", true);
   return unwrap("listModels", await query);
+}
+
+export interface ModelAliasInput {
+  providerId: string;
+  modelId: string;
+  sourceId?: string | null;
+  alias: string;
+  aliasType: ModelAliasRow["alias_type"];
+  seenAt?: string;
+}
+
+export async function listModelAliases(
+  db: SupabaseServerClient,
+  providerId: string,
+): Promise<ModelAliasRow[]> {
+  return unwrap(
+    "listModelAliases",
+    await db.from("model_aliases").select().eq("provider_id", providerId),
+  );
+}
+
+export async function upsertModelAliases(
+  db: SupabaseServerClient,
+  inputs: readonly ModelAliasInput[],
+): Promise<ModelAliasRow[]> {
+  if (inputs.length === 0) return [];
+  const now = new Date().toISOString();
+  return unwrap(
+    "upsertModelAliases",
+    await db.from("model_aliases").upsert(
+      inputs.map((input) => ({
+        provider_id: input.providerId,
+        model_id: input.modelId,
+        source_id: input.sourceId ?? null,
+        alias: input.alias,
+        alias_type: input.aliasType,
+        last_seen_at: input.seenAt ?? now,
+      })),
+      { onConflict: "provider_id,alias_type,alias" },
+    ).select(),
+  );
+}
+
+export interface ModelLifecycleProjectionInput {
+  modelId: string;
+  sourceId: string;
+  lifecycleState: LifecycleState;
+  deprecatedOn: string | null;
+  retirementDate: string | null;
+  retirementNotBeforeDate: string | null;
+  observedAt: string;
+}
+
+/**
+ * Builds the projection patch. A date the authoritative source did not publish
+ * this run is *omitted*, not nulled: a page-layout regression that drops a
+ * column must never erase a deprecation date we already trust. A correction is
+ * still possible, because any non-null value is written through.
+ *
+ * The two retirement columns move as a pair. They are mutually exclusive in the
+ * schema, so writing only one of them could otherwise leave a stale lower bound
+ * next to a new exact date and fail the check constraint.
+ */
+export function modelLifecycleProjectionPatch(
+  input: ModelLifecycleProjectionInput,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    lifecycle_state: input.lifecycleState,
+    lifecycle_source_id: input.sourceId,
+    lifecycle_observed_at: input.observedAt,
+    last_seen_at: input.observedAt,
+    // Only `retired` may take a model out of circulation; every other
+    // authoritative state leaves it available.
+    is_active: input.lifecycleState !== "retired",
+  };
+  if (input.deprecatedOn !== null) patch.deprecated_on = input.deprecatedOn;
+  if (input.retirementDate !== null || input.retirementNotBeforeDate !== null) {
+    patch.retirement_date = input.retirementDate;
+    patch.retirement_not_before_date = input.retirementNotBeforeDate;
+  }
+  return patch;
+}
+
+/** This is the sole repository operation that writes current lifecycle state. */
+export async function applyModelLifecycleProjections(
+  db: SupabaseServerClient,
+  inputs: readonly ModelLifecycleProjectionInput[],
+): Promise<ModelRow[]> {
+  const rows: ModelRow[] = [];
+  for (const input of inputs) {
+    rows.push(unwrap(
+      "applyModelLifecycleProjections",
+      await db
+        .from("models")
+        .update(modelLifecycleProjectionPatch(input) as never)
+        .eq("id", input.modelId)
+        .select()
+        .single(),
+    ));
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +350,7 @@ export async function completeCollectionRun(
   runId: string,
   counts: RunCounts,
   status?: Extract<RunStatus, "succeeded" | "partial">,
+  validationErrors: Json = [],
 ): Promise<CollectionRunRow> {
   return unwrap(
     "completeCollectionRun",
@@ -272,6 +362,7 @@ export async function completeCollectionRun(
         records_seen: counts.recordsSeen,
         records_accepted: counts.recordsAccepted,
         records_rejected: counts.recordsRejected,
+        validation_errors: validationErrors,
       })
       .eq("id", runId)
       .select()
@@ -310,19 +401,32 @@ export async function failCollectionRun(
   );
 }
 
+/** A collection run without the service-role-only diagnostic columns. */
+export type PublicCollectionRunRow = Omit<
+  CollectionRunRow,
+  "error_details" | "validation_errors"
+>;
+
 export async function getLatestRunForSource(
   db: SupabaseServerClient,
   sourceId: string,
-): Promise<CollectionRunRow | null> {
+): Promise<PublicCollectionRunRow | null> {
+  // Explicit column list, not `select *`: `error_details` and
+  // `validation_errors` carry collector diagnostics and are not granted to the
+  // anon role this client may be using.
   const { data, error } = await db
     .from("collection_runs")
-    .select()
+    .select(
+      "id, source_id, status, external_run_id, triggered_by, started_at," +
+      " completed_at, records_seen, records_accepted, records_rejected," +
+      " error_message, created_at",
+    )
     .eq("source_id", sourceId)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new RepositoryError("getLatestRunForSource", error);
-  return data;
+  return data as PublicCollectionRunRow | null;
 }
 
 /** Latest run per source, for the scraper-health panel. */
@@ -355,6 +459,71 @@ export interface PricingSnapshotInput {
   /** Verbatim collector record, for audit. */
   raw?: Json;
   observedAt?: string;
+}
+
+export interface LifecycleSnapshotInput {
+  runId: string;
+  sourceId: string;
+  providerId: string;
+  modelId: string;
+  apiModelId: string;
+  lifecycleState: LifecycleState;
+  deprecatedOn?: string | null;
+  retirementDate?: string | null;
+  retirementNotBeforeDate?: string | null;
+  sourceUrl: string;
+  raw?: Json;
+  observedAt: string;
+}
+
+export async function saveLifecycleSnapshots(
+  db: SupabaseServerClient,
+  inputs: readonly LifecycleSnapshotInput[],
+): Promise<LifecycleSnapshotRow[]> {
+  if (inputs.length === 0) return [];
+  return unwrap(
+    "saveLifecycleSnapshots",
+    await db.from("lifecycle_snapshots").upsert(
+      inputs.map((input) => ({
+        run_id: input.runId,
+        source_id: input.sourceId,
+        provider_id: input.providerId,
+        model_id: input.modelId,
+        api_model_id: input.apiModelId,
+        lifecycle_state: input.lifecycleState,
+        deprecated_on: input.deprecatedOn ?? null,
+        retirement_date: input.retirementDate ?? null,
+        retirement_not_before_date: input.retirementNotBeforeDate ?? null,
+        source_url: input.sourceUrl,
+        raw: input.raw ?? null,
+        observed_at: input.observedAt,
+      })),
+      { onConflict: "run_id,api_model_id" },
+    ).select(),
+  );
+}
+
+export async function getComparableLifecycleSnapshots(
+  db: SupabaseServerClient,
+  options: { providerSlug?: string; sourceId?: string } = {},
+): Promise<LatestLifecycleSnapshotRow[]> {
+  let query = db
+    .from("latest_comparable_lifecycle_snapshots")
+    .select()
+    .order("api_model_id");
+  if (options.providerSlug) query = query.eq("provider_slug", options.providerSlug);
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
+  return unwrap("getComparableLifecycleSnapshots", await query);
+}
+
+export async function getLatestLifecycleSnapshots(
+  db: SupabaseServerClient,
+  options: { providerSlug?: string; sourceId?: string } = {},
+): Promise<LatestLifecycleSnapshotRow[]> {
+  let query = db.from("latest_lifecycle_snapshots").select().order("api_model_id");
+  if (options.providerSlug) query = query.eq("provider_slug", options.providerSlug);
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
+  return unwrap("getLatestLifecycleSnapshots", await query);
 }
 
 export async function savePricingSnapshot(
@@ -497,6 +666,8 @@ export interface ChangeEventInput {
   newValue?: Json;
   previousSnapshotId?: string | null;
   currentSnapshotId?: string | null;
+  previousLifecycleSnapshotId?: string | null;
+  currentLifecycleSnapshotId?: string | null;
   summary?: string | null;
   detectedAt?: string;
 }
@@ -549,6 +720,8 @@ function changeEventSemanticValue(input: ChangeEventInput): string {
     newValue: input.newValue ?? null,
     previousSnapshotId: input.previousSnapshotId ?? null,
     currentSnapshotId: input.currentSnapshotId ?? null,
+    previousLifecycleSnapshotId: input.previousLifecycleSnapshotId ?? null,
+    currentLifecycleSnapshotId: input.currentLifecycleSnapshotId ?? null,
     summary: input.summary ?? null,
     detectedAt: input.detectedAt ?? null,
   });
@@ -614,6 +787,8 @@ export async function saveChangeEvents(
           new_value: input.newValue ?? null,
           previous_snapshot_id: input.previousSnapshotId ?? null,
           current_snapshot_id: input.currentSnapshotId ?? null,
+          previous_lifecycle_snapshot_id: input.previousLifecycleSnapshotId ?? null,
+          current_lifecycle_snapshot_id: input.currentLifecycleSnapshotId ?? null,
           summary: input.summary ?? null,
           ...(input.detectedAt && { detected_at: input.detectedAt }),
         })),
