@@ -1,0 +1,77 @@
+import type { ChangeEvent } from "../types";
+import { Badge } from "../ui/Badge";
+import { EmptyState, LoadingState } from "../ui/DataState";
+import { Panel } from "../ui/Panel";
+import { changeTypeLabel, formatRelativeTime } from "../utils";
+
+const severityVariant = {
+  info: "info" as const,
+  warning: "warning" as const,
+  critical: "critical" as const,
+};
+
+interface RecentChangesFeedProps {
+  changes: ChangeEvent[];
+  loading?: boolean;
+  maxItems?: number;
+}
+
+export function RecentChangesFeed({
+  changes,
+  loading,
+  maxItems = 8,
+}: RecentChangesFeedProps) {
+  const items = changes.slice(0, maxItems);
+
+  return (
+    <Panel
+      id="changes"
+      title="Recent changes"
+      subtitle="Detected pricing, model, and source events"
+    >
+      {loading ? (
+        <LoadingState title="Loading change feed…" />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="No changes detected"
+          description="The change-detection pipeline has not recorded any events yet."
+        />
+      ) : (
+        <ol className="radar-feed" aria-label="Recent ecosystem changes">
+          {items.map((change) => (
+            <li key={change.id} className="radar-feed-item">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <Badge variant={severityVariant[change.severity]}>
+                      {changeTypeLabel(change.type)}
+                    </Badge>
+                    <span className="text-[10px] text-radar-text-muted font-mono">
+                      {change.provider}
+                      {change.model && ` · ${change.model}`}
+                    </span>
+                  </div>
+                  <p className="text-sm text-radar-text-primary leading-snug">
+                    {change.summary}
+                  </p>
+                  {change.detail && (
+                    <p className="text-xs text-radar-text-muted mt-0.5 font-mono">
+                      {change.detail}
+                    </p>
+                  )}
+                </div>
+                <time
+                  dateTime={change.detectedAt}
+                  className="text-[10px] text-radar-text-muted whitespace-nowrap shrink-0 tabular-nums"
+                  title={change.detectedAt}
+                >
+                  {formatRelativeTime(change.detectedAt)}
+                </time>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Panel>
+  );
+}
