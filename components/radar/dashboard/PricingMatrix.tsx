@@ -27,7 +27,7 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
     <Panel
       id="pricing"
       title="Model pricing matrix"
-      subtitle="Per-million-token rates · short and long context tiers"
+      subtitle="Per-million-token rates · standard, short, and long context tiers"
     >
       {loading ? (
         <LoadingState title="Loading pricing data…" />
@@ -51,7 +51,7 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
                   Context
                 </th>
                 <th scope="col" className="radar-table-head text-center" colSpan={3}>
-                  Short tier
+                  Standard / short tier
                 </th>
                 <th scope="col" className="radar-table-head text-center" colSpan={3}>
                   Long tier
@@ -73,7 +73,8 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
             </thead>
             <tbody>
               {models.map((model) => {
-                const short = model.rates.find((r) => r.tier === "short");
+                const short = model.rates.find((r) => r.tier === "short") ??
+                  model.rates.find((r) => r.tier === "standard");
                 const long = model.rates.find((r) => r.tier === "long");
                 const statusVariant =
                   model.status === "active"
@@ -102,12 +103,12 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
                     </td>
                     {short ? (
                       <>
-                        <RateCell value={short.inputPerMillion} label="short input" />
+                        <RateCell value={short.inputPerMillion} label="standard or short input" />
                         <RateCell
                           value={short.cachedInputPerMillion ?? null}
-                          label="short cached input"
+                          label="standard or short cached input"
                         />
-                        <RateCell value={short.outputPerMillion} label="short output" />
+                        <RateCell value={short.outputPerMillion} label="standard or short output" />
                       </>
                     ) : (
                       <td colSpan={3} className="radar-table-cell text-center text-radar-text-muted">

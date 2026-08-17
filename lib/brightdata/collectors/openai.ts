@@ -1,4 +1,5 @@
 import { BrightDataClient } from "../client";
+import { fetchPricingCollector } from "./pricing";
 import type { CollectorPollProgress, CollectorRunResult } from "../types";
 
 export const DEFAULT_OPENAI_COLLECTOR_ID = "c_msx3bqlyjtv2qustx";
@@ -50,8 +51,6 @@ export interface FetchOpenAIPricingOptions {
 export async function fetchOpenAIPricing(
   options: FetchOpenAIPricingOptions = {}
 ): Promise<CollectorRunResult<unknown>> {
-  const client = options.client ?? BrightDataClient.fromEnv();
-
   const collectorId = (
     options.collectorId ||
     process.env.BRIGHTDATA_OPENAI_COLLECTOR_ID ||
@@ -64,11 +63,10 @@ export async function fetchOpenAIPricing(
     DEFAULT_OPENAI_PRICING_SOURCE_URL
   ).trim();
 
-  const inputs = sourceUrl ? [{ url: sourceUrl }] : [];
-
-  return client.runCollector<Record<string, unknown>, unknown>({
+  return fetchPricingCollector({
+    client: options.client,
     collectorId,
-    inputs,
+    sourceUrl,
     pollIntervalMs: options.pollIntervalMs,
     pollTimeoutMs: options.pollTimeoutMs,
     onProgress: options.onProgress,

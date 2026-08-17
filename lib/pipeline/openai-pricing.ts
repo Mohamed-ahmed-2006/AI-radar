@@ -1,4 +1,4 @@
-import { fetchOpenAIPricing } from "../brightdata";
+import { fetchPricingCollector } from "../brightdata";
 import { detectPricingChanges } from "../change-detection";
 import {
   NormalizedPricingRecordSchema,
@@ -29,12 +29,11 @@ import {
   type ProviderRow,
   type SourceRow,
 } from "../supabase";
-
-const OPENAI_PROVIDER = {
-  slug: "openai",
-  name: "OpenAI",
-  homepageUrl: "https://openai.com",
-} as const;
+import {
+  PRICING_PROVIDERS,
+  resolvePricingProviderConfiguration,
+  type PricingProviderDefinition,
+} from "./providers";
 
 export interface OpenAiCollectorResult {
   success: boolean;
@@ -153,17 +152,20 @@ function eventValue(change: ChangeEvent): Json {
   return "newValue" in change ? change.newValue : null;
 }
 
-export class OpenAiPricingIngestionError extends Error {
+export class PricingIngestionError extends Error {
   readonly collectionRunId?: string;
   readonly externalRunId?: string;
 
   constructor(message: string, ids: { collectionRunId?: string; externalRunId?: string } = {}) {
     super(message);
-    this.name = "OpenAiPricingIngestionError";
+    this.name = "PricingIngestionError";
     this.collectionRunId = ids.collectionRunId;
     this.externalRunId = ids.externalRunId;
   }
 }
+
+/** @deprecated Retained for OpenAI endpoint compatibility. */
+export { PricingIngestionError as OpenAiPricingIngestionError };
 
 export interface IngestOpenAiPricingOptions {
   repository?: OpenAiPricingPipelineRepository;
@@ -184,31 +186,34 @@ export interface OpenAiPricingIngestionResult {
 }
 
 /**
- * End-to-end, server-only OpenAI pricing ingestion.
+ * End-to-end, server-only pricing ingestion for one provider definition.
  *
- * A missing record is a pricing-domain removal only. This source is not an
- * authoritative model inventory, so this workflow must never deactivate a
- * row in `models` for collector absence.
+ * A missing record is a pricing-domain removal only. Pricing sources are not
+ * authoritative model inventories, so this workflow never deactivates rows
+ * in `models` for collector absence.
  */
-export async function ingestOpenAiPricing(
+export async function ingestPricingProvider(
+  providerDefinition: PricingProviderDefinition,
   options: IngestOpenAiPricingOptions = {},
 ): Promise<OpenAiPricingIngestionResult> {
   if (typeof window !== "undefined") {
-    throw new Error("ingestOpenAiPricing must only run on the server");
+    throw new Error("ingestPricingProvider must only run on the server");
   }
   const repository = options.repository ?? createRepository();
-  const collect = options.collect ?? (() => fetchOpenAIPricing());
+  const configuration = resolvePricingProviderConfiguration(providerDefinition);
+  const collect = options.collect ?? (() => fetchPricingCollector(configuration));
   const startedAt = Date.now();
-  const provider = await repository.upsertProvider(OPENAI_PROVIDER);
-  const sourceUrl = process.env.OPENAI_PRICING_SOURCE_URL ??
-    "https://developers.openai.com/api/docs/pricing";
-  const collectorId = process.env.BRIGHTDATA_OPENAI_COLLECTOR_ID ??
-    "c_msx3bqlyjtv2qustx";
+  const provider = await repository.upsertProvider({
+    slug: providerDefinition.slug,
+    name: providerDefinition.name,
+    homepageUrl: providerDefinition.homepageUrl,
+  });
+  const { sourceUrl, collectorId } = configuration;
   const source = await repository.upsertSource({
     providerId: provider.id,
     sourceUrl,
     collectorId,
-    label: "OpenAI pricing page",
+    label: providerDefinition.label,
   });
 
   let collection: OpenAiCollectorResult;
@@ -225,7 +230,7 @@ export async function ingestOpenAiPricing(
       recordsAccepted: 0,
       recordsRejected: 0,
     });
-    throw new OpenAiPricingIngestionError(message, { collectionRunId: failedRun.id });
+    throw new PricingIngestionError(message, { collectionRunId: failedRun.id });
   }
   const externalRunId = collection.metadata.runId;
   const run = await repository.startCollectionRun({
@@ -241,7 +246,7 @@ export async function ingestOpenAiPricing(
       recordsAccepted: 0,
       recordsRejected: 0,
     });
-    throw new OpenAiPricingIngestionError(message, {
+    throw new PricingIngestionError(message, {
       collectionRunId: run.id,
       externalRunId,
     });
@@ -266,8 +271,10 @@ export async function ingestOpenAiPricing(
   let rejectedCount = 0;
 
   for (const raw of collection.data) {
-    const parsed = RawBrightDataPricingRecordSchema.safeParse(raw);
-    if (!parsed.success || parsed.data.provider !== OPENAI_PROVIDER.name) {
+    const parsed = RawBrightDataPricingRecordSchema.safeParse(
+      providerDefinition.adapt(raw, sourceUrl),
+    );
+    if (!parsed.success || parsed.data.provider !== providerDefinition.name) {
       rejectedCount += 1;
       continue;
     }
@@ -301,7 +308,7 @@ export async function ingestOpenAiPricing(
     const knownModels = await repository.listModels({ providerId: provider.id });
     const modelsByName = new Map([...knownModels, ...models].map((model) => [model.model_name, model]));
     const previousRows = await repository.getLatestPricingSnapshots({
-      providerSlug: OPENAI_PROVIDER.slug,
+      providerSlug: providerDefinition.slug,
       sourceId: source.id,
     });
     const previous = previousRows.map(snapshotToRecord);
@@ -372,9 +379,34 @@ export async function ingestOpenAiPricing(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pricing persistence failed";
     await repository.failCollectionRun(run.id, { message }, counts);
-    throw new OpenAiPricingIngestionError(message, {
+    throw new PricingIngestionError(message, {
       collectionRunId: run.id,
       externalRunId,
     });
   }
+}
+
+/** OpenAI pricing ingestion compatibility entry point. */
+export function ingestOpenAiPricing(
+  options: IngestOpenAiPricingOptions = {},
+): Promise<OpenAiPricingIngestionResult> {
+  return ingestPricingProvider(PRICING_PROVIDERS.openai, options);
+}
+
+export function ingestAnthropicPricing(
+  options: IngestOpenAiPricingOptions = {},
+): Promise<OpenAiPricingIngestionResult> {
+  return ingestPricingProvider(PRICING_PROVIDERS.anthropic, options);
+}
+
+export function ingestGeminiPricing(
+  options: IngestOpenAiPricingOptions = {},
+): Promise<OpenAiPricingIngestionResult> {
+  return ingestPricingProvider(PRICING_PROVIDERS.gemini, options);
+}
+
+export function ingestXaiPricing(
+  options: IngestOpenAiPricingOptions = {},
+): Promise<OpenAiPricingIngestionResult> {
+  return ingestPricingProvider(PRICING_PROVIDERS.xai, options);
 }

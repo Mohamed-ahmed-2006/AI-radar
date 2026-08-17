@@ -63,7 +63,7 @@ test("normalizes missing and explicit-null optional prices to null", () => {
 test("rejects malformed identifiers, URLs, and prices without coercion", () => {
   const invalidRecords = [
     { ...knownOpenAiRecord, provider: " OpenAI" },
-    { ...knownOpenAiRecord, model_name: "gpt model" },
+    { ...knownOpenAiRecord, model_name: "gpt@model" },
     { ...knownOpenAiRecord, pricing_mode: "Standard" },
     { ...knownOpenAiRecord, context_tier: "short tier" },
     { ...knownOpenAiRecord, source_url: "javascript:alert(1)" },

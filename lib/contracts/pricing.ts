@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 const providerPattern = /^[\p{L}\p{N}][\p{L}\p{N} .&'()+_-]*$/u;
-const modelPattern = /^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/;
+// Provider-native display names legitimately contain spaces (for example
+// "Claude Sonnet 5" and "Gemini 2.5 Pro"). Parenthetical source annotations
+// remain adapter concerns rather than becoming canonical identifiers.
+const modelPattern = /^[\p{L}\p{N}][\p{L}\p{N} ._:/+-]*$/u;
 const tierPattern = /^[a-z0-9][a-z0-9_-]*$/;
 const collectorPattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 

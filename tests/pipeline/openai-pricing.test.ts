@@ -4,6 +4,7 @@ import test from "node:test";
 import { POST } from "../../app/api/ingest/openai/route";
 import {
   ingestOpenAiPricing,
+  ingestAnthropicPricing,
   OpenAiPricingIngestionError,
   type OpenAiCollectorResult,
   type OpenAiPricingPipelineRepository,
@@ -53,17 +54,31 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
   readonly runs: CollectionRunRow[] = [];
   readonly models: ModelRow[] = [];
   readonly events: ChangeEventInput[] = [];
+  readonly sources: SourceRow[] = [];
   latest: LatestPricingSnapshotRow[] = [];
   failSnapshots = false;
-  private readonly provider: ProviderRow = {
-    id: "provider-openai", slug: "openai", name: "OpenAI", homepage_url: "https://openai.com", created_at: timestamp, updated_at: timestamp,
-  };
-  private readonly source: SourceRow = {
-    id: "source-openai", provider_id: "provider-openai", kind: "pricing", collector_id: "c_msx3bqlyjtv2qustx", source_url: "https://developers.openai.com/api/docs/pricing", label: "OpenAI pricing page", is_active: true, created_at: timestamp, updated_at: timestamp,
-  };
+  private readonly providers: ProviderRow[] = [];
 
-  async upsertProvider(): Promise<ProviderRow> { return this.provider; }
-  async upsertSource(): Promise<SourceRow> { return this.source; }
+  async upsertProvider(input: { slug: string; name: string; homepageUrl?: string | null }): Promise<ProviderRow> {
+    const existing = this.providers.find((provider) => provider.slug === input.slug);
+    if (existing) return existing;
+    const provider: ProviderRow = {
+      id: `provider-${input.slug}`, slug: input.slug, name: input.name,
+      homepage_url: input.homepageUrl ?? null, created_at: timestamp, updated_at: timestamp,
+    };
+    this.providers.push(provider);
+    return provider;
+  }
+  async upsertSource(input: { providerId: string; sourceUrl: string; collectorId?: string | null; label?: string | null }): Promise<SourceRow> {
+    const existing = this.sources.find((source) => source.provider_id === input.providerId && source.source_url === input.sourceUrl);
+    if (existing) return existing;
+    const source: SourceRow = {
+      id: `source-${this.sources.length + 1}`, provider_id: input.providerId, kind: "pricing", collector_id: input.collectorId ?? null,
+      source_url: input.sourceUrl, label: input.label ?? null, is_active: true, created_at: timestamp, updated_at: timestamp,
+    };
+    this.sources.push(source);
+    return source;
+  }
   async startCollectionRun(input: { sourceId: string; externalRunId?: string | null; triggeredBy?: string }): Promise<CollectionRunRow> {
     const existing = this.runs.find((run) => run.external_run_id === (input.externalRunId ?? null));
     if (existing) return existing;
@@ -91,7 +106,7 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
   }
   async upsertModels(inputs: readonly { providerId: string; modelName: string; seenAt: string }[]): Promise<ModelRow[]> {
     return inputs.map((input) => {
-      let model = this.models.find((item) => item.model_name === input.modelName);
+      let model = this.models.find((item) => item.provider_id === input.providerId && item.model_name === input.modelName);
       if (!model) {
         model = { id: `model-${this.models.length + 1}`, provider_id: input.providerId, model_name: input.modelName, display_name: null, metadata: {}, is_active: true, first_seen_at: input.seenAt, last_seen_at: input.seenAt, created_at: timestamp, updated_at: timestamp };
         this.models.push(model);
@@ -113,7 +128,9 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
         cached_input_price_per_1m_tokens: input.cachedInputPricePer1mTokens ?? null, cache_write_price_per_1m_tokens: input.cacheWritePricePer1mTokens ?? null,
         output_price_per_1m_tokens: input.outputPricePer1mTokens ?? null, currency: input.currency ?? "USD", pricing_unit: input.pricingUnit ?? "USD per 1M tokens",
         source_url: input.sourceUrl ?? null, extra: {}, raw: null, observed_at: input.observedAt ?? timestamp, created_at: timestamp, content_hash: "hash",
-        model_name: model.model_name, provider_slug: "openai", provider_name: "OpenAI",
+        model_name: model.model_name,
+        provider_slug: this.providers.find((provider) => provider.id === input.providerId)?.slug ?? "unknown",
+        provider_name: this.providers.find((provider) => provider.id === input.providerId)?.name ?? "Unknown",
       };
     });
     return this.latest.map((row) => ({ id: row.id, model_id: row.model_id, pricing_mode: row.pricing_mode, context_tier: row.context_tier }));
@@ -170,6 +187,23 @@ test("pipeline records Bright Data and persistence failures as failed runs", asy
     OpenAiPricingIngestionError,
   );
   assert.equal(persistenceFailure.runs[0]?.status, "failed");
+});
+
+test("Anthropic uses the shared pipeline with its own provider and source provenance", async () => {
+  const repository = new MemoryRepository();
+  const result = await ingestAnthropicPricing({
+    repository,
+    collect: collector([{
+      provider: "Anthropic", model_name: "Claude Sonnet 5", pricing_mode: "standard", context_tier: "standard",
+      input_price_per_1m_tokens: 2, cached_input_price_per_1m_tokens: 0.2,
+      cache_write_price_per_1m_tokens: 2.5, output_price_per_1m_tokens: 10,
+      pricing_unit: "per_1m_tokens",
+    }], "anthropic-run"),
+    now: () => new Date(timestamp),
+  });
+  assert.equal(result.acceptedCount, 1);
+  assert.equal(repository.models[0]?.provider_id, "provider-anthropic");
+  assert.equal(repository.sources[0]?.collector_id, "c_msxbuggp1czbtysx06");
 });
 
 test("ingest endpoint rejects absent or incorrect secrets without returning secret material", async () => {
