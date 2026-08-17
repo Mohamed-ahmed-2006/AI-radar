@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MockDataBadge } from "./MockDataBadge";
 import { RadarMark } from "./RadarMark";
 
 const navItems = [
@@ -11,7 +12,7 @@ const navItems = [
   { href: "#sources", label: "Sources" },
 ];
 
-export function RadarHeader() {
+export function RadarHeader({ isMock }: { isMock: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -48,9 +49,7 @@ export function RadarHeader() {
         </nav>
 
         <div className="radar-header-meta">
-          <span className="radar-mock-badge" title="Data is from UI fixture, not live">
-            MOCK DATA
-          </span>
+          <MockDataBadge isMock={isMock} />
         </div>
       </div>
     </header>

@@ -13,6 +13,7 @@ export default async function Home() {
 
   return (
     <RadarShell
+      isMock={data.isMock}
       footer={
         <p>
           AI Radar · Bright Data Scraper Studio · {data.isMock ? `Fixture ${data.fixtureVersion}` : "Live Supabase data"}
