@@ -1,0 +1,18 @@
+# Minimal Supabase CLI config for local development.
+# Everything not listed here falls back to the CLI defaults.
+project_id = "ai-radar"
+
+[db]
+port = 54322
+major_version = 17
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[studio]
+enabled = true
+port = 54323
