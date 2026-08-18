@@ -7,10 +7,17 @@ import { RadarMark } from "./RadarMark";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
-  { href: "#changes", label: "Changes" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#sources", label: "Sources" },
-];
+  { href: "/#changes", label: "Changes" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/source-health", label: "Source Health" },
+] as const;
+
+/** Hash entries always target the dashboard, so they are never "the page". */
+function isRouteActive(pathname: string, href: string): boolean {
+  if (href.includes("#")) return false;
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function RadarHeader({ isMock }: { isMock: boolean }) {
   const pathname = usePathname();
@@ -27,12 +34,9 @@ export function RadarHeader({ isMock }: { isMock: boolean }) {
         </Link>
 
         <nav className="radar-nav" aria-label="Main navigation">
-          <ul className="flex items-center gap-1">
+          <ul className="flex items-center gap-1 flex-nowrap">
             {navItems.map((item) => {
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : false;
+              const isActive = isRouteActive(pathname, item.href);
               return (
                 <li key={item.href}>
                   <Link
