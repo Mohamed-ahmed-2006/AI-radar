@@ -7,9 +7,10 @@ import { RadarMark } from "./RadarMark";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
-  { href: "/#changes", label: "Changes" },
+  { href: "/changes", label: "Changes" },
   { href: "/#pricing", label: "Pricing" },
-  { href: "/source-health", label: "Source Health" },
+  { href: "/sources", label: "Sources" },
+  { href: "/my-stack", label: "My Stack" },
 ] as const;
 
 /** Hash entries always target the dashboard, so they are never "the page". */

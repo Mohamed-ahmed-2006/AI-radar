@@ -1,0 +1,66 @@
+import { Panel } from "../../radar/ui/Panel";
+import type { SourceDetailView } from "../../../lib/product/source-detail";
+import { DemoNotice } from "../common/DemoNotice";
+import { PageIntro } from "../common/PageIntro";
+import { ProvenanceDetails } from "../provenance/ProvenanceDetails";
+import { SourceDataPanel } from "./SourceDataPanel";
+import { SourceHealthSummary } from "./SourceHealthSummary";
+import { SourceIdentityPanel } from "./SourceIdentityPanel";
+import { SourceIncidentPanel } from "./SourceIncidentPanel";
+import { SourceNormalizationPanel } from "./SourceNormalizationPanel";
+import { SourceRunHistoryPanel } from "./SourceRunHistoryPanel";
+
+/**
+ * Everything known about one collection source.
+ *
+ * The whole page reads `SourceDetailView` and nothing else, so replacing the
+ * adapter behind it (see `lib/product/source-detail.ts`) changes what these
+ * panels can show without changing any of this markup.
+ */
+export function SourceDetail({ detail }: { detail: SourceDetailView }) {
+  return (
+    <div className="radar-surface-stack">
+      <PageIntro
+        title={detail.identity.name}
+        description={`${detail.identity.providerName} · ${detail.identity.category} source. Collection integrity, freshness, provenance and the path from raw payload to trusted data.`}
+      />
+
+      {detail.isDemo && (
+        <DemoNotice title="This source page is showing the deterministic demo simulation.">
+          {detail.demoScenario
+            ? `Scenario: ${detail.demoScenario}. `
+            : ""}
+          No production collection run produced the state below.
+        </DemoNotice>
+      )}
+
+      <SourceHealthSummary health={detail.health} freshness={detail.freshness} />
+
+      <div className="radar-source-detail-grid">
+        <div className="radar-surface-stack">
+          <SourceIdentityPanel identity={detail.identity} />
+          <SourceRunHistoryPanel runHistory={detail.runHistory} />
+          <SourceNormalizationPanel normalization={detail.normalization} />
+        </div>
+        <div className="radar-surface-stack">
+          <SourceDataPanel
+            observedData={detail.observedData}
+            lastKnownGood={detail.lastKnownGood}
+          />
+          <SourceIncidentPanel
+            incidents={detail.incidents}
+            healingTimeline={detail.healingTimeline}
+            sourceName={detail.identity.name}
+          />
+          <Panel
+            id="source-provenance"
+            title="Provenance"
+            subtitle="The record behind everything on this page"
+          >
+            <ProvenanceDetails provenance={detail.provenance} />
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+}
