@@ -33,7 +33,7 @@ test("every configured source carries the authority contract of its domain", () 
         false,
         `${source.key} must never be authoritative for model inventory`,
       );
-    } else {
+    } else if (source.sourceType === "lifecycle") {
       assert.equal(contract.authorityDomain, "lifecycle");
       assert.equal(contract.isAuthoritative, true, `${source.key} is the lifecycle authority`);
       assert.equal(
@@ -41,9 +41,13 @@ test("every configured source carries the authority contract of its domain", () 
         0,
         `${source.key} tolerates no malformed authoritative record`,
       );
+    } else {
+      assert.equal(contract.authorityDomain, "catalog");
+      assert.equal(contract.isAuthoritative, true, `${source.key} is the catalog authority`);
     }
   }
 });
+
 
 test("an orchestrated pricing run never deactivates or retires a model that stopped being listed", async () => {
   const repository = new InMemoryOrchestrationRepository();
@@ -170,7 +174,7 @@ test("a fleet run keeps each source inside its own provider and domain", async (
     sleep: async () => {},
   });
 
-  assert.equal(fleet.summary.succeeded, 6);
+  assert.equal(fleet.summary.succeeded, harnesses.length);
   for (const harness of harnesses) {
     if (harness.source.sourceType === "pricing") {
       assert.ok(harness.pricing.pricingSnapshots.length > 0, "pricing wrote pricing snapshots");
@@ -180,15 +184,28 @@ test("a fleet run keeps each source inside its own provider and domain", async (
         "a pricing run never writes lifecycle evidence",
       );
       assert.equal(harness.pricing.lifecycleProjections.length, 0);
-    } else {
+    } else if (harness.source.sourceType === "lifecycle") {
       assert.ok(harness.lifecycle.lifecycleSnapshots.length > 0, "lifecycle wrote its evidence");
       assert.equal(
         harness.lifecycle.pricingSnapshots.length,
         0,
         "a lifecycle run never writes pricing",
       );
+    } else {
+      assert.ok(harness.catalog.capabilitySnapshots.length > 0, "catalog wrote its capabilities");
+      assert.equal(
+        harness.catalog.pricingSnapshots.length,
+        0,
+        "a catalog run never writes pricing",
+      );
+      assert.equal(
+        harness.catalog.lifecycleSnapshots.length,
+        0,
+        "a catalog run never writes lifecycle evidence",
+      );
     }
   }
+
 
   // Each orchestration run is attributed to exactly one provider and domain.
   for (const run of repository.runs) {

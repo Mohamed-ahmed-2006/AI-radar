@@ -6,11 +6,13 @@ import type {
 } from "@/components/radar/types";
 import {
   createSupabaseServerClient,
+  getLatestCapabilitySnapshots,
   getLatestPricingSnapshots,
   getLatestLifecycleSnapshots,
   getRecentChangeEvents,
   getSourceHealth,
 } from "../supabase";
+
 
 function sourceStatus(status: "running" | "succeeded" | "partial" | "failed" | null): HealthStatus {
   if (status === "succeeded") return "healthy";
@@ -31,8 +33,10 @@ function dashboardChangeType(type: string): DashboardChangeEvent["type"] {
   if (type === "model_removed") return "model_removal";
   if (type === "price_increased" || type === "price_decreased") return "price_change";
   if (type === "lifecycle_changed") return "deprecation";
+  if (type === "capability_changed") return "capability_change";
   return "schema_update";
 }
+
 
 function eventSeverity(type: string): DashboardChangeEvent["severity"] {
   if (type === "model_removed" || type === "price_increased") return "warning";
@@ -48,9 +52,10 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-  const [snapshots, lifecycle, sourceHealth, recentEvents, recentEvents24h, priceEvents7d] = await Promise.all([
+  const [snapshots, lifecycle, capabilities, sourceHealth, recentEvents, recentEvents24h, priceEvents7d] = await Promise.all([
     getLatestPricingSnapshots(db),
     getLatestLifecycleSnapshots(db),
+    getLatestCapabilitySnapshots(db),
     getSourceHealth(db),
     getRecentChangeEvents(db, { limit: 100 }),
     getRecentChangeEvents(db, { since: oneDayAgo, limit: 500 }),
@@ -63,6 +68,16 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   const providerNameById = new Map<string, string>();
   const modelsByKey = new Map<string, ModelPricing>();
   const lifecycleByModel = new Map<string, (typeof lifecycle)[number]>();
+  const capabilityByModel = new Map<string, (typeof capabilities)[number]>();
+
+  for (const cap of capabilities) {
+    providerNameById.set(cap.provider_id, cap.provider_name);
+    const existing = capabilityByModel.get(cap.model_id);
+    if (!existing || existing.observed_at < cap.observed_at) {
+      capabilityByModel.set(cap.model_id, cap);
+    }
+  }
+
   for (const observation of lifecycle) {
     providerNameById.set(observation.provider_id, observation.provider_name);
     const existing = lifecycleByModel.get(observation.model_id);
@@ -74,15 +89,16 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   for (const snapshot of snapshots) {
     providerNameById.set(snapshot.provider_id, snapshot.provider_name);
     const key = `${snapshot.provider_id}:${snapshot.model_id}`;
-    const model = modelsByKey.get(key) ?? {
+    const cap = capabilityByModel.get(snapshot.model_id);
+    const model: ModelPricing = modelsByKey.get(key) ?? {
       id: snapshot.model_id,
       provider: snapshot.provider_name,
       name: snapshot.model_name,
       slug: snapshot.model_name,
       status:
-        lifecycleByModel.get(snapshot.model_id)?.projected_lifecycle_state ??
+        (lifecycleByModel.get(snapshot.model_id)?.projected_lifecycle_state as ModelPricing["status"]) ??
         "active",
-      contextWindow: null,
+      contextWindow: cap?.context_window ?? null,
       lastVerifiedAt: snapshot.observed_at,
       rates: [],
     };
@@ -94,7 +110,9 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
     });
     if (snapshot.observed_at > model.lastVerifiedAt) model.lastVerifiedAt = snapshot.observed_at;
     modelsByKey.set(key, model);
+
   }
+
 
   const providerSources = new Map<string, typeof sourceHealth>();
   for (const health of sourceHealth) {

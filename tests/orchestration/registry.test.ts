@@ -26,7 +26,7 @@ function withEnv(values: Record<string, string | undefined>, run: () => void): v
   }
 }
 
-test("all six intelligence sources are configured with a complete contract", () => {
+test("all ten intelligence sources are configured with a complete contract", () => {
   const sources = listCollectionSources();
   assert.deepEqual(
     sources.map((source) => source.key),
@@ -37,13 +37,18 @@ test("all six intelligence sources are configured with a complete contract", () 
       "xai-pricing",
       "anthropic-lifecycle",
       "gemini-lifecycle",
+      "openai-catalog",
+      "anthropic-catalog",
+      "gemini-catalog",
+      "xai-catalog",
     ],
   );
   assert.deepEqual([...COLLECTION_SOURCE_KEYS], sources.map((source) => source.key));
 
   for (const source of sources) {
     assert.ok(source.provider.length > 0, `${source.key} names a provider`);
-    assert.ok(["pricing", "lifecycle"].includes(source.sourceType));
+    assert.ok(["pricing", "lifecycle", "catalog"].includes(source.sourceType));
+
     assert.ok(source.collectorId.startsWith("c_"), `${source.key} has a collector id`);
     assert.ok(source.sourceUrl.startsWith("https://"), `${source.key} has a source url`);
     assert.equal(source.enabled, true, `${source.key} is enabled by default`);
@@ -63,8 +68,13 @@ test("all six intelligence sources are configured with a complete contract", () 
     assert.equal(contract.sourceId, `source-${source.key}`);
     assert.equal(
       contract.sourceCategory,
-      source.sourceType === "pricing" ? "pricing" : "lifecycle",
+      source.sourceType === "pricing"
+        ? "pricing"
+        : source.sourceType === "lifecycle"
+          ? "lifecycle"
+          : "models",
     );
+
   }
 
   const collectorIds = sources.map((source) => source.collectorId);

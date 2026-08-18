@@ -60,15 +60,15 @@ function fleetOptions() {
   };
 }
 
-test("a full fleet run executes all six configured sources", async () => {
+test("a full fleet run executes all ten configured sources", async () => {
   const { harnesses, sources } = buildFleet();
   const options = fleetOptions();
 
   const fleet = await runCollectionFleet({ ...options, sources, trigger: "cron" });
 
   assert.equal(fleet.status, "completed");
-  assert.equal(fleet.summary.total, 6);
-  assert.equal(fleet.summary.succeeded, 6);
+  assert.equal(fleet.summary.total, 10);
+  assert.equal(fleet.summary.succeeded, 10);
   assert.equal(fleet.summary.failed, 0);
   assert.equal(fleet.summary.quarantined, 0);
   assert.equal(fleet.summary.skipped, 0);
@@ -79,7 +79,7 @@ test("a full fleet run executes all six configured sources", async () => {
   for (const key of COLLECTION_SOURCE_KEYS) {
     assert.equal(harnesses.get(key)?.collectCalls, 1, `${key} was collected exactly once`);
   }
-  assert.equal(options.repository.runs.length, 6);
+  assert.equal(options.repository.runs.length, 10);
   assert.ok(options.repository.runs.every((run) => run.status === "succeeded"));
   assert.ok(fleet.durationMs >= 0);
 });
@@ -91,7 +91,7 @@ test("one provider failing does not block or hide the others", async () => {
   const fleet = await runCollectionFleet({ ...options, sources, trigger: "cron" });
 
   assert.equal(fleet.status, "partial");
-  assert.equal(fleet.summary.succeeded, 5);
+  assert.equal(fleet.summary.succeeded, 9);
   assert.equal(fleet.summary.failed, 1);
 
   const failed = fleet.sources.find((source) => source.sourceKey === "anthropic-pricing");
@@ -123,7 +123,7 @@ test("a quarantined source, a dead collector and a hanging collector all stay is
   const fleet = await runCollectionFleet({ ...options, sources, trigger: "cron" });
 
   assert.equal(fleet.status, "partial");
-  assert.equal(fleet.summary.succeeded, 3);
+  assert.equal(fleet.summary.succeeded, 7);
   assert.equal(fleet.summary.quarantined, 1);
   assert.equal(fleet.summary.failed, 2);
 
@@ -165,12 +165,12 @@ test("a second fleet run in the same tick window collects nothing twice", async 
 
   assert.equal(first.status, "completed");
   assert.equal(replay.status, "noop", "every source was skipped");
-  assert.equal(replay.summary.skipped, 6);
+  assert.equal(replay.summary.skipped, 10);
   assert.equal(first.invocationId, replay.invocationId, "the tick window is the invocation id");
   for (const key of COLLECTION_SOURCE_KEYS) {
     assert.equal(harnesses.get(key)?.collectCalls, 1, `${key} was collected once`);
   }
-  assert.equal(options.repository.runs.length, 6);
+  assert.equal(options.repository.runs.length, 10);
 });
 
 test("cron invocation ids collapse per tick window; manual runs stay distinct", () => {
@@ -199,7 +199,7 @@ test("an unexpected error inside one source cannot abort the fleet", async () =>
     trigger: "cron",
   });
 
-  assert.equal(fleet.summary.total, 6);
-  assert.equal(fleet.summary.succeeded, 5);
+  assert.equal(fleet.summary.total, 10);
+  assert.equal(fleet.summary.succeeded, 9);
   assert.equal(fleet.sources[0]?.status, "failed");
 });

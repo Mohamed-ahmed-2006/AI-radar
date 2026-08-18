@@ -20,7 +20,6 @@ import type { CollectorRunResult } from "../brightdata/types";
 import {
   PricingIngestionError,
   SentinelQuarantineError,
-  type OpenAiPricingIngestionResult,
 } from "../pipeline";
 import {
   BrightDataScraperHealer,
@@ -35,9 +34,11 @@ import {
 } from "./repository";
 import { computeBackoffMs, computeNextRunAt, evaluateSchedule } from "./schedule";
 import type {
+  CollectionPersistenceResult,
   CollectionSourceDefinition,
   SourceRunOutcome,
   SourceRunResult,
+
   SourceRunStatus,
   SourceSentinelReport,
 } from "./types";
@@ -433,7 +434,7 @@ export async function runCollectionSource(
 }
 
 type IngestionAttempt =
-  | { kind: "persisted"; result: OpenAiPricingIngestionResult }
+  | { kind: "persisted"; result: CollectionPersistenceResult }
   | { kind: "quarantined"; error: SentinelQuarantineError }
   | { kind: "failed"; error: PricingIngestionError };
 
@@ -454,8 +455,9 @@ async function ingestThroughPipeline(
 
 interface HealOutcome {
   outcome: string;
-  result: OpenAiPricingIngestionResult | null;
+  result: CollectionPersistenceResult | null;
 }
+
 
 /**
  * One bounded healing attempt. A validated candidate is re-submitted through

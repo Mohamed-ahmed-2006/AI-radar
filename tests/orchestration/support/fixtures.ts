@@ -5,10 +5,13 @@
  */
 
 import {
+  CATALOG_PROVIDERS,
   PRICING_PROVIDERS,
   ingestAnthropicLifecycle,
+  ingestCatalogProvider,
   ingestGeminiLifecycle,
   ingestPricingProvider,
+  type CatalogProviderSlug,
   type PricingProviderSlug,
 } from "../../../lib/pipeline";
 import {
@@ -17,6 +20,7 @@ import {
   type CollectionSourceKey,
 } from "../../../lib/orchestration";
 import {
+  RecordingCatalogRepository,
   RecordingLifecycleRepository,
   RecordingPricingRepository,
   collectorPayload,
@@ -90,10 +94,112 @@ export function geminiLifecycleRecords(): Record<string, unknown>[] {
   ];
 }
 
+export function openAiCatalogRecords(): Record<string, unknown>[] {
+  return [
+    {
+      model_id: "gpt-5.6-sol",
+      display_name: "GPT-5.6 Sol",
+      context_window_raw: 256000,
+      max_output_tokens_raw: 32768,
+      supports_vision: true,
+      supports_function_calling: true,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+    },
+    {
+      model_id: "gpt-4o",
+      display_name: "GPT-4o",
+      context_window_raw: 128000,
+      max_output_tokens_raw: 16384,
+      supports_vision: true,
+      supports_function_calling: true,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+    },
+  ];
+}
+
+export function anthropicCatalogRecords(): Record<string, unknown>[] {
+  return [
+    {
+      api_model_id: "claude-sonnet-4-5-20250929",
+      display_name: "Claude Sonnet 4.5",
+      model_family: "Claude Sonnet",
+      context_window_raw: 200000,
+      max_output_tokens_raw: 8192,
+      supports_vision: true,
+      supports_tool_use: true,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+    },
+    {
+      api_model_id: "claude-opus-4-6-20260205",
+      display_name: "Claude Opus 4.6",
+      model_family: "Claude Opus",
+      context_window_raw: 1000000,
+      max_output_tokens_raw: 64000,
+      supports_vision: true,
+      supports_tool_use: true,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+    },
+  ];
+}
+
+export function geminiCatalogRecords(): Record<string, unknown>[] {
+  return [
+    {
+      model_id: "gemini-2.5-pro",
+      display_name: "Gemini 2.5 Pro",
+      model_group: "Gemini 2.5",
+      context_window_raw: 1000000,
+      max_output_tokens_raw: 65536,
+      supports_vision: true,
+      supports_function_calling: true,
+      input_modalities: ["text", "image", "audio", "video"],
+      output_modalities: ["text"],
+    },
+    {
+      model_id: "gemini-2.5-flash",
+      display_name: "Gemini 2.5 Flash",
+      model_group: "Gemini 2.5",
+      context_window_raw: 1000000,
+      max_output_tokens_raw: 65536,
+      supports_vision: true,
+      supports_function_calling: true,
+      input_modalities: ["text", "image", "audio", "video"],
+      output_modalities: ["text"],
+    },
+  ];
+}
+
+export function xaiCatalogRecords(): Record<string, unknown>[] {
+  return [
+    {
+      name: "grok-4.20-0309-reasoning",
+      max_prompt_length: 1000000,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+      features: { functionCalling: true, structuredOutputs: true, reasoning: true },
+    },
+    {
+      name: "grok-4.6",
+      max_prompt_length: 500000,
+      input_modalities: ["text", "image"],
+      output_modalities: ["text"],
+      features: { functionCalling: true, structuredOutputs: true, reasoning: false },
+    },
+  ];
+}
+
 /** A healthy payload for whichever source key is asked for. */
 export function healthyRecordsFor(key: CollectionSourceKey): Record<string, unknown>[] {
   if (key === "anthropic-lifecycle") return anthropicLifecycleRecords();
   if (key === "gemini-lifecycle") return geminiLifecycleRecords();
+  if (key === "openai-catalog") return openAiCatalogRecords();
+  if (key === "anthropic-catalog") return anthropicCatalogRecords();
+  if (key === "gemini-catalog") return geminiCatalogRecords();
+  if (key === "xai-catalog") return xaiCatalogRecords();
   return pricingRecords(key.replace("-pricing", "") as PricingProviderSlug);
 }
 
@@ -118,6 +224,30 @@ export function malformedRecordsFor(key: CollectionSourceKey): Record<string, un
       { model_id: "", model_group: "", is_shutdown: "maybe", input: { url: GEMINI_LIFECYCLE_URL } },
     ];
   }
+  if (key === "openai-catalog") {
+    return [
+      { model_id: "", display_name: "Broken Model" },
+      { invalid_column: 123 },
+    ];
+  }
+  if (key === "anthropic-catalog") {
+    return [
+      { api_model_id: "", display_name: "Broken Claude" },
+      { invalid_column: 456 },
+    ];
+  }
+  if (key === "gemini-catalog") {
+    return [
+      { model_id: "", display_name: "Broken Gemini" },
+      { missing_model: true },
+    ];
+  }
+  if (key === "xai-catalog") {
+    return [
+      { name: "", max_prompt_length: -1 },
+      { broken_key: true },
+    ];
+  }
   return [
     { provider: PRICING_PROVIDERS[key.replace("-pricing", "") as PricingProviderSlug].name },
     { model_name: "<div class=\"price\">", pricing_mode: "", context_tier: "" },
@@ -128,6 +258,7 @@ export interface HarnessedSource {
   source: CollectionSourceDefinition;
   pricing: RecordingPricingRepository;
   lifecycle: RecordingLifecycleRepository;
+  catalog: RecordingCatalogRepository;
   collectCalls: number;
 }
 
@@ -143,9 +274,11 @@ export function harnessSource(
   const registrySource = getCollectionSource(key);
   const pricing = new RecordingPricingRepository(`provider-${registrySource.providerSlug}`);
   const lifecycle = new RecordingLifecycleRepository(`provider-${registrySource.providerSlug}`);
+  const catalog = new RecordingCatalogRepository(`provider-${registrySource.providerSlug}`);
   const harness: HarnessedSource = {
     pricing,
     lifecycle,
+    catalog,
     collectCalls: 0,
     source: {
       ...registrySource,
@@ -165,6 +298,15 @@ export function harnessSource(
         if (key === "gemini-lifecycle") {
           return ingestGeminiLifecycle({
             repository: lifecycle,
+            sentinelRepository: context.sentinelRepository,
+            collect: async () => payload,
+            triggeredBy: context.triggeredBy,
+          });
+        }
+        if (key.endsWith("-catalog")) {
+          const providerSlug = key.replace("-catalog", "") as CatalogProviderSlug;
+          return ingestCatalogProvider(CATALOG_PROVIDERS[providerSlug], {
+            repository: catalog,
             sentinelRepository: context.sentinelRepository,
             collect: async () => payload,
             triggeredBy: context.triggeredBy,
