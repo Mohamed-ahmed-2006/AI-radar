@@ -49,11 +49,25 @@ export async function loadLiveTemporalEvidence(
       (providersResult.data ?? []).map((p) => [p.id, p.name]),
     );
 
+    // Bright Data run identity, so a feed item can be traced to the collector
+    // execution that produced it. Explicit column list: `collection_runs`
+    // grants anon only its non-diagnostic columns.
+    const runIds = [
+      ...new Set(changeRows.map((row) => row.run_id).filter((id): id is string => id !== null)),
+    ];
+    const runsResult = runIds.length
+      ? await db.from("collection_runs").select("id, external_run_id").in("id", runIds)
+      : { data: [] };
+    const externalRunIdsByRunId = new Map(
+      (runsResult.data ?? []).map((run) => [run.id, run.external_run_id]),
+    );
+
     return transformChangeEventsToEvidence(changeRows, {
       sources: sourcesResult.data ?? [],
       modelNamesById,
       providerSlugsById,
       providerNamesById,
+      externalRunIdsByRunId,
     });
   } catch {
     // Fail safely for environments without database access
