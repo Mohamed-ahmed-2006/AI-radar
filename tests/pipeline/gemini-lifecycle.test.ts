@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { InMemorySentinelRepository } from "../../lib/sentinel";
+
 import { POST } from "../../app/api/ingest/gemini/lifecycle/route";
 import {
   ingestGeminiLifecycle,
   type GeminiLifecyclePipelineRepository,
   type OpenAiCollectorResult,
 } from "../../lib/pipeline";
+import { SentinelQuarantineError } from "../../lib/pipeline";
 import { modelLifecycleProjectionPatch } from "../../lib/supabase";
 import type {
   ChangeEventInput,
@@ -23,6 +26,15 @@ import type {
   RunStatus,
   SourceRow,
 } from "../../lib/supabase";
+
+/**
+ * The ingestion pipelines run the Sentinel gate inline, so every call needs a
+ * Sentinel store. A fresh in-memory one per call keeps each ingestion
+ * independent, exactly as a fresh incident history would be.
+ */
+function sentinel(): InMemorySentinelRepository {
+  return new InMemorySentinelRepository();
+}
 
 const timestamp = "2026-08-18T12:00:00.000Z";
 const sourceUrl = "https://ai.google.dev/gemini-api/docs/deprecations";
@@ -42,7 +54,20 @@ function lifecycleRow(overrides: Record<string, unknown> = {}): Record<string, u
   };
 }
 
-function collector(data: unknown[], runId: string): () => Promise<OpenAiCollectorResult> {
+/**
+ * A second, stable model. The authoritative lifecycle contract admits a payload
+ * only with at least two records, which is what the real deprecations page
+ * always publishes. It never changes, so it emits no change events of its own.
+ */
+function companionRow(): Record<string, unknown> {
+  return lifecycleRow({
+    model_id: "gemini-2.5-flash",
+    model_group: "Gemini 2.5 models",
+  });
+}
+
+function collector(rows: unknown[], runId: string): () => Promise<OpenAiCollectorResult> {
+  const data = rows.length > 0 ? [...rows, companionRow()] : rows;
   return async () => ({
     success: true,
     data,
@@ -235,7 +260,7 @@ class MemoryGeminiLifecycleRepository implements GeminiLifecyclePipelineReposito
 
 test("Gemini lifecycle transitions, withdrawals, replacements, and history are authoritative", async () => {
   const repository = new MemoryGeminiLifecycleRepository();
-  const first = await ingestGeminiLifecycle({
+  const first = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([lifecycleRow()], "gemini-1"),
     now: () => new Date(timestamp),
@@ -248,7 +273,7 @@ test("Gemini lifecycle transitions, withdrawals, replacements, and history are a
     shutdown_not_before_date_raw: "May 7, 2027",
     recommended_replacement: "gemini-3-pro-preview",
   });
-  const second = await ingestGeminiLifecycle({
+  const second = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([scheduled], "gemini-2"),
     now: () => new Date(timestamp),
@@ -258,7 +283,7 @@ test("Gemini lifecycle transitions, withdrawals, replacements, and history are a
   assert.equal(repository.models[0].retirement_date, null);
   assert.equal(repository.models[0].retirement_not_before_date, "2027-05-07");
 
-  const repeat = await ingestGeminiLifecycle({
+  const repeat = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([scheduled], "gemini-3"),
     now: () => new Date(timestamp),
@@ -266,7 +291,7 @@ test("Gemini lifecycle transitions, withdrawals, replacements, and history are a
   assert.equal(repeat.changesDetected, 0);
 
   const replacementChanged = { ...scheduled, recommended_replacement: "gemini-3.1-pro-preview" };
-  const third = await ingestGeminiLifecycle({
+  const third = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([replacementChanged], "gemini-4"),
     now: () => new Date(timestamp),
@@ -275,7 +300,7 @@ test("Gemini lifecycle transitions, withdrawals, replacements, and history are a
   assert.equal(repository.events.at(-1)?.fieldName, "recommendedReplacement");
 
   const withdrawn = lifecycleRow({ recommended_replacement: "gemini-3.1-pro-preview" });
-  const fourth = await ingestGeminiLifecycle({
+  const fourth = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([withdrawn], "gemini-5"),
     now: () => new Date(timestamp),
@@ -287,39 +312,43 @@ test("Gemini lifecycle transitions, withdrawals, replacements, and history are a
   assert.equal(repository.models[0].retirement_not_before_date, null);
 
   const retired = lifecycleRow({ is_shutdown: true });
-  await ingestGeminiLifecycle({
+  await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([retired], "gemini-6"),
     now: () => new Date(timestamp),
   });
   assert.equal(repository.models[0].lifecycle_state, "retired");
   assert.equal(repository.models[0].is_active, false);
-  assert.equal(repository.snapshots.length, 6, "history remains append-only");
+  assert.equal(repository.snapshots.length, 12, "history remains append-only");
   assert.equal(repository.pricingHistory.length, 2, "pricing history is isolated");
 
-  await ingestGeminiLifecycle({
-    repository,
-    collect: collector([], "gemini-7"),
-    now: () => new Date(timestamp),
-  });
+  // An empty scrape is refused by Sentinel before persistence.
+  await assert.rejects(
+    () => ingestGeminiLifecycle({ sentinelRepository: sentinel(),
+      repository,
+      collect: collector([], "gemini-7"),
+      now: () => new Date(timestamp),
+    }),
+    SentinelQuarantineError,
+  );
   assert.equal(repository.models[0].lifecycle_state, "retired", "missing row changes nothing");
-  assert.equal(repository.snapshots.length, 6);
+  assert.equal(repository.snapshots.length, 12);
 });
 
 test("Gemini lifecycle external-run replay is idempotent", async () => {
   const repository = new MemoryGeminiLifecycleRepository();
-  await ingestGeminiLifecycle({
+  await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([lifecycleRow()], "same-run"),
     now: () => new Date(timestamp),
   });
-  const replay = await ingestGeminiLifecycle({
+  const replay = await ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([lifecycleRow()], "same-run"),
     now: () => new Date(timestamp),
   });
   assert.equal(replay.idempotent, true);
-  assert.equal(repository.snapshots.length, 1);
+  assert.equal(repository.snapshots.length, 2);
 });
 
 test("Gemini lifecycle ambiguity fails closed and audits the failed run", async () => {
@@ -327,7 +356,7 @@ test("Gemini lifecycle ambiguity fails closed and audits the failed run", async 
     newModel("model-1", "Gemini 1.5 Pro"),
     newModel("model-2", "gemini-1-5-pro"),
   ]);
-  await assert.rejects(() => ingestGeminiLifecycle({
+  await assert.rejects(() => ingestGeminiLifecycle({ sentinelRepository: sentinel(),
     repository,
     collect: collector([lifecycleRow({ model_id: "gemini-1.5-pro-002" })], "ambiguous"),
     now: () => new Date(timestamp),

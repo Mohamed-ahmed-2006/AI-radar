@@ -42,6 +42,33 @@ export function createSourceHealthContract<T = unknown>(
   };
 }
 
+/** The provider/domain pair a health contract is chosen by. */
+export type SourceHealthContractTarget =
+  | { domain: "pricing"; providerSlug: PricingProviderSlug }
+  | { domain: "lifecycle"; providerSlug: "anthropic" | "gemini" };
+
+/**
+ * Single resolution point from a configured source to its health contract, so
+ * the ingestion pipelines and the collection orchestrator can never disagree
+ * about which contract governs a source.
+ */
+export function createSourceHealthContractFor(
+  target: SourceHealthContractTarget,
+  sourceId: string,
+): SourceHealthContract<unknown> {
+  if (target.domain === "pricing") {
+    return createPricingSourceHealthContract(
+      target.providerSlug,
+      sourceId,
+    ) as SourceHealthContract<unknown>;
+  }
+  return (
+    target.providerSlug === "anthropic"
+      ? createAnthropicLifecycleSourceHealthContract(sourceId)
+      : createGeminiLifecycleSourceHealthContract(sourceId)
+  ) as SourceHealthContract<unknown>;
+}
+
 /**
  * Factory for pricing source contracts across all supported providers (OpenAI, Anthropic, Gemini, xAI).
  */

@@ -320,6 +320,42 @@ export type SentinelSourceHealthRow = {
   sentinel_health_status: SentinelStatus;
 };
 
+export type OrchestrationRunStatus =
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "quarantined"
+  | "skipped";
+
+/**
+ * One orchestrated execution of one configured source. Doubles as the lease:
+ * a `running` row is the lock that keeps a second scheduler tick out.
+ */
+export type OrchestrationRunRow = {
+  id: string;
+  source_key: string;
+  provider_slug: string;
+  source_type: string;
+  status: OrchestrationRunStatus;
+  trigger: string;
+  invocation_id: string | null;
+  attempt_count: number;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  lease_expires_at: string;
+  collection_run_id: string | null;
+  external_run_id: string | null;
+  sentinel_incident_id: string | null;
+  records_accepted: number;
+  records_rejected: number;
+  changes_detected: number;
+  outcome: string | null;
+  error_message: string | null;
+  reason_codes: string[];
+  created_at: string;
+};
+
 /** Columns the database computes and refuses writes to. */
 type ReadOnly = "content_hash";
 
@@ -377,6 +413,10 @@ export type Database = {
         SentinelHealingAttemptRow,
         "incident_id" | "source_id" | "prompt" | "status"
       >;
+      orchestration_runs: Table<
+        OrchestrationRunRow,
+        "source_key" | "provider_slug" | "source_type" | "lease_expires_at"
+      >;
     };
     Views: {
       latest_pricing_snapshots: View<LatestPricingSnapshotRow>;
@@ -394,6 +434,7 @@ export type Database = {
       lifecycle_state: LifecycleState;
       sentinel_status: SentinelStatus;
       sentinel_incident_status: SentinelIncidentStatus;
+      orchestration_run_status: OrchestrationRunStatus;
     };
     CompositeTypes: Record<never, never>;
   };

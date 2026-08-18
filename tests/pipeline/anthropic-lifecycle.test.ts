@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { InMemorySentinelRepository } from "../../lib/sentinel";
+
 import {
   ingestAnthropicLifecycle,
   type AnthropicLifecyclePipelineRepository,
   type OpenAiCollectorResult,
 } from "../../lib/pipeline";
+import { SentinelQuarantineError } from "../../lib/pipeline";
 import { modelLifecycleProjectionPatch } from "../../lib/supabase";
 import type {
   ChangeEventInput,
@@ -23,6 +26,15 @@ import type {
   SourceRow,
 } from "../../lib/supabase";
 
+/**
+ * The ingestion pipelines run the Sentinel gate inline, so every call needs a
+ * Sentinel store. A fresh in-memory one per call keeps each ingestion
+ * independent, exactly as a fresh incident history would be.
+ */
+function sentinel(): InMemorySentinelRepository {
+  return new InMemorySentinelRepository();
+}
+
 const timestamp = "2026-08-17T12:00:00.000Z";
 const sourceUrl = "https://platform.claude.com/docs/en/about-claude/model-deprecations";
 
@@ -37,7 +49,22 @@ function lifecycleRow(overrides: Record<string, unknown> = {}): Record<string, u
   };
 }
 
-function collector(data: unknown[], runId: string): () => Promise<OpenAiCollectorResult> {
+/**
+ * A second, stable Active model. The authoritative lifecycle contract requires
+ * at least two records and at least one Active row before Sentinel will admit
+ * a payload, which is what the real deprecation page always publishes. It never
+ * changes, so it contributes no change events of its own.
+ */
+function companionRow(): Record<string, unknown> {
+  return lifecycleRow({
+    api_model_name: "claude-sonnet-4-5-20250929",
+    current_state: "Active",
+    tentative_retirement_date: "Not sooner than September 29, 2027",
+  });
+}
+
+function collector(rows: unknown[], runId: string): () => Promise<OpenAiCollectorResult> {
+  const data = rows.length > 0 ? [...rows, companionRow()] : rows;
   return async () => ({
     success: true,
     data,
@@ -226,16 +253,16 @@ class MemoryLifecycleRepository implements AnthropicLifecyclePipelineRepository 
 test("authoritative transitions emit once, preserve history, and never delete pricing", async () => {
   const repository = new MemoryLifecycleRepository();
   const active = lifecycleRow();
-  const first = await ingestAnthropicLifecycle({
+  const first = await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([active], "external-1"), now: () => new Date(timestamp),
   });
   assert.equal(first.changesDetected, 0);
-  assert.equal(repository.models.length, 1);
+  assert.equal(repository.models.length, 2, "the companion Active model is tracked too");
   assert.equal(repository.models[0].model_name, "Claude Opus 4.1");
   assert.equal(repository.models[0].lifecycle_state, "active");
 
   const deprecated = lifecycleRow({ current_state: "Deprecated", deprecated_date: "August 17, 2026" });
-  const transition = await ingestAnthropicLifecycle({
+  const transition = await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([deprecated], "external-2"), now: () => new Date(timestamp),
   });
   assert.equal(transition.changesDetected, 2);
@@ -244,7 +271,7 @@ test("authoritative transitions emit once, preserve history, and never delete pr
     event.fieldName === "lifecycleState" &&
     event.oldValue === "active" && event.newValue === "deprecated"));
 
-  const repeated = await ingestAnthropicLifecycle({
+  const repeated = await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([deprecated], "external-3"), now: () => new Date(timestamp),
   });
   assert.equal(repeated.changesDetected, 0);
@@ -254,32 +281,46 @@ test("authoritative transitions emit once, preserve history, and never delete pr
     deprecated_date: "August 17, 2026",
     tentative_retirement_date: "December 17, 2026",
   });
-  await ingestAnthropicLifecycle({
+  await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([retired], "external-4"), now: () => new Date(timestamp),
   });
   assert.equal(repository.models[0].lifecycle_state, "retired");
   assert.equal(repository.models[0].is_active, false);
-  assert.equal(repository.snapshots.length, 4);
+  assert.equal(repository.snapshots.length, 8);
   assert.equal(repository.pricingHistory.length, 2);
 
-  await ingestAnthropicLifecycle({
-    repository, collect: collector([], "external-5"), now: () => new Date(timestamp),
-  });
+  // An empty scrape is refused by Sentinel before persistence, so absence
+  // cannot rewrite a single lifecycle field.
+  await assert.rejects(
+    () => ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
+      repository, collect: collector([], "external-5"), now: () => new Date(timestamp),
+    }),
+    SentinelQuarantineError,
+  );
   assert.equal(repository.models[0].lifecycle_state, "retired");
-  assert.equal(repository.snapshots.length, 4);
+  assert.equal(repository.snapshots.length, 8);
 });
 
-test("malformed lifecycle records are rejected and audited without invented state", async () => {
+test("malformed lifecycle records are quarantined before any canonical write", async () => {
   const repository = new MemoryLifecycleRepository();
-  const result = await ingestAnthropicLifecycle({
-    repository,
-    collect: collector([lifecycleRow(), lifecycleRow({ current_state: "Inactive" })], "external-partial"),
-    now: () => new Date(timestamp),
-  });
-  assert.equal(result.acceptedCount, 1);
-  assert.equal(result.rejectedCount, 1);
-  assert.equal(repository.runs[0].status, "partial");
-  assert(Array.isArray(repository.validationErrors));
+  // The authoritative lifecycle contract has zero tolerance: one malformed row
+  // rejects the whole batch rather than half-applying it.
+  await assert.rejects(
+    () => ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
+      repository,
+      collect: collector([lifecycleRow(), lifecycleRow({ current_state: "Inactive" })], "external-partial"),
+      now: () => new Date(timestamp),
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof SentinelQuarantineError);
+      assert.ok(error.reasonCodes.includes("SCHEMA_VALIDATION_FAILURE"));
+      return true;
+    },
+  );
+  assert.equal(repository.snapshots.length, 0, "no lifecycle snapshot was written");
+  assert.equal(repository.events.length, 0, "no change event was written");
+  assert.equal(repository.models[0].lifecycle_state, null, "no lifecycle projection was applied");
+  assert.equal(repository.runs[0].status, "failed");
 });
 
 test("a scrape that stops publishing a date does not erase the stored one", async () => {
@@ -289,7 +330,7 @@ test("a scrape that stops publishing a date does not erase the stored one", asyn
     deprecated_date: "August 17, 2026",
     tentative_retirement_date: "Not sooner than August 5, 2027",
   });
-  await ingestAnthropicLifecycle({
+  await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([deprecated], "external-1"), now: () => new Date(timestamp),
   });
   assert.equal(repository.models[0].deprecated_on, "2026-08-17");
@@ -299,7 +340,7 @@ test("a scrape that stops publishing a date does not erase the stored one", asyn
   // authoritative, but the missing dates are silence, not a retraction.
   const withoutDates = lifecycleRow({ current_state: "Deprecated" });
   delete (withoutDates as Record<string, unknown>).tentative_retirement_date;
-  await ingestAnthropicLifecycle({
+  await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([withoutDates], "external-2"), now: () => new Date(timestamp),
   });
   assert.equal(repository.models[0].lifecycle_state, "deprecated");
@@ -317,7 +358,7 @@ test("a scrape that stops publishing a date does not erase the stored one", asyn
     deprecated_date: "August 17, 2026",
     tentative_retirement_date: "December 17, 2026",
   });
-  await ingestAnthropicLifecycle({
+  await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
     repository, collect: collector([exact], "external-3"), now: () => new Date(timestamp),
   });
   assert.equal(repository.models[0].retirement_date, "2026-12-17");
@@ -328,7 +369,7 @@ test("a scrape that stops publishing a date does not erase the stored one", asyn
 test("legacy and deprecated states leave a model available", async () => {
   for (const state of ["Active", "Legacy", "Deprecated"] as const) {
     const repository = new MemoryLifecycleRepository();
-    await ingestAnthropicLifecycle({
+    await ingestAnthropicLifecycle({ sentinelRepository: sentinel(),
       repository,
       collect: collector([lifecycleRow({ current_state: state })], `external-${state}`),
       now: () => new Date(timestamp),

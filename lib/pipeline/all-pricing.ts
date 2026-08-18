@@ -8,6 +8,7 @@ import {
   type OpenAiPricingIngestionResult,
 } from "./openai-pricing";
 import type { PricingProviderSlug } from "./providers";
+import { SentinelQuarantineError } from "./sentinel-gate";
 
 export type ProviderIngestor = (
   options?: IngestOpenAiPricingOptions,
@@ -22,7 +23,8 @@ export interface ProviderIngestionSummary {
   rejectedCount: number;
   changesDetected: number;
   durationMs: number;
-  error?: "ingestion_failed";
+  error?: "ingestion_failed" | "sentinel_quarantined";
+  sentinelIncidentId?: string;
 }
 
 const defaultIngestors: Record<PricingProviderSlug, ProviderIngestor> = {
@@ -56,6 +58,7 @@ export async function ingestAllPricing(
       });
     } catch (error) {
       const ingestionError = error instanceof PricingIngestionError ? error : undefined;
+      const quarantine = error instanceof SentinelQuarantineError ? error : undefined;
       summaries.push({
         provider,
         success: false,
@@ -65,7 +68,8 @@ export async function ingestAllPricing(
         rejectedCount: 0,
         changesDetected: 0,
         durationMs: 0,
-        error: "ingestion_failed",
+        error: quarantine ? "sentinel_quarantined" : "ingestion_failed",
+        ...(quarantine ? { sentinelIncidentId: quarantine.incidentId } : {}),
       });
     }
   }

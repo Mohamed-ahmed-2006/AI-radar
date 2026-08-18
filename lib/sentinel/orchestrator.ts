@@ -1,21 +1,19 @@
 /**
  * Sentinel Ingestion Orchestrator & Safety Interceptor
+ *
+ * A self-contained protected run: collect, gate, and — when the gate refuses —
+ * quarantine and optionally heal. Evaluation and healing are the shared
+ * implementations in `./gate` and `./heal-flow`, the same ones the real
+ * ingestion pipelines run inline, so there is exactly one definition of what
+ * "safe to persist" means.
  */
 
-import { evaluateSourceHealth } from "./evaluator";
-import {
-  BrightDataScraperHealer,
-  generateHealingPrompt,
-  type SentinelHealer,
-} from "./healing";
-import {
-  createSentinelRepository,
-  type SentinelRepository,
-} from "./repository";
-import { deriveSentinelSeverity, getNextIncidentStatus } from "./state-machine";
+import { evaluateSentinelGate } from "./gate";
+import { attemptSentinelHealing } from "./heal-flow";
+import { BrightDataScraperHealer, type SentinelHealer } from "./healing";
+import { createSentinelRepository, type SentinelRepository } from "./repository";
+import type { SentinelIncidentRow } from "../supabase/types";
 import type {
-  LastKnownGoodBaseline,
-  SentinelEvaluationResult,
   SentinelIncident,
   SentinelReasonCode,
   SentinelStatus,
@@ -71,6 +69,30 @@ export interface CanonicalPersistenceResult {
   changesDetected: number;
 }
 
+function toIncident(row: SentinelIncidentRow): SentinelIncident {
+  return {
+    id: row.id,
+    sourceId: row.source_id,
+    providerId: row.provider_id,
+    runId: row.run_id,
+    status: row.status,
+    severity: row.severity,
+    reasonCodes: row.reason_codes,
+    summary: row.summary,
+    recordsSeen: row.records_seen,
+    recordsValid: row.records_valid,
+    recordsInvalid: row.records_invalid,
+    expectedCount: row.expected_count,
+    lastKnownGoodCount: row.last_known_good_count,
+    lastKnownGoodRunId: row.last_known_good_run_id,
+    lastKnownGoodAt: row.last_known_good_at,
+    healingAttemptCount: row.healing_attempt_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    resolvedAt: row.resolved_at,
+  };
+}
+
 /**
  * Executes a collector run protected by Sentinel.
  *
@@ -106,14 +128,10 @@ export async function runSentinelProtectedIngestion<T = unknown>(
   const startedAt = Date.now();
   const observedAt = (options.now ?? (() => new Date()))().toISOString();
 
-  // 1. Fetch Last-Known-Good Baseline
-  const baseline: LastKnownGoodBaseline | null =
-    await repository.getLastKnownGoodBaseline(source.id);
+  const baseline = await repository.getLastKnownGoodBaseline(source.id);
 
-  // 2. Execute Collector
   let collection: CollectorExecutionPayload;
-  let collectorError: Error | null = null;
-
+  let collectorError: Error | string | null = null;
   try {
     collection = await collect();
   } catch (err) {
@@ -129,33 +147,24 @@ export async function runSentinelProtectedIngestion<T = unknown>(
       error: collectorError,
     };
   }
+  if (!collection.success && !collectorError) {
+    collectorError = collection.metadata.error || collection.error || "Collector run failed";
+  }
 
-  // 3. Evaluate Output via Sentinel Deterministic Rules
-  const rawRecords = collection.data ?? [];
-  const evalResult: SentinelEvaluationResult<T> = evaluateSourceHealth<T>(
-    rawRecords,
+  // Raw contract validation, health evaluation and quarantine bookkeeping.
+  // Canonical persistence is unreachable unless this decision is `safe`.
+  const decision = await evaluateSentinelGate<T>({
     contract,
-    baseline,
-    {
-      collectorExecutionError: collection.success ? null : (collection.metadata.error || collectorError),
-      observedAt,
-    },
-  );
+    source: { ...source, providerId: provider.id },
+    rawRecords: collection.data ?? [],
+    collectorError,
+    observedAt,
+    repository,
+  });
+  const evalResult = decision.evaluation;
 
-  // 4. Branch: HEALTHY or DEGRADED (Under Threshold) -> Allow Canonical Persistence
-  if (!evalResult.shouldQuarantine && evalResult.isHealthy) {
+  if (decision.safe) {
     const persistence = await persistCanonical(evalResult.validRecords, observedAt);
-
-    // Resolve any existing open incident
-    const openIncident = await repository.getLatestOpenIncident(source.id);
-    if (openIncident && openIncident.status !== "resolved") {
-      await repository.updateIncident(openIncident.id, {
-        status: "resolved",
-        resolutionNote: `Source restored to health. Validated ${evalResult.recordsValid} records.`,
-        resolvedAt: observedAt,
-      });
-    }
-
     return {
       success: true,
       status: evalResult.status,
@@ -174,252 +183,81 @@ export async function runSentinelProtectedIngestion<T = unknown>(
     };
   }
 
-  // 5. Branch: ANOMALOUS -> QUARANTINE CANDIDATE & PROTECT CANONICAL STATE
-  // DO NOT invoke persistCanonical here!
-  const severity = deriveSentinelSeverity(evalResult.reasonCodes);
-  const incidentRow = await repository.createIncident({
-    sourceId: source.id,
-    providerId: provider.id,
-    runId: null,
-    status: "open",
-    severity,
-    reasonCodes: evalResult.reasonCodes,
-    summary: evalResult.summary,
-    recordsSeen: evalResult.recordsSeen,
-    recordsValid: evalResult.recordsValid,
-    recordsInvalid: evalResult.recordsInvalid,
-    expectedCount: baseline?.recordCount ?? contract.minViableRecords,
-    lastKnownGoodCount: baseline?.recordCount ?? null,
-    lastKnownGoodRunId: baseline?.runId ?? null,
-    lastKnownGoodAt: baseline?.observedAt ?? null,
-    healingAttemptCount: 0,
-  });
-
-  // Isolate raw payload and diagnostics into quarantine store
-  await repository.saveQuarantinePayload({
-    incidentId: incidentRow.id,
-    sourceId: source.id,
-    rawPayload: rawRecords,
-    validationErrors: evalResult.issues,
-  });
-
+  const incidentRow = decision.incident;
   const shouldAutoHeal =
-    (options.autoHealOverride ?? contract.failurePolicy.autoHeal) &&
-    Boolean(source.collectorId);
+    (options.autoHealOverride ?? contract.failurePolicy.autoHeal) && Boolean(source.collectorId);
 
-  // 6. Optional Autonomous Self-Healing Flow
   if (shouldAutoHeal && source.collectorId) {
-    const collectorId = source.collectorId;
-    const prompt = generateHealingPrompt(evalResult, {
-      sourceUrl: source.sourceUrl,
-      providerName: provider.name,
-      collectorId,
-    });
-
-    const attemptNumber = 1;
-    await repository.updateIncident(incidentRow.id, {
-      status: "healing",
-      healingAttemptCount: attemptNumber,
-    });
-
-    await repository.recordHealingAttempt({
+    const healing = await attemptSentinelHealing<T>({
       incidentId: incidentRow.id,
       sourceId: source.id,
-      collectorId,
-      attemptNumber,
-      prompt,
-      status: "initiated",
-      startedAt: new Date().toISOString(),
+      collectorId: source.collectorId,
+      sourceUrl: source.sourceUrl,
+      providerName: provider.name,
+      contract,
+      evaluation: evalResult,
+      repository,
+      healer,
+      resolvedAt: observedAt,
+      applyCandidate: (candidate) => persistCanonical(candidate, observedAt),
     });
 
-    try {
-      const healResult = await healer.healScraper<T>(
-        {
-          collectorId,
-          prompt,
-          sourceUrl: source.sourceUrl,
-        },
-        contract,
-      );
-
-      // Validate repaired candidate
-      if (healResult.success && healResult.candidateData && healResult.candidateData.length > 0) {
-        // Candidate passed Sentinel validation! Ingest candidate into canonical store
-        const persistence = await persistCanonical(healResult.candidateData, observedAt);
-
-        await repository.recordHealingAttempt({
-          incidentId: incidentRow.id,
-          sourceId: source.id,
-          collectorId,
-          attemptNumber,
-          prompt,
-          status: "approved",
-          candidateRecordsCount: healResult.candidateData.length,
-          candidatePassedValidation: true,
-          completedAt: new Date().toISOString(),
-        });
-
-        const updatedIncident = await repository.updateIncident(incidentRow.id, {
+    if (healing.status === "healed" && healing.applied) {
+      const applied = healing.applied;
+      return {
+        success: true,
+        status: "recovered",
+        isQuarantined: false,
+        recordsSeen: evalResult.recordsSeen,
+        recordsAccepted: applied.acceptedCount,
+        recordsRejected: 0,
+        changesDetected: applied.changesDetected,
+        lastKnownGoodCount: applied.acceptedCount,
+        lastKnownGoodPreserved: true,
+        incident: toIncident({
+          ...incidentRow,
           status: "resolved",
-          resolutionNote: `Autonomous self-healing completed: repaired collector validated and ingested ${persistence.acceptedCount} records.`,
-          resolvedAt: observedAt,
-        });
-
-        return {
-          success: true,
-          status: "recovered",
-          isQuarantined: false,
-          recordsSeen: evalResult.recordsSeen,
-          recordsAccepted: persistence.acceptedCount,
-          recordsRejected: 0,
-          changesDetected: persistence.changesDetected,
-          lastKnownGoodCount: persistence.acceptedCount,
-          lastKnownGoodPreserved: true,
-          incident: {
-            id: updatedIncident.id,
-            sourceId: updatedIncident.source_id,
-            providerId: updatedIncident.provider_id,
-            runId: updatedIncident.run_id,
-            status: updatedIncident.status,
-            severity: updatedIncident.severity,
-            reasonCodes: updatedIncident.reason_codes,
-            summary: updatedIncident.summary,
-            recordsSeen: updatedIncident.records_seen,
-            recordsValid: updatedIncident.records_valid,
-            recordsInvalid: updatedIncident.records_invalid,
-            expectedCount: updatedIncident.expected_count,
-            lastKnownGoodCount: updatedIncident.last_known_good_count,
-            lastKnownGoodRunId: updatedIncident.last_known_good_run_id,
-            lastKnownGoodAt: updatedIncident.last_known_good_at,
-            healingAttemptCount: updatedIncident.healing_attempt_count,
-            createdAt: updatedIncident.created_at,
-            updatedAt: updatedIncident.updated_at,
-            resolvedAt: updatedIncident.resolved_at,
-          },
-          reasonCodes: evalResult.reasonCodes,
-          summary: `Self-healing recovered: candidate validated and ingested ${persistence.acceptedCount} records.`,
-          healingAttempted: true,
-          healingOutcome: "healed_and_recovered",
-          durationMs: Date.now() - startedAt,
-        };
-      }
-
-      // Heal failed validation or timed out
-      await repository.recordHealingAttempt({
-        incidentId: incidentRow.id,
-        sourceId: source.id,
-        collectorId,
-        attemptNumber,
-        prompt,
-        status: healResult.status === "rejected" ? "candidate_rejected" : "failed",
-        candidatePassedValidation: false,
-        errorMessage: healResult.error ?? "Healed candidate failed Sentinel contract checks",
-        completedAt: new Date().toISOString(),
-      });
-
-      const nextStatus = getNextIncidentStatus("open", "max_retries_exceeded");
-      const updatedIncident = await repository.updateIncident(incidentRow.id, {
-        status: nextStatus,
-        resolutionNote: `Self-healing attempt 1 failed validation: ${healResult.error}`,
-      });
-
-      return {
-        success: false,
-        status: "needs_review",
-        isQuarantined: true,
-        recordsSeen: evalResult.recordsSeen,
-        recordsAccepted: 0,
-        recordsRejected: evalResult.recordsInvalid,
-        changesDetected: 0,
-        lastKnownGoodCount: baseline?.recordCount ?? null,
-        lastKnownGoodPreserved: true,
-        incident: {
-          id: updatedIncident.id,
-          sourceId: updatedIncident.source_id,
-          providerId: updatedIncident.provider_id,
-          runId: updatedIncident.run_id,
-          status: updatedIncident.status,
-          severity: updatedIncident.severity,
-          reasonCodes: updatedIncident.reason_codes,
-          summary: updatedIncident.summary,
-          recordsSeen: updatedIncident.records_seen,
-          recordsValid: updatedIncident.records_valid,
-          recordsInvalid: updatedIncident.records_invalid,
-          expectedCount: updatedIncident.expected_count,
-          lastKnownGoodCount: updatedIncident.last_known_good_count,
-          lastKnownGoodRunId: updatedIncident.last_known_good_run_id,
-          lastKnownGoodAt: updatedIncident.last_known_good_at,
-          healingAttemptCount: updatedIncident.healing_attempt_count,
-          createdAt: updatedIncident.created_at,
-          updatedAt: updatedIncident.updated_at,
-          resolvedAt: updatedIncident.resolved_at,
-        },
+          healing_attempt_count: healing.attemptNumber,
+          resolved_at: observedAt,
+        }),
         reasonCodes: evalResult.reasonCodes,
-        summary: `Quarantined: self-healing candidate rejected (${healResult.error}). Requires review.`,
+        summary: `Self-healing recovered: candidate validated and ingested ${applied.acceptedCount} records.`,
         healingAttempted: true,
-        healingOutcome: "healing_failed_quarantined",
-        durationMs: Date.now() - startedAt,
-      };
-    } catch (healErr) {
-      const errorMsg = healErr instanceof Error ? healErr.message : String(healErr);
-      await repository.recordHealingAttempt({
-        incidentId: incidentRow.id,
-        sourceId: source.id,
-        collectorId,
-        attemptNumber,
-        prompt,
-        status: "failed",
-        candidatePassedValidation: false,
-        errorMessage: errorMsg,
-        completedAt: new Date().toISOString(),
-      });
-
-      const updatedIncident = await repository.updateIncident(incidentRow.id, {
-        status: "needs_review",
-        resolutionNote: `Self-healing error: ${errorMsg}`,
-      });
-
-      return {
-        success: false,
-        status: "needs_review",
-        isQuarantined: true,
-        recordsSeen: evalResult.recordsSeen,
-        recordsAccepted: 0,
-        recordsRejected: evalResult.recordsInvalid,
-        changesDetected: 0,
-        lastKnownGoodCount: baseline?.recordCount ?? null,
-        lastKnownGoodPreserved: true,
-        incident: {
-          id: updatedIncident.id,
-          sourceId: updatedIncident.source_id,
-          providerId: updatedIncident.provider_id,
-          runId: updatedIncident.run_id,
-          status: updatedIncident.status,
-          severity: updatedIncident.severity,
-          reasonCodes: updatedIncident.reason_codes,
-          summary: updatedIncident.summary,
-          recordsSeen: updatedIncident.records_seen,
-          recordsValid: updatedIncident.records_valid,
-          recordsInvalid: updatedIncident.records_invalid,
-          expectedCount: updatedIncident.expected_count,
-          lastKnownGoodCount: updatedIncident.last_known_good_count,
-          lastKnownGoodRunId: updatedIncident.last_known_good_run_id,
-          lastKnownGoodAt: updatedIncident.last_known_good_at,
-          healingAttemptCount: updatedIncident.healing_attempt_count,
-          createdAt: updatedIncident.created_at,
-          updatedAt: updatedIncident.updated_at,
-          resolvedAt: updatedIncident.resolved_at,
-        },
-        reasonCodes: evalResult.reasonCodes,
-        summary: `Quarantined: healing failed (${errorMsg}).`,
-        healingAttempted: true,
-        healingOutcome: "healing_errored_quarantined",
+        healingOutcome: "healed_and_recovered",
         durationMs: Date.now() - startedAt,
       };
     }
+
+    const failure =
+      healing.status === "healed"
+        ? "candidate produced no canonical persistence"
+        : healing.error;
+    return {
+      success: false,
+      status: "needs_review",
+      isQuarantined: true,
+      recordsSeen: evalResult.recordsSeen,
+      recordsAccepted: 0,
+      recordsRejected: evalResult.recordsInvalid,
+      changesDetected: 0,
+      lastKnownGoodCount: baseline?.recordCount ?? null,
+      lastKnownGoodPreserved: true,
+      incident: toIncident({
+        ...incidentRow,
+        status: "needs_review",
+        healing_attempt_count: healing.attemptNumber,
+      }),
+      reasonCodes: evalResult.reasonCodes,
+      summary: `Quarantined: self-healing candidate rejected (${failure}). Requires review.`,
+      healingAttempted: true,
+      healingOutcome:
+        healing.status === "failed"
+          ? "healing_errored_quarantined"
+          : "healing_failed_quarantined",
+      durationMs: Date.now() - startedAt,
+    };
   }
 
-  // Quarantined without healing
   return {
     success: false,
     status: "quarantined",
@@ -430,27 +268,7 @@ export async function runSentinelProtectedIngestion<T = unknown>(
     changesDetected: 0,
     lastKnownGoodCount: baseline?.recordCount ?? null,
     lastKnownGoodPreserved: true,
-    incident: {
-      id: incidentRow.id,
-      sourceId: incidentRow.source_id,
-      providerId: incidentRow.provider_id,
-      runId: incidentRow.run_id,
-      status: incidentRow.status,
-      severity: incidentRow.severity,
-      reasonCodes: incidentRow.reason_codes,
-      summary: incidentRow.summary,
-      recordsSeen: incidentRow.records_seen,
-      recordsValid: incidentRow.records_valid,
-      recordsInvalid: incidentRow.records_invalid,
-      expectedCount: incidentRow.expected_count,
-      lastKnownGoodCount: incidentRow.last_known_good_count,
-      lastKnownGoodRunId: incidentRow.last_known_good_run_id,
-      lastKnownGoodAt: incidentRow.last_known_good_at,
-      healingAttemptCount: incidentRow.healing_attempt_count,
-      createdAt: incidentRow.created_at,
-      updatedAt: incidentRow.updated_at,
-      resolvedAt: incidentRow.resolved_at,
-    },
+    incident: toIncident(incidentRow),
     reasonCodes: evalResult.reasonCodes,
     summary: evalResult.summary,
     healingAttempted: false,

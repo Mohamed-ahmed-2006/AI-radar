@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { InMemorySentinelRepository } from "../../lib/sentinel";
+
 import { POST } from "../../app/api/ingest/openai/route";
 import {
   ingestOpenAiPricing,
@@ -8,6 +10,7 @@ import {
   ingestGeminiPricing,
   ingestXaiPricing,
   OpenAiPricingIngestionError,
+  SentinelQuarantineError,
   type OpenAiCollectorResult,
   type OpenAiPricingPipelineRepository,
 } from "../../lib/pipeline";
@@ -20,6 +23,15 @@ import type {
   ProviderRow,
   SourceRow,
 } from "../../lib/supabase";
+
+/**
+ * The ingestion pipelines run the Sentinel gate inline, so every call needs a
+ * Sentinel store. A fresh in-memory one per call keeps each ingestion
+ * independent, exactly as a fresh incident history would be.
+ */
+function sentinel(): InMemorySentinelRepository {
+  return new InMemorySentinelRepository();
+}
 
 const timestamp = "2026-08-17T10:00:00.000Z";
 
@@ -179,35 +191,48 @@ class MemoryRepository implements OpenAiPricingPipelineRepository {
 
 test("pricing pipeline persists six records, detects changes, and never deactivates models", async () => {
   const repository = new MemoryRepository();
-  const first = await ingestOpenAiPricing({ repository, collect: collector(rawRecords(), "external-1"), now: () => new Date(timestamp) });
+  const first = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(rawRecords(), "external-1"), now: () => new Date(timestamp) });
   assert.deepEqual({ accepted: first.acceptedCount, rejected: first.rejectedCount, changes: first.changesDetected }, { accepted: 6, rejected: 0, changes: 3 });
   assert.equal(new Set(eventConflictKeys(repository.events)).size, repository.events.length);
   assert(repository.events.every((event) => event.changeType !== "model_added" || event.contextTier === null));
 
-  const same = await ingestOpenAiPricing({ repository, collect: collector(rawRecords(), "external-2"), now: () => new Date(timestamp) });
+  const same = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(rawRecords(), "external-2"), now: () => new Date(timestamp) });
   assert.equal(same.changesDetected, 0);
 
   const increased = rawRecords(); increased[0].input_price_per_1m_tokens = 99;
-  const increase = await ingestOpenAiPricing({ repository, collect: collector(increased, "external-3"), now: () => new Date(timestamp) });
+  const increase = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(increased, "external-3"), now: () => new Date(timestamp) });
   assert.equal(increase.changesDetected, 1);
 
   const decreased = rawRecords(); decreased[0].input_price_per_1m_tokens = 0.25;
-  const decrease = await ingestOpenAiPricing({ repository, collect: collector(decreased, "external-4"), now: () => new Date(timestamp) });
+  const decrease = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(decreased, "external-4"), now: () => new Date(timestamp) });
   assert.equal(decrease.changesDetected, 1);
 
-  const removed = await ingestOpenAiPricing({ repository, collect: collector(decreased.slice(1), "external-5"), now: () => new Date(timestamp) });
+  const removed = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(decreased.slice(1), "external-5"), now: () => new Date(timestamp) });
   assert.equal(removed.changesDetected, 1);
   assert.equal(repository.events.at(-1)?.changeType, "model_removed");
   assert(repository.models.every((model) => model.is_active));
   repository.models[0].lifecycle_state = "active";
-  await ingestOpenAiPricing({ repository, collect: collector(decreased.slice(2), "external-5b"), now: () => new Date(timestamp) });
+  await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(decreased.slice(2), "external-5b"), now: () => new Date(timestamp) });
   assert.equal(repository.models[0].lifecycle_state, "active", "pricing disappearance cannot change lifecycle state");
   assert.equal(repository.models[0].is_active, true, "pricing disappearance cannot deactivate a model");
 
-  const malformed = await ingestOpenAiPricing({ repository, collect: collector([...decreased.slice(1), { provider: "OpenAI" }], "external-6"), now: () => new Date(timestamp) });
-  assert.equal(malformed.rejectedCount, 1);
+  const snapshotsBeforeMalformed = repository.latest.length;
+  const eventsBeforeMalformed = repository.events.length;
+  await assert.rejects(
+    () => ingestOpenAiPricing({
+      sentinelRepository: sentinel(),
+      repository,
+      collect: collector([...decreased.slice(1), { provider: "OpenAI" }], "external-6"),
+      now: () => new Date(timestamp),
+    }),
+    SentinelQuarantineError,
+    "one malformed row in six exceeds the pricing tolerance and is quarantined",
+  );
+  assert.equal(repository.latest.length, snapshotsBeforeMalformed, "quarantine writes no snapshots");
+  assert.equal(repository.events.length, eventsBeforeMalformed, "quarantine writes no change events");
+  assert.equal(repository.runs.at(-1)?.status, "failed");
 
-  const replay = await ingestOpenAiPricing({ repository, collect: collector(decreased.slice(1), "external-5"), now: () => new Date(timestamp) });
+  const replay = await ingestOpenAiPricing({ sentinelRepository: sentinel(), repository, collect: collector(decreased.slice(1), "external-5"), now: () => new Date(timestamp) });
   assert.equal(replay.idempotent, true);
   assert.equal(repository.runs.length, 7);
 });
@@ -215,7 +240,7 @@ test("pricing pipeline persists six records, detects changes, and never deactiva
 test("pipeline records Bright Data and persistence failures as failed runs", async () => {
   const collectorFailure = new MemoryRepository();
   await assert.rejects(
-    () => ingestOpenAiPricing({ repository: collectorFailure, collect: collector([], "external-failed", false) }),
+    () => ingestOpenAiPricing({ sentinelRepository: sentinel(), repository: collectorFailure, collect: collector([], "external-failed", false) }),
     OpenAiPricingIngestionError,
   );
   assert.equal(collectorFailure.runs[0]?.status, "failed");
@@ -223,7 +248,7 @@ test("pipeline records Bright Data and persistence failures as failed runs", asy
   const persistenceFailure = new MemoryRepository();
   persistenceFailure.failSnapshots = true;
   await assert.rejects(
-    () => ingestOpenAiPricing({ repository: persistenceFailure, collect: collector(rawRecords(), "external-db") }),
+    () => ingestOpenAiPricing({ sentinelRepository: sentinel(), repository: persistenceFailure, collect: collector(rawRecords(), "external-db") }),
     OpenAiPricingIngestionError,
   );
   assert.equal(persistenceFailure.runs[0]?.status, "failed");
@@ -233,7 +258,7 @@ test("retry recovers events after a failed event batch without duplicating snaps
   const repository = new MemoryRepository();
   repository.failEvents = true;
   await assert.rejects(
-    () => ingestXaiPricing({ repository, collect: collector(xaiRecords().slice(0, 2), "xai-retry"), now: () => new Date(timestamp) }),
+    () => ingestXaiPricing({ sentinelRepository: sentinel(), repository, collect: collector(xaiRecords().slice(0, 2), "xai-retry"), now: () => new Date(timestamp) }),
     OpenAiPricingIngestionError,
   );
   assert.equal(repository.runs[0]?.status, "failed");
@@ -241,7 +266,7 @@ test("retry recovers events after a failed event batch without duplicating snaps
   assert.equal(repository.events.length, 0);
 
   repository.failEvents = false;
-  const retry = await ingestXaiPricing({
+  const retry = await ingestXaiPricing({ sentinelRepository: sentinel(),
     repository, collect: collector(xaiRecords().slice(0, 2), "xai-retry"), now: () => new Date(timestamp),
   });
   assert.equal(retry.idempotent, false);
@@ -252,7 +277,7 @@ test("retry recovers events after a failed event batch without duplicating snaps
 
 test("xAI-style short and long records emit one model event per model and retain tier-specific price changes", async () => {
   const repository = new MemoryRepository();
-  const first = await ingestXaiPricing({
+  const first = await ingestXaiPricing({ sentinelRepository: sentinel(),
     repository, collect: collector(xaiRecords(), "xai-first"), now: () => new Date(timestamp),
   });
   assert.equal(first.changesDetected, 7);
@@ -264,7 +289,7 @@ test("xAI-style short and long records emit one model event per model and retain
     ...record,
     input_price_per_1m_tokens: (record.input_price_per_1m_tokens as number) + 1,
   }));
-  const second = await ingestXaiPricing({
+  const second = await ingestXaiPricing({ sentinelRepository: sentinel(),
     repository, collect: collector(increased, "xai-second"), now: () => new Date(timestamp),
   });
   assert.equal(second.changesDetected, 14);
@@ -277,7 +302,7 @@ test("xAI-style short and long records emit one model event per model and retain
 
 test("Anthropic uses the shared pipeline with its own provider and source provenance", async () => {
   const repository = new MemoryRepository();
-  const result = await ingestAnthropicPricing({
+  const result = await ingestAnthropicPricing({ sentinelRepository: sentinel(),
     repository,
     collect: collector([{
       provider: "Anthropic", model_name: "Claude Sonnet 5", pricing_mode: "standard", context_tier: "standard",
@@ -328,6 +353,7 @@ for (const { slug, providerName, ingest } of pricingIsolationCases) {
     const both = ["alpha-1", "beta-2"];
 
     await ingest({
+      sentinelRepository: sentinel(),
       repository, collect: collector(priced(both), `${slug}-1`), now: () => new Date(timestamp),
     });
     assert.equal(repository.models.length, 2);
@@ -342,6 +368,7 @@ for (const { slug, providerName, ingest } of pricingIsolationCases) {
 
     // The pricing page now lists only one of them.
     await ingest({
+      sentinelRepository: sentinel(),
       repository, collect: collector(priced(["alpha-1"]), `${slug}-2`), now: () => new Date(timestamp),
     });
 
