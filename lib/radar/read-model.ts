@@ -79,7 +79,9 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
       provider: snapshot.provider_name,
       name: snapshot.model_name,
       slug: snapshot.model_name,
-      status: lifecycleByModel.get(snapshot.model_id)?.lifecycle_state ?? "active",
+      status:
+        lifecycleByModel.get(snapshot.model_id)?.projected_lifecycle_state ??
+        "active",
       contextWindow: null,
       lastVerifiedAt: snapshot.observed_at,
       rates: [],

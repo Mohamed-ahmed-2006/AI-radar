@@ -194,6 +194,72 @@ exception when insufficient_privilege then
 end $$;
 reset role;
 
+\echo '--- TEST 15: Gemini nullable-state evidence and replacement history ---'
+insert into providers (slug, name, homepage_url)
+values ('gemini', 'Google', 'https://ai.google.dev')
+on conflict (slug) do update set name = excluded.name;
+
+insert into sources (provider_id, kind, collector_id, source_url, label)
+select id, 'models', 'c_msxqpelk2cpxz8r386',
+       'https://ai.google.dev/gemini-api/docs/deprecations',
+       'Gemini lifecycle'
+from providers where slug = 'gemini';
+
+insert into models (provider_id, model_name, lifecycle_state,
+                    retirement_not_before_date)
+select id, 'Gemini 2.5 Pro', 'deprecated', date '2027-05-07'
+from providers where slug = 'gemini';
+
+insert into collection_runs (
+  source_id, external_run_id, status, completed_at, records_seen, records_accepted
+)
+select id, run_id, 'succeeded', now(), 1, 1
+from sources
+cross join (values ('gemini_lifecycle_1'), ('gemini_lifecycle_2')) runs(run_id)
+where collector_id = 'c_msxqpelk2cpxz8r386';
+
+insert into lifecycle_snapshots (
+  run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
+  retirement_not_before_date, retirement_not_before_observation,
+  recommended_replacement, recommended_replacement_observed,
+  source_metadata, source_url, observed_at
+)
+select r.id, s.id, p.id, m.id, 'gemini-2.5-pro',
+       case r.external_run_id
+         when 'gemini_lifecycle_1' then 'deprecated'::lifecycle_state
+         else null
+       end,
+       case r.external_run_id
+         when 'gemini_lifecycle_1' then date '2027-05-07'
+         else null
+       end,
+       case r.external_run_id
+         when 'gemini_lifecycle_1' then 'date'
+         else 'explicitly_unannounced'
+       end,
+       'gemini-3-pro-preview', true,
+       '{"modelStage":"stable","isShutdown":false}'::jsonb,
+       s.source_url,
+       case r.external_run_id
+         when 'gemini_lifecycle_1' then now() + interval '2 hours'
+         else now() + interval '3 hours'
+       end
+from collection_runs r
+join sources s on s.id = r.source_id
+join providers p on p.id = s.provider_id
+join models m on m.provider_id = p.id
+where r.external_run_id in ('gemini_lifecycle_1', 'gemini_lifecycle_2');
+
+select count(*) as gemini_lifecycle_history_rows
+from lifecycle_snapshots ls
+join providers p on p.id = ls.provider_id
+where p.slug = 'gemini';
+
+select api_model_id, lifecycle_state, projected_lifecycle_state,
+       retirement_not_before_observation, recommended_replacement
+from latest_lifecycle_snapshots
+where provider_slug = 'gemini';
+
 \echo '--- TEST 12: lifecycle history and retirement semantics ---'
 insert into providers (slug, name, homepage_url)
 values ('anthropic', 'Anthropic', 'https://www.anthropic.com')
@@ -225,7 +291,8 @@ where collector_id = 'c_msxj0fk3153bu9oz7l';
 
 insert into lifecycle_snapshots (
   run_id, source_id, provider_id, model_id, api_model_id, lifecycle_state,
-  retirement_date, retirement_not_before_date, source_url, observed_at
+  retirement_date, retirement_not_before_date,
+  retirement_not_before_observation, source_url, observed_at
 )
 select r.id, s.id, p.id, m.id, 'claude-opus-4-1-20250805',
        case r.external_run_id
@@ -239,6 +306,10 @@ select r.id, s.id, p.id, m.id, 'claude-opus-4-1-20250805',
        case r.external_run_id
          when 'anthropic_lifecycle_1' then date '2026-08-05'
          else null
+       end,
+       case r.external_run_id
+         when 'anthropic_lifecycle_1' then 'date'
+         else 'unobserved'
        end,
        s.source_url,
        case r.external_run_id

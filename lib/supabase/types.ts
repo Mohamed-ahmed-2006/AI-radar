@@ -28,6 +28,12 @@ export type ChangeType =
 
 export type LifecycleState = "active" | "legacy" | "deprecated" | "retired";
 
+export type RetirementNotBeforeObservation =
+  | "unobserved"
+  | "date"
+  | "imprecise_date"
+  | "explicitly_unannounced";
+
 export type ProviderRow = {
   id: string;
   slug: string;
@@ -128,10 +134,15 @@ export type LifecycleSnapshotRow = {
   provider_id: string;
   model_id: string;
   api_model_id: string;
-  lifecycle_state: LifecycleState;
+  lifecycle_state: LifecycleState | null;
   deprecated_on: string | null;
   retirement_date: string | null;
   retirement_not_before_date: string | null;
+  retirement_not_before_observation: RetirementNotBeforeObservation;
+  recommended_replacement: string | null;
+  recommended_replacement_model_id: string | null;
+  recommended_replacement_observed: boolean;
+  source_metadata: Json;
   source_url: string;
   raw: Json | null;
   observed_at: string;
@@ -170,6 +181,7 @@ export type LatestPricingSnapshotRow = PricingSnapshotRow & {
 
 export type LatestLifecycleSnapshotRow = LifecycleSnapshotRow & {
   model_name: string;
+  projected_lifecycle_state: LifecycleState | null;
   provider_slug: string;
   provider_name: string;
 };
@@ -236,7 +248,6 @@ export type Database = {
         | "provider_id"
         | "model_id"
         | "api_model_id"
-        | "lifecycle_state"
         | "source_url"
         | "observed_at"
       >;

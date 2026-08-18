@@ -1,0 +1,37 @@
+[
+  {
+    "model_id": "gemini-2.5-pro",
+    "model_group": "Gemini 2.5 models",
+    "model_stage": "stable",
+    "release_date_raw": "June 17, 2025",
+    "shutdown_not_before_date_raw": "May 7, 2027",
+    "recommended_replacement": "gemini-3-pro-preview",
+    "product_page_url": null,
+    "is_shutdown": false,
+    "input": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations"
+    }
+  },
+  {
+    "model_id": "gemini-robotics-er-1.6-preview",
+    "model_group": "Gemini Robotics models",
+    "model_stage": "preview",
+    "release_date_raw": "August 2026",
+    "shutdown_not_before_date_raw": "No shutdown date announced",
+    "recommended_replacement": "gemini-robotics-er-2-preview",
+    "is_shutdown": false,
+    "input": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations"
+    }
+  },
+  {
+    "model_id": "lyria-realtime-exp",
+    "model_group": "Lyria models",
+    "model_stage": "stable",
+    "shutdown_not_before_date_raw": "No shutdown date announced",
+    "is_shutdown": true,
+    "input": {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations"
+    }
+  }
+]

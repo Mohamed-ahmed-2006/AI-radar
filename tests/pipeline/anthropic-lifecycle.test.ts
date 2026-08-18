@@ -173,6 +173,12 @@ class MemoryLifecycleRepository implements AnthropicLifecyclePipelineRepository 
         lifecycle_state: input.lifecycleState, deprecated_on: input.deprecatedOn ?? null,
         retirement_date: input.retirementDate ?? null,
         retirement_not_before_date: input.retirementNotBeforeDate ?? null,
+        retirement_not_before_observation:
+          input.retirementNotBeforeObservation ?? "unobserved",
+        recommended_replacement: input.recommendedReplacement ?? null,
+        recommended_replacement_model_id: input.recommendedReplacementModelId ?? null,
+        recommended_replacement_observed: input.recommendedReplacementObserved ?? false,
+        source_metadata: input.sourceMetadata ?? {},
         source_url: input.sourceUrl, raw: input.raw ?? null,
         observed_at: input.observedAt, created_at: timestamp, content_hash: "hash",
       };
@@ -204,6 +210,8 @@ class MemoryLifecycleRepository implements AnthropicLifecyclePipelineRepository 
     return {
       ...row,
       model_name: this.models.find((model) => model.id === row.model_id)?.model_name ?? "unknown",
+      projected_lifecycle_state:
+        this.models.find((model) => model.id === row.model_id)?.lifecycle_state ?? null,
       provider_slug: "anthropic",
       provider_name: "Anthropic",
     };

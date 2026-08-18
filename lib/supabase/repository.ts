@@ -22,6 +22,7 @@ import type {
   PricingSnapshotRow,
   ProviderRow,
   RunStatus,
+  RetirementNotBeforeObservation,
   SourceHealthRow,
   SourceKind,
   SourceRow,
@@ -233,10 +234,11 @@ export async function upsertModelAliases(
 export interface ModelLifecycleProjectionInput {
   modelId: string;
   sourceId: string;
-  lifecycleState: LifecycleState;
+  lifecycleState: LifecycleState | null;
   deprecatedOn: string | null;
   retirementDate: string | null;
   retirementNotBeforeDate: string | null;
+  retirementNotBeforeObservation?: RetirementNotBeforeObservation;
   observedAt: string;
 }
 
@@ -254,18 +256,27 @@ export function modelLifecycleProjectionPatch(
   input: ModelLifecycleProjectionInput,
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {
-    lifecycle_state: input.lifecycleState,
     lifecycle_source_id: input.sourceId,
     lifecycle_observed_at: input.observedAt,
     last_seen_at: input.observedAt,
-    // Only `retired` may take a model out of circulation; every other
-    // authoritative state leaves it available.
-    is_active: input.lifecycleState !== "retired",
   };
+  if (input.lifecycleState !== null) {
+    patch.lifecycle_state = input.lifecycleState;
+    // Only an explicit retired observation takes a model out of circulation.
+    patch.is_active = input.lifecycleState !== "retired";
+  }
   if (input.deprecatedOn !== null) patch.deprecated_on = input.deprecatedOn;
-  if (input.retirementDate !== null || input.retirementNotBeforeDate !== null) {
+  if (input.retirementDate !== null) {
     patch.retirement_date = input.retirementDate;
+    patch.retirement_not_before_date = null;
+  } else if (
+    input.retirementNotBeforeObservation === "date" &&
+    input.retirementNotBeforeDate !== null
+  ) {
+    patch.retirement_date = null;
     patch.retirement_not_before_date = input.retirementNotBeforeDate;
+  } else if (input.retirementNotBeforeObservation === "explicitly_unannounced") {
+    patch.retirement_not_before_date = null;
   }
   return patch;
 }
@@ -467,10 +478,15 @@ export interface LifecycleSnapshotInput {
   providerId: string;
   modelId: string;
   apiModelId: string;
-  lifecycleState: LifecycleState;
+  lifecycleState: LifecycleState | null;
   deprecatedOn?: string | null;
   retirementDate?: string | null;
   retirementNotBeforeDate?: string | null;
+  retirementNotBeforeObservation?: RetirementNotBeforeObservation;
+  recommendedReplacement?: string | null;
+  recommendedReplacementModelId?: string | null;
+  recommendedReplacementObserved?: boolean;
+  sourceMetadata?: Json;
   sourceUrl: string;
   raw?: Json;
   observedAt: string;
@@ -494,6 +510,12 @@ export async function saveLifecycleSnapshots(
         deprecated_on: input.deprecatedOn ?? null,
         retirement_date: input.retirementDate ?? null,
         retirement_not_before_date: input.retirementNotBeforeDate ?? null,
+        retirement_not_before_observation:
+          input.retirementNotBeforeObservation ?? "unobserved",
+        recommended_replacement: input.recommendedReplacement ?? null,
+        recommended_replacement_model_id: input.recommendedReplacementModelId ?? null,
+        recommended_replacement_observed: input.recommendedReplacementObserved ?? false,
+        source_metadata: input.sourceMetadata ?? {},
         source_url: input.sourceUrl,
         raw: input.raw ?? null,
         observed_at: input.observedAt,

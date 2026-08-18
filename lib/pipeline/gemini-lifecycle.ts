@@ -1,157 +1,40 @@
 import {
-  DEFAULT_ANTHROPIC_LIFECYCLE_COLLECTOR_ID,
-  DEFAULT_ANTHROPIC_LIFECYCLE_SOURCE_URL,
-  fetchAnthropicLifecycle,
+  DEFAULT_GEMINI_LIFECYCLE_COLLECTOR_ID,
+  DEFAULT_GEMINI_LIFECYCLE_SOURCE_URL,
+  fetchGeminiLifecycle,
 } from "../brightdata";
 import { detectLifecycleChanges } from "../change-detection";
 import {
-  NormalizedLifecycleRecordSchema,
-  RawAnthropicLifecycleRecordSchema,
-  normalizeAnthropicLifecycleRecord,
+  RawGeminiLifecycleRecordSchema,
+  normalizeGeminiLifecycleRecord,
   type NormalizedLifecycleRecord,
 } from "../contracts";
-import { planAnthropicModelMatches } from "../models/identity";
-import {
-  applyModelLifecycleProjections,
-  completeCollectionRun,
-  createSupabaseAdminClient,
-  failCollectionRun,
-  getComparableLifecycleSnapshots,
-  listModelAliases,
-  listModels,
-  saveChangeEvents,
-  saveLifecycleSnapshots,
-  startCollectionRun,
-  upsertModelAliases,
-  upsertModels,
-  upsertProvider,
-  upsertSource,
-  type ChangeEventInput,
-  type CollectionRunRow,
-  type Json,
-  type LatestLifecycleSnapshotRow,
-  type LifecycleSnapshotInput,
-  type LifecycleSnapshotRow,
-  type ModelAliasInput,
-  type ModelAliasRow,
-  type ModelLifecycleProjectionInput,
-  type ModelRow,
-  type ProviderRow,
-  type RunStatus,
-  type SourceRow,
+import { planGeminiModelMatches } from "../models/identity";
+import type {
+  ChangeEventInput,
+  Json,
+  LifecycleSnapshotInput,
+  ModelAliasInput,
+  ModelRow,
+  ModelLifecycleProjectionInput,
 } from "../supabase";
 import {
   PricingIngestionError,
   type OpenAiCollectorResult,
   type OpenAiPricingIngestionResult,
 } from "./openai-pricing";
+import {
+  createLifecycleRepository,
+  lifecycleChangeSummary,
+  lifecycleJsonCopy,
+  lifecycleSnapshotToRecord,
+  type LifecyclePipelineRepository,
+} from "./anthropic-lifecycle";
 
-export interface LifecyclePipelineRepository {
-  upsertProvider(input: { slug: string; name: string; homepageUrl?: string | null }): Promise<ProviderRow>;
-  upsertSource(input: {
-    providerId: string;
-    sourceUrl: string;
-    collectorId?: string | null;
-    label?: string | null;
-  }): Promise<SourceRow>;
-  startCollectionRun(input: {
-    sourceId: string;
-    externalRunId?: string | null;
-    triggeredBy?: string;
-  }): Promise<CollectionRunRow>;
-  failCollectionRun(
-    runId: string,
-    error: { message: string; details?: Json },
-    counts?: Partial<{ recordsSeen: number; recordsAccepted: number; recordsRejected: number }>,
-  ): Promise<CollectionRunRow>;
-  completeCollectionRun(
-    runId: string,
-    counts: { recordsSeen: number; recordsAccepted: number; recordsRejected: number },
-    status?: Extract<RunStatus, "succeeded" | "partial">,
-    validationErrors?: Json,
-  ): Promise<CollectionRunRow>;
-  listModels(options: { providerId: string }): Promise<ModelRow[]>;
-  upsertModels(input: readonly {
-    providerId: string;
-    modelName: string;
-    seenAt: string;
-  }[]): Promise<ModelRow[]>;
-  listModelAliases(providerId: string): Promise<ModelAliasRow[]>;
-  upsertModelAliases(input: readonly ModelAliasInput[]): Promise<ModelAliasRow[]>;
-  getComparableLifecycleSnapshots(options: {
-    providerSlug: string;
-    sourceId: string;
-  }): Promise<LatestLifecycleSnapshotRow[]>;
-  saveLifecycleSnapshots(input: readonly LifecycleSnapshotInput[]): Promise<LifecycleSnapshotRow[]>;
-  applyModelLifecycleProjections(input: readonly ModelLifecycleProjectionInput[]): Promise<ModelRow[]>;
-  saveChangeEvents(input: readonly ChangeEventInput[]): Promise<unknown[]>;
-}
+export type GeminiLifecyclePipelineRepository = LifecyclePipelineRepository;
 
-export type AnthropicLifecyclePipelineRepository = LifecyclePipelineRepository;
-
-export function createLifecycleRepository(): LifecyclePipelineRepository {
-  const db = createSupabaseAdminClient();
-  return {
-    upsertProvider: (input) => upsertProvider(db, input),
-    upsertSource: (input) => upsertSource(db, { ...input, kind: "models" }),
-    startCollectionRun: (input) => startCollectionRun(db, input),
-    failCollectionRun: (runId, error, counts) => failCollectionRun(db, runId, error, counts),
-    completeCollectionRun: (runId, counts, status, validationErrors) =>
-      completeCollectionRun(db, runId, counts, status, validationErrors),
-    listModels: (options) => listModels(db, options),
-    upsertModels: (input) => upsertModels(db, input),
-    listModelAliases: (providerId) => listModelAliases(db, providerId),
-    upsertModelAliases: (input) => upsertModelAliases(db, input),
-    getComparableLifecycleSnapshots: (options) => getComparableLifecycleSnapshots(db, options),
-    saveLifecycleSnapshots: (input) => saveLifecycleSnapshots(db, input),
-    applyModelLifecycleProjections: (input) => applyModelLifecycleProjections(db, input),
-    saveChangeEvents: (input) => saveChangeEvents(db, input),
-  };
-}
-
-export function lifecycleSnapshotToRecord(
-  row: LatestLifecycleSnapshotRow,
-  provider: "Anthropic" | "Google",
-): NormalizedLifecycleRecord {
-  return NormalizedLifecycleRecordSchema.parse({
-    provider,
-    apiModelId: row.api_model_id,
-    lifecycleState: row.lifecycle_state,
-    deprecatedDate: row.deprecated_on,
-    retirementDate: row.retirement_date,
-    retirementNotBeforeDate: row.retirement_not_before_date,
-    retirementNotBeforeObservation: row.retirement_not_before_observation,
-    recommendedReplacement: row.recommended_replacement,
-    recommendedReplacementObserved: row.recommended_replacement_observed,
-    sourceMetadata: row.source_metadata,
-    provenance: {
-      sourceUrl: row.source_url,
-      collectorId: null,
-      externalRunId: null,
-      collectionRunId: row.run_id,
-    },
-    observedAt: row.observed_at,
-  });
-}
-
-export function lifecycleJsonCopy(value: unknown): Json {
-  return JSON.parse(JSON.stringify(value)) as Json;
-}
-
-export function lifecycleChangeSummary(
-  apiModelId: string,
-  field: string,
-  oldValue: Json,
-  newValue: Json,
-): string {
-  if (field === "lifecycleState") {
-    return `${apiModelId} lifecycle changed: ${String(oldValue)} → ${String(newValue)}`;
-  }
-  return `${apiModelId} ${field} changed`;
-}
-
-export interface IngestAnthropicLifecycleOptions {
-  repository?: AnthropicLifecyclePipelineRepository;
+export interface IngestGeminiLifecycleOptions {
+  repository?: GeminiLifecyclePipelineRepository;
   collect?: () => Promise<OpenAiCollectorResult>;
   now?: () => Date;
   triggeredBy?: string;
@@ -160,38 +43,39 @@ export interface IngestAnthropicLifecycleOptions {
 }
 
 /**
- * Ingests explicit lifecycle rows only. Collector absence never changes a
- * model; retirement is applied only from a validated `Retired` row.
+ * Ingests Google's explicit row evidence. Missing rows and elapsed dates are
+ * never interpreted. Only `is_shutdown` retires a model; an earliest-possible
+ * shutdown date is a lower bound and never an exact retirement date.
  */
-export async function ingestAnthropicLifecycle(
-  options: IngestAnthropicLifecycleOptions = {},
+export async function ingestGeminiLifecycle(
+  options: IngestGeminiLifecycleOptions = {},
 ): Promise<OpenAiPricingIngestionResult> {
   if (typeof window !== "undefined") {
-    throw new Error("ingestAnthropicLifecycle must only run on the server");
+    throw new Error("ingestGeminiLifecycle must only run on the server");
   }
   const repository = options.repository ?? createLifecycleRepository();
   const collectorId = (
     options.collectorId ??
-    process.env.BRIGHTDATA_ANTHROPIC_LIFECYCLE_COLLECTOR_ID ??
-    DEFAULT_ANTHROPIC_LIFECYCLE_COLLECTOR_ID
+    process.env.BRIGHTDATA_GEMINI_LIFECYCLE_COLLECTOR_ID ??
+    DEFAULT_GEMINI_LIFECYCLE_COLLECTOR_ID
   ).trim();
   const sourceUrl = (
     options.sourceUrl ??
-    process.env.ANTHROPIC_LIFECYCLE_SOURCE_URL ??
-    DEFAULT_ANTHROPIC_LIFECYCLE_SOURCE_URL
+    process.env.GEMINI_LIFECYCLE_SOURCE_URL ??
+    DEFAULT_GEMINI_LIFECYCLE_SOURCE_URL
   ).trim();
-  const collect = options.collect ?? (() => fetchAnthropicLifecycle({ collectorId, sourceUrl }));
+  const collect = options.collect ?? (() => fetchGeminiLifecycle({ collectorId, sourceUrl }));
   const startedAt = Date.now();
   const provider = await repository.upsertProvider({
-    slug: "anthropic",
-    name: "Anthropic",
-    homepageUrl: "https://www.anthropic.com",
+    slug: "gemini",
+    name: "Google",
+    homepageUrl: "https://ai.google.dev",
   });
   const source = await repository.upsertSource({
     providerId: provider.id,
     sourceUrl,
     collectorId,
-    label: "Anthropic model lifecycle and deprecations",
+    label: "Google Gemini model lifecycle and deprecations",
   });
 
   let collection: OpenAiCollectorResult;
@@ -218,7 +102,8 @@ export async function ingestAnthropicLifecycle(
     triggeredBy: options.triggeredBy ?? "manual-api",
   });
   if (!collection.success) {
-    const message = collection.metadata.error ?? collection.error?.message ?? "Bright Data collection failed";
+    const message = collection.metadata.error ?? collection.error?.message ??
+      "Bright Data collection failed";
     await repository.failCollectionRun(run.id, { message }, {
       recordsSeen: 0,
       recordsAccepted: 0,
@@ -244,12 +129,12 @@ export async function ingestAnthropicLifecycle(
   const validationErrors: Json[] = [];
   const identities = new Set<string>();
   collection.data.forEach((raw, index) => {
-    const parsed = RawAnthropicLifecycleRecordSchema.safeParse(raw);
-    if (!parsed.success || parsed.data.product_page_url !== sourceUrl) {
+    const parsed = RawGeminiLifecycleRecordSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.input.url !== sourceUrl) {
       validationErrors.push({
         index,
         issues: parsed.success
-          ? [{ path: "product_page_url", message: "Unexpected lifecycle source URL" }]
+          ? [{ path: "input.url", message: "Unexpected lifecycle source URL" }]
           : parsed.error.issues.map((issue) => ({
               path: issue.path.map(String).join("."),
               message: issue.message,
@@ -257,14 +142,17 @@ export async function ingestAnthropicLifecycle(
       });
       return;
     }
-    const normalized = normalizeAnthropicLifecycleRecord(parsed.data, {
+    const normalized = normalizeGeminiLifecycleRecord(parsed.data, {
       observedAt,
       collectorId: collection.metadata.collectorId,
       externalRunId: externalRunId ?? null,
       collectionRunId: run.id,
     });
     if (identities.has(normalized.apiModelId)) {
-      validationErrors.push({ index, issues: [{ path: "api_model_name", message: "Duplicate API model ID" }] });
+      validationErrors.push({
+        index,
+        issues: [{ path: "model_id", message: "Duplicate API model ID" }],
+      });
       return;
     }
     identities.add(normalized.apiModelId);
@@ -280,19 +168,17 @@ export async function ingestAnthropicLifecycle(
   try {
     const existingModels = await repository.listModels({ providerId: provider.id });
     const aliases = await repository.listModelAliases(provider.id);
-    const plans = planAnthropicModelMatches(
+    const plans = planGeminiModelMatches(
       accepted.map(({ normalized }) => normalized.apiModelId),
       existingModels,
       aliases,
     );
     const createdModels = await repository.upsertModels(
-      plans
-        .filter((plan) => plan.createModelName !== null)
-        .map((plan) => ({
-          providerId: provider.id,
-          modelName: plan.createModelName as string,
-          seenAt: observedAt,
-        })),
+      plans.filter((plan) => plan.createModelName !== null).map((plan) => ({
+        providerId: provider.id,
+        modelName: plan.createModelName as string,
+        seenAt: observedAt,
+      })),
     );
     const modelsByName = new Map(
       [...existingModels, ...createdModels].map((model) => [model.model_name, model]),
@@ -310,13 +196,13 @@ export async function ingestAnthropicLifecycle(
       alias: plan.apiModelId,
       aliasType: "api_model_id",
       seenAt: observedAt,
-    })));
+    }) satisfies ModelAliasInput));
 
     const previousRows = await repository.getComparableLifecycleSnapshots({
-      providerSlug: "anthropic",
+      providerSlug: "gemini",
       sourceId: source.id,
     });
-    const previous = previousRows.map((row) => lifecycleSnapshotToRecord(row, "Anthropic"));
+    const previous = previousRows.map((row) => lifecycleSnapshotToRecord(row, "Google"));
     const current = accepted.map(({ normalized }) => normalized);
     const changes = detectLifecycleChanges(previous, current);
     const snapshots = await repository.saveLifecycleSnapshots(accepted.map(({ normalized, raw }) => {
@@ -377,13 +263,8 @@ export async function ingestAnthropicLifecycle(
       retirementNotBeforeDate: record.retirementNotBeforeDate,
       retirementNotBeforeObservation: record.retirementNotBeforeObservation,
       observedAt,
-    })));
-    await repository.completeCollectionRun(
-      run.id,
-      counts,
-      undefined,
-      validationErrors,
-    );
+    }) satisfies ModelLifecycleProjectionInput));
+    await repository.completeCollectionRun(run.id, counts, undefined, validationErrors);
     return {
       success: true,
       collectionRunId: run.id,

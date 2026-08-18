@@ -11,8 +11,12 @@ const collectorPattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const httpUrlSchema = z
   .url()
   .refine((value) => {
-    const protocol = new URL(value).protocol;
-    return protocol === "http:" || protocol === "https:";
+    try {
+      const protocol = new URL(value).protocol;
+      return protocol === "http:" || protocol === "https:";
+    } catch {
+      return false;
+    }
   }, "Must be an HTTP or HTTPS URL");
 
 const priceSchema = z

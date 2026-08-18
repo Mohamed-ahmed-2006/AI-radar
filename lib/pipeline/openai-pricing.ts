@@ -8,7 +8,7 @@ import {
   type ChangeEvent,
   type NormalizedPricingRecord,
 } from "../contracts";
-import { planAnthropicModelMatches } from "../models/identity";
+import { planAnthropicModelMatches, planGeminiModelMatches } from "../models/identity";
 import {
   completeCollectionRun,
   createSupabaseAdminClient,
@@ -304,11 +304,13 @@ export async function ingestPricingProvider(
     // Pricing is not an authoritative identity source. It may reuse a canonical
     // row when the match is unambiguous, but an ambiguous display name must
     // degrade to its own row — never abort every other model's price.
-    const anthropicPlans = providerDefinition.slug === "anthropic"
+    const identityPlans = providerDefinition.slug === "anthropic"
       ? planAnthropicModelMatches(modelNames, existingModels, [], { onAmbiguity: "create" })
-      : null;
-    const namesToCreate = anthropicPlans
-      ? anthropicPlans
+      : providerDefinition.slug === "gemini"
+        ? planGeminiModelMatches(modelNames, existingModels, [], { onAmbiguity: "create" })
+        : null;
+    const namesToCreate = identityPlans
+      ? identityPlans
           .filter((plan) => plan.createModelName !== null)
           .map((plan) => plan.createModelName as string)
       : modelNames;
@@ -321,8 +323,8 @@ export async function ingestPricingProvider(
     );
     const knownModels = await repository.listModels({ providerId: provider.id });
     const modelsByName = new Map([...knownModels, ...models].map((model) => [model.model_name, model]));
-    if (anthropicPlans) {
-      for (const plan of anthropicPlans) {
+    if (identityPlans) {
+      for (const plan of identityPlans) {
         const model = plan.model ?? modelsByName.get(plan.createModelName as string);
         if (!model) throw new Error(`Model ${plan.apiModelId} was not returned by persistence`);
         modelsByName.set(plan.apiModelId, model);

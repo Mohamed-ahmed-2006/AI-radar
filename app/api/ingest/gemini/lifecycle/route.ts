@@ -1,0 +1,10 @@
+import { handleProviderIngest, ingestGeminiLifecycle } from "@/lib/pipeline";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export function POST(request: Request): Promise<Response> {
+  return handleProviderIngest(request, () => ingestGeminiLifecycle({
+    triggeredBy: "manual-api",
+  }));
+}
