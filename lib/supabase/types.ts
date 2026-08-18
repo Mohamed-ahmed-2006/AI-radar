@@ -34,6 +34,33 @@ export type RetirementNotBeforeObservation =
   | "imprecise_date"
   | "explicitly_unannounced";
 
+export type SentinelStatus =
+  | "healthy"
+  | "degraded"
+  | "quarantined"
+  | "healing"
+  | "recovered"
+  | "needs_review";
+
+export type SentinelIncidentStatus =
+  | "open"
+  | "healing"
+  | "resolved"
+  | "dismissed"
+  | "needs_review";
+
+export type SentinelReasonCode =
+  | "SCHEMA_VALIDATION_FAILURE"
+  | "RECORD_COUNT_COLLAPSE"
+  | "RECORD_COUNT_SPIKE"
+  | "ZERO_RECORDS"
+  | "DUPLICATE_IDENTIFIERS"
+  | "ILLEGAL_ENUM_VALUE"
+  | "ALL_PRICES_NULL"
+  | "SEMANTIC_INVARIANT_VIOLATION"
+  | "STALE_SOURCE"
+  | "COLLECTOR_EXECUTION_FAILURE";
+
 export type ProviderRow = {
   id: string;
   slug: string;
@@ -172,6 +199,66 @@ export type ChangeEventRow = {
   created_at: string;
 };
 
+export type SentinelIncidentRow = {
+  id: string;
+  source_id: string;
+  provider_id: string;
+  run_id: string | null;
+  status: SentinelIncidentStatus;
+  severity: "info" | "warning" | "critical";
+  reason_codes: SentinelReasonCode[];
+  summary: string | null;
+  records_seen: number;
+  records_valid: number;
+  records_invalid: number;
+  expected_count: number | null;
+  last_known_good_count: number | null;
+  last_known_good_run_id: string | null;
+  last_known_good_at: string | null;
+  healing_attempt_count: number;
+  resolution_note: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+};
+
+export type SentinelQuarantinePayloadRow = {
+  id: string;
+  incident_id: string;
+  source_id: string;
+  run_id: string | null;
+  raw_payload: Json;
+  validation_errors: Json;
+  created_at: string;
+};
+
+export type SentinelHealingAttemptRow = {
+  id: string;
+  incident_id: string;
+  source_id: string;
+  collector_id: string | null;
+  attempt_number: number;
+  prompt: string;
+  status:
+    | "initiated"
+    | "in_progress"
+    | "awaiting_approval"
+    | "candidate_validated"
+    | "candidate_rejected"
+    | "approved"
+    | "rejected"
+    | "failed"
+    | "timed_out";
+  refactor_job_id: string | null;
+  candidate_records_count: number | null;
+  candidate_passed_validation: boolean | null;
+  validation_details: Json | null;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 /** Row of the `latest_pricing_snapshots` view. */
 export type LatestPricingSnapshotRow = PricingSnapshotRow & {
   model_name: string;
@@ -202,6 +289,35 @@ export type SourceHealthRow = {
   records_accepted: number | null;
   records_rejected: number | null;
   error_message: string | null;
+};
+
+/** Row of the `sentinel_source_health` view. */
+export type SentinelSourceHealthRow = {
+  source_id: string;
+  provider_id: string;
+  provider_name: string;
+  provider_slug: string;
+  kind: SourceKind;
+  collector_id: string | null;
+  source_url: string;
+  label: string | null;
+  is_active: boolean;
+  last_run_id: string | null;
+  last_run_status: RunStatus | null;
+  last_run_started_at: string | null;
+  last_run_completed_at: string | null;
+  last_run_records_seen: number | null;
+  last_run_records_accepted: number | null;
+  last_run_records_rejected: number | null;
+  last_run_error_message: string | null;
+  active_incident_id: string | null;
+  active_incident_status: SentinelIncidentStatus | null;
+  active_incident_severity: "info" | "warning" | "critical" | null;
+  active_reason_codes: SentinelReasonCode[] | null;
+  healing_attempt_count: number | null;
+  last_known_good_count: number | null;
+  last_known_good_at: string | null;
+  sentinel_health_status: SentinelStatus;
 };
 
 /** Columns the database computes and refuses writes to. */
@@ -252,6 +368,15 @@ export type Database = {
         | "observed_at"
       >;
       change_events: Table<ChangeEventRow, "provider_id" | "change_type">;
+      sentinel_incidents: Table<SentinelIncidentRow, "source_id" | "provider_id">;
+      sentinel_quarantine_payloads: Table<
+        SentinelQuarantinePayloadRow,
+        "incident_id" | "source_id"
+      >;
+      sentinel_healing_attempts: Table<
+        SentinelHealingAttemptRow,
+        "incident_id" | "source_id" | "prompt" | "status"
+      >;
     };
     Views: {
       latest_pricing_snapshots: View<LatestPricingSnapshotRow>;
@@ -259,6 +384,7 @@ export type Database = {
       latest_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
       latest_comparable_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
       source_health: View<SourceHealthRow>;
+      sentinel_source_health: View<SentinelSourceHealthRow>;
     };
     Functions: Record<never, never>;
     Enums: {
@@ -266,6 +392,8 @@ export type Database = {
       run_status: RunStatus;
       change_type: ChangeType;
       lifecycle_state: LifecycleState;
+      sentinel_status: SentinelStatus;
+      sentinel_incident_status: SentinelIncidentStatus;
     };
     CompositeTypes: Record<never, never>;
   };

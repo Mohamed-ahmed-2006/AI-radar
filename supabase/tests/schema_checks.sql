@@ -374,3 +374,23 @@ end $$;
 select count(*) as anon_can_read_source_health from source_health;
 select count(*) as anon_can_read_lifecycle from latest_lifecycle_snapshots;
 reset role;
+
+\echo '--- TEST 16: Sentinel quarantine and incident RLS ---'
+set role anon;
+do $$
+begin
+  perform raw_payload from sentinel_quarantine_payloads;
+  raise exception 'FAIL: anon can read sentinel_quarantine_payloads';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read sentinel_quarantine_payloads';
+end $$;
+do $$
+begin
+  perform validation_details from sentinel_healing_attempts;
+  raise exception 'FAIL: anon can read sentinel_healing_attempts.validation_details';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read sentinel_healing_attempts.validation_details';
+end $$;
+select count(*) as anon_can_read_sentinel_source_health from sentinel_source_health;
+select count(*) as anon_can_read_sentinel_incidents from sentinel_incidents;
+reset role;
