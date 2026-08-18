@@ -4,8 +4,10 @@ import {
   PricingIngestionError,
   type OpenAiPricingIngestionResult,
 } from "./openai-pricing";
+import { SentinelQuarantineError } from "./sentinel-gate";
 
-function secretsMatch(provided: string | null, expected: string | undefined): boolean {
+/** Constant-time shared-secret comparison. Absent secrets never match. */
+export function secretsMatch(provided: string | null, expected: string | undefined): boolean {
   if (!provided || !expected) return false;
   const providedBuffer = Buffer.from(provided);
   const expectedBuffer = Buffer.from(expected);
@@ -37,8 +39,25 @@ export async function handleProviderIngest(
       rejectedCount: result.rejectedCount,
       changesDetected: result.changesDetected,
       durationMs: result.durationMs,
+      sentinelStatus: result.sentinel?.status ?? null,
     });
   } catch (error) {
+    // A quarantine is a refusal, not a server fault: the collection was
+    // rejected by Sentinel and canonical state was left untouched.
+    if (error instanceof SentinelQuarantineError) {
+      return Response.json({
+        success: false,
+        status: "quarantined",
+        collectionRunId: error.collectionRunId ?? null,
+        externalBrightDataRunId: error.externalRunId ?? null,
+        sentinelIncidentId: error.incidentId,
+        reasonCodes: error.reasonCodes,
+        recordsSeen: error.recordsSeen,
+        recordsValid: error.recordsValid,
+        recordsInvalid: error.recordsInvalid,
+        error: "sentinel_quarantined",
+      }, { status: 409 });
+    }
     const ingestionError = error instanceof PricingIngestionError ? error : undefined;
     return Response.json({
       success: false,

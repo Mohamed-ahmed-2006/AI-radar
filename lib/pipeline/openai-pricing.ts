@@ -30,11 +30,18 @@ import {
   type ProviderRow,
   type SourceRow,
 } from "../supabase";
+import type { SentinelRepository } from "../sentinel/repository";
+import { PricingIngestionError } from "./errors";
 import {
   PRICING_PROVIDERS,
   resolvePricingProviderConfiguration,
   type PricingProviderDefinition,
 } from "./providers";
+import {
+  assertSentinelSafe,
+  toSentinelSummary,
+  type SentinelIngestionSummary,
+} from "./sentinel-gate";
 
 export interface OpenAiCollectorResult {
   success: boolean;
@@ -153,17 +160,7 @@ function eventValue(change: ChangeEvent): Json {
   return "newValue" in change ? change.newValue : null;
 }
 
-export class PricingIngestionError extends Error {
-  readonly collectionRunId?: string;
-  readonly externalRunId?: string;
-
-  constructor(message: string, ids: { collectionRunId?: string; externalRunId?: string } = {}) {
-    super(message);
-    this.name = "PricingIngestionError";
-    this.collectionRunId = ids.collectionRunId;
-    this.externalRunId = ids.externalRunId;
-  }
-}
+export { PricingIngestionError };
 
 /** @deprecated Retained for OpenAI endpoint compatibility. */
 export { PricingIngestionError as OpenAiPricingIngestionError };
@@ -173,6 +170,12 @@ export interface IngestOpenAiPricingOptions {
   collect?: () => Promise<OpenAiCollectorResult>;
   now?: () => Date;
   triggeredBy?: string;
+  /**
+   * Sentinel persistence used by the inline health gate. Injectable for tests;
+   * omitting it uses the live Sentinel repository. There is no option to skip
+   * the gate itself.
+   */
+  sentinelRepository?: SentinelRepository;
 }
 
 export interface OpenAiPricingIngestionResult {
@@ -184,6 +187,8 @@ export interface OpenAiPricingIngestionResult {
   changesDetected: number;
   durationMs: number;
   idempotent: boolean;
+  /** Health verdict that admitted this payload. Absent on idempotent replays. */
+  sentinel?: SentinelIngestionSummary;
 }
 
 /**
@@ -217,21 +222,26 @@ export async function ingestPricingProvider(
     label: providerDefinition.label,
   });
 
+  const observedAt = (options.now ?? (() => new Date()))().toISOString();
   let collection: OpenAiCollectorResult;
+  let collectorError: string | null = null;
   try {
     collection = await collect();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Bright Data collection failed";
-    const failedRun = await repository.startCollectionRun({
-      sourceId: source.id,
-      triggeredBy: options.triggeredBy ?? "manual-api",
-    });
-    await repository.failCollectionRun(failedRun.id, { message }, {
-      recordsSeen: 0,
-      recordsAccepted: 0,
-      recordsRejected: 0,
-    });
-    throw new PricingIngestionError(message, { collectionRunId: failedRun.id });
+    collectorError = error instanceof Error ? error.message : "Bright Data collection failed";
+    collection = {
+      success: false,
+      data: [],
+      metadata: {
+        collectorId,
+        startedAt: observedAt,
+        completedAt: observedAt,
+        durationMs: 0,
+        resultCount: 0,
+        status: "failed",
+        error: collectorError,
+      },
+    };
   }
   const externalRunId = collection.metadata.runId;
   const run = await repository.startCollectionRun({
@@ -241,16 +251,8 @@ export async function ingestPricingProvider(
   });
 
   if (!collection.success) {
-    const message = collection.metadata.error ?? collection.error?.message ?? "Bright Data collection failed";
-    await repository.failCollectionRun(run.id, { message }, {
-      recordsSeen: 0,
-      recordsAccepted: 0,
-      recordsRejected: 0,
-    });
-    throw new PricingIngestionError(message, {
-      collectionRunId: run.id,
-      externalRunId,
-    });
+    collectorError ??=
+      collection.metadata.error ?? collection.error?.message ?? "Bright Data collection failed";
   }
 
   if (run.status === "succeeded" || run.status === "partial") {
@@ -266,7 +268,32 @@ export async function ingestPricingProvider(
     };
   }
 
-  const observedAt = (options.now ?? (() => new Date()))().toISOString();
+  // Sentinel gate. Nothing below this line can run for a payload the gate
+  // refuses: `assertSentinelSafe` fails the run and throws, so no model,
+  // snapshot or change event is ever written for a quarantined collection.
+  const gate = await assertSentinelSafe({
+    target: { domain: "pricing", providerSlug: providerDefinition.slug },
+    source: {
+      id: source.id,
+      providerId: provider.id,
+      collectorId,
+      sourceUrl,
+      label: providerDefinition.label,
+    },
+    rawRecords: collection.data,
+    collectorError,
+    observedAt,
+    runId: run.id,
+    externalRunId,
+    repository: options.sentinelRepository,
+    failRun: (message, details) =>
+      repository.failCollectionRun(run.id, { message, details }, {
+        recordsSeen: collection.data.length,
+        recordsAccepted: 0,
+        recordsRejected: collection.data.length,
+      }),
+  });
+
   const accepted: NormalizedPricingRecord[] = [];
   const identities = new Set<string>();
   let rejectedCount = 0;
@@ -410,6 +437,7 @@ export async function ingestPricingProvider(
       changesDetected: changes.length,
       durationMs: Date.now() - startedAt,
       idempotent: false,
+      sentinel: toSentinelSummary(gate),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pricing persistence failed";

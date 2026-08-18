@@ -18,11 +18,13 @@ import type {
   ModelRow,
   ModelLifecycleProjectionInput,
 } from "../supabase";
+import type { SentinelRepository } from "../sentinel/repository";
 import {
   PricingIngestionError,
   type OpenAiCollectorResult,
   type OpenAiPricingIngestionResult,
 } from "./openai-pricing";
+import { assertSentinelSafe, toSentinelSummary } from "./sentinel-gate";
 import {
   createLifecycleRepository,
   lifecycleChangeSummary,
@@ -40,6 +42,8 @@ export interface IngestGeminiLifecycleOptions {
   triggeredBy?: string;
   collectorId?: string;
   sourceUrl?: string;
+  /** Sentinel persistence for the inline health gate; the gate is not optional. */
+  sentinelRepository?: SentinelRepository;
 }
 
 /**
@@ -78,21 +82,26 @@ export async function ingestGeminiLifecycle(
     label: "Google Gemini model lifecycle and deprecations",
   });
 
+  const observedAt = (options.now ?? (() => new Date()))().toISOString();
   let collection: OpenAiCollectorResult;
+  let collectorError: string | null = null;
   try {
     collection = await collect();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Bright Data collection failed";
-    const run = await repository.startCollectionRun({
-      sourceId: source.id,
-      triggeredBy: options.triggeredBy ?? "manual-api",
-    });
-    await repository.failCollectionRun(run.id, { message }, {
-      recordsSeen: 0,
-      recordsAccepted: 0,
-      recordsRejected: 0,
-    });
-    throw new PricingIngestionError(message, { collectionRunId: run.id });
+    collectorError = error instanceof Error ? error.message : "Bright Data collection failed";
+    collection = {
+      success: false,
+      data: [],
+      metadata: {
+        collectorId,
+        startedAt: observedAt,
+        completedAt: observedAt,
+        durationMs: 0,
+        resultCount: 0,
+        status: "failed",
+        error: collectorError,
+      },
+    };
   }
 
   const externalRunId = collection.metadata.runId;
@@ -102,14 +111,8 @@ export async function ingestGeminiLifecycle(
     triggeredBy: options.triggeredBy ?? "manual-api",
   });
   if (!collection.success) {
-    const message = collection.metadata.error ?? collection.error?.message ??
+    collectorError ??= collection.metadata.error ?? collection.error?.message ??
       "Bright Data collection failed";
-    await repository.failCollectionRun(run.id, { message }, {
-      recordsSeen: 0,
-      recordsAccepted: 0,
-      recordsRejected: 0,
-    });
-    throw new PricingIngestionError(message, { collectionRunId: run.id, externalRunId });
   }
   if (run.status === "succeeded" || run.status === "partial") {
     return {
@@ -124,7 +127,32 @@ export async function ingestGeminiLifecycle(
     };
   }
 
-  const observedAt = (options.now ?? (() => new Date()))().toISOString();
+  // Sentinel gate. A refused payload fails the run and throws here, so no
+  // lifecycle snapshot, alias, change event or model lifecycle projection can
+  // be written from a quarantined collection.
+  const gate = await assertSentinelSafe({
+    target: { domain: "lifecycle", providerSlug: "gemini" },
+    source: {
+      id: source.id,
+      providerId: provider.id,
+      collectorId,
+      sourceUrl,
+      label: "Google Gemini model lifecycle and deprecations",
+    },
+    rawRecords: collection.data,
+    collectorError,
+    observedAt,
+    runId: run.id,
+    externalRunId,
+    repository: options.sentinelRepository,
+    failRun: (message, details) =>
+      repository.failCollectionRun(run.id, { message, details }, {
+        recordsSeen: collection.data.length,
+        recordsAccepted: 0,
+        recordsRejected: collection.data.length,
+      }),
+  });
+
   const accepted: { normalized: NormalizedLifecycleRecord; raw: unknown }[] = [];
   const validationErrors: Json[] = [];
   const identities = new Set<string>();
@@ -274,6 +302,7 @@ export async function ingestGeminiLifecycle(
       changesDetected: changes.length,
       durationMs: Date.now() - startedAt,
       idempotent: false,
+      sentinel: toSentinelSummary(gate),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Lifecycle persistence failed";
