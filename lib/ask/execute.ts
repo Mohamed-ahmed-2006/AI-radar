@@ -11,6 +11,7 @@
  */
 
 import { getDemoTemporalEvidence } from "../intelligence/demo-evidence";
+import { resolveDemoEvidence } from "../intelligence/demo-gate";
 import { executeTemporalQuery } from "../intelligence/query-engine";
 import { loadLiveTemporalEvidence } from "../intelligence/read-model";
 import {
@@ -210,7 +211,7 @@ function publishDecision(args: {
 
 async function loadTemporalDataset(options: AskOptions): Promise<readonly TemporalEvidence[]> {
   if (options.loadTemporalEvidence) return options.loadTemporalEvidence();
-  if (options.demo) return getDemoTemporalEvidence();
+  if (resolveDemoEvidence(options.demo)) return getDemoTemporalEvidence();
   return loadLiveTemporalEvidence();
 }
 

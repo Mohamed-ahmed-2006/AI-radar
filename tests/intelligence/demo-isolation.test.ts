@@ -28,7 +28,16 @@ test("Demo evidence isolation: all demo items are explicitly marked with isDemo:
   }
 });
 
+test("Demo isolation: requesting the demo corpus without the server opt-in yields none", async () => {
+  delete process.env.AI_RADAR_DEMO_EVIDENCE;
+  const bundle = await queryTemporalIntelligence({ demo: true, range: "30d" });
+  assert.equal(bundle.isDemoData, false);
+  assert.equal(bundle.events.some((e) => e.isDemo), false);
+});
+
 test("Demo isolation: queryTemporalIntelligence with demo=false does not mix demo data", async () => {
+  // The rest of this case is about the *explicit* demo mode, so opt in.
+  process.env.AI_RADAR_DEMO_EVIDENCE = "1";
   // In a standalone environment without database rows, live query returns an empty bundle with isDemoData: false
   const liveBundle = await queryTemporalIntelligence({ demo: false, range: "30d" });
   assert.equal(liveBundle.isDemoData, false);

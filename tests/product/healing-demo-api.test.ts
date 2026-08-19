@@ -6,6 +6,11 @@ import { registerHealingDemoBackend } from "../../lib/healing-demo/backend";
 import { setHealingDemoAdapter } from "../../lib/product/healing-demo";
 import { createFixtureHealingDemoAdapter } from "../../lib/product/healing-demo-fixture";
 import { createCanonicalHealingDemoAdapter } from "../../lib/product/healing-demo-read-model";
+import {
+  issueOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE,
+} from "../../lib/orchestration/operator-session";
+import { resetRateLimits, RATE_LIMIT_POLICIES } from "../../lib/rate-limit";
 
 const OPERATOR_SECRET = "test-operator-secret";
 
@@ -145,4 +150,87 @@ test("the allowlist still holds under the open-controls opt-in", async () => {
   );
 
   assert.equal(response.status, 400);
+});
+
+test("an operator session unlocks the controls without the open-controls flag", async () => {
+  // The property the public deployment depends on: a browser holding only a
+  // cookie — no header secret, no AI_RADAR_HEALING_DEMO_OPEN_CONTROLS — can
+  // drive the demo, and an anonymous visitor still cannot.
+  assert.equal(process.env.AI_RADAR_HEALING_DEMO_OPEN_CONTROLS, undefined);
+  setHealingDemoAdapter(createFixtureHealingDemoAdapter("healthy"));
+  resetRateLimits();
+
+  const token = issueOperatorSessionToken(OPERATOR_SECRET);
+  assert.ok(token, "the ingest secret must be able to open a session");
+
+  const response = await POST(
+    new Request("https://radar.test/api/demo/healing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${OPERATOR_SESSION_COOKIE}=${encodeURIComponent(token)}`,
+        // A distinct address so this case owns its own rate-limit budget.
+        "x-forwarded-for": "198.51.100.10",
+      },
+      body: JSON.stringify({ action: "trigger_failure" }),
+    }),
+  );
+
+  assert.equal(response.status, 200);
+  const body = (await response.json()) as { phase: string };
+  assert.equal(body.phase, "break");
+});
+
+test("an anonymous caller is told an unlock exists, never what the credential is", async () => {
+  setHealingDemoAdapter(createFixtureHealingDemoAdapter("healthy"));
+  resetRateLimits();
+
+  const response = await POST(anonymousPost({ action: "trigger_failure" }));
+
+  assert.equal(response.status, 401);
+  const body = (await response.json()) as { error: string; unlockAvailable: boolean };
+  assert.equal(body.unlockAvailable, true);
+  assert.equal(JSON.stringify(body).includes(OPERATOR_SECRET), false);
+});
+
+test("steps that spend Bright Data quota are rate limited even for an operator", async () => {
+  setHealingDemoAdapter(createFixtureHealingDemoAdapter("healthy"));
+  resetRateLimits();
+
+  const limit = RATE_LIMIT_POLICIES.healingDemoExpensive.limit;
+  const attempt = () =>
+    POST(
+      new Request("https://radar.test/api/demo/healing", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-ai-radar-ingest-secret": OPERATOR_SECRET,
+          "x-forwarded-for": "198.51.100.20",
+        },
+        body: JSON.stringify({ action: "establish_baseline" }),
+      }),
+    );
+
+  for (let index = 0; index < limit; index += 1) {
+    const allowed = await attempt();
+    assert.notEqual(allowed.status, 429, `attempt ${index + 1} should be permitted`);
+  }
+
+  const refused = await attempt();
+  assert.equal(refused.status, 429);
+  assert.ok(Number(refused.headers.get("retry-after")) > 0);
+
+  // A cheap action is on its own budget and is unaffected.
+  const cheap = await POST(
+    new Request("https://radar.test/api/demo/healing", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ai-radar-ingest-secret": OPERATOR_SECRET,
+        "x-forwarded-for": "198.51.100.20",
+      },
+      body: JSON.stringify({ action: "trigger_failure" }),
+    }),
+  );
+  assert.notEqual(cheap.status, 429);
 });

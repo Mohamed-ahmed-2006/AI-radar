@@ -75,6 +75,16 @@ function readNumber(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/**
+ * A declared-but-empty environment variable must not override a committed
+ * default: `??` accepts `""`, which would leave a source with no collector id
+ * and no source URL and fail only at the Bright Data call.
+ */
+function overrideOrDefault(configured: string | undefined, fallback: string): string {
+  const trimmed = configured?.trim();
+  return trimmed ? trimmed : fallback.trim();
+}
+
 function readBoolean(name: string, fallback: boolean): boolean {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === "") return fallback;
@@ -165,13 +175,14 @@ function definePricingSource(slug: PricingProviderSlug): CollectionSourceDefinit
 
 function defineAnthropicLifecycleSource(): CollectionSourceDefinition {
   const key: CollectionSourceKey = "anthropic-lifecycle";
-  const collectorId = (
-    process.env.BRIGHTDATA_ANTHROPIC_LIFECYCLE_COLLECTOR_ID ??
-    DEFAULT_ANTHROPIC_LIFECYCLE_COLLECTOR_ID
-  ).trim();
-  const sourceUrl = (
-    process.env.ANTHROPIC_LIFECYCLE_SOURCE_URL ?? DEFAULT_ANTHROPIC_LIFECYCLE_SOURCE_URL
-  ).trim();
+  const collectorId = overrideOrDefault(
+    process.env.BRIGHTDATA_ANTHROPIC_LIFECYCLE_COLLECTOR_ID,
+    DEFAULT_ANTHROPIC_LIFECYCLE_COLLECTOR_ID,
+  );
+  const sourceUrl = overrideOrDefault(
+    process.env.ANTHROPIC_LIFECYCLE_SOURCE_URL,
+    DEFAULT_ANTHROPIC_LIFECYCLE_SOURCE_URL,
+  );
   const cadenceMinutes = resolveCadenceMinutes(key, ORCHESTRATION_DEFAULTS.lifecycleCadenceMinutes);
 
   return {
@@ -205,13 +216,14 @@ function defineAnthropicLifecycleSource(): CollectionSourceDefinition {
 
 function defineGeminiLifecycleSource(): CollectionSourceDefinition {
   const key: CollectionSourceKey = "gemini-lifecycle";
-  const collectorId = (
-    process.env.BRIGHTDATA_GEMINI_LIFECYCLE_COLLECTOR_ID ??
-    DEFAULT_GEMINI_LIFECYCLE_COLLECTOR_ID
-  ).trim();
-  const sourceUrl = (
-    process.env.GEMINI_LIFECYCLE_SOURCE_URL ?? DEFAULT_GEMINI_LIFECYCLE_SOURCE_URL
-  ).trim();
+  const collectorId = overrideOrDefault(
+    process.env.BRIGHTDATA_GEMINI_LIFECYCLE_COLLECTOR_ID,
+    DEFAULT_GEMINI_LIFECYCLE_COLLECTOR_ID,
+  );
+  const sourceUrl = overrideOrDefault(
+    process.env.GEMINI_LIFECYCLE_SOURCE_URL,
+    DEFAULT_GEMINI_LIFECYCLE_SOURCE_URL,
+  );
   const cadenceMinutes = resolveCadenceMinutes(key, ORCHESTRATION_DEFAULTS.lifecycleCadenceMinutes);
 
   return {

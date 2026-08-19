@@ -1,11 +1,19 @@
 import { NextResponse } from "next/server";
 
-import { authorizeSchedulerRequest } from "@/lib/orchestration/auth";
+import { authorizeOperatorRequest } from "@/lib/orchestration/auth";
+import { isOperatorSessionConfigured } from "@/lib/orchestration/operator-session";
 import {
   getHealingDemoAdapter,
   isHealingDemoAction,
   type HealingDemoAction,
 } from "@/lib/product";
+import {
+  consumeRateLimit,
+  rateLimitedResponse,
+  rateLimitHeaders,
+  rateLimitIdentity,
+  RATE_LIMIT_POLICIES,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,26 +41,49 @@ export async function GET() {
 }
 
 /**
+ * The steps that spend Bright Data quota: each runs the demo collector for
+ * real, and `start_healing` additionally submits a Scraper Studio refactor.
+ * `reset` is included because restoring a broken extraction template is itself
+ * a refactor job. The remaining actions are local state transitions.
+ */
+const EXPENSIVE_ACTIONS: ReadonlySet<HealingDemoAction> = new Set<HealingDemoAction>([
+  "reset",
+  "establish_baseline",
+  "run_broken_collector",
+  "start_healing",
+  "rerun_recover",
+]);
+
+/**
  * Whether a mutating demo step may run.
  *
  * These steps drive a real collector and a real Scraper Studio refactor, so
- * they are closed by default and authorized with the same operator credential
- * as the collection scheduler.
+ * they are closed by default. Authorization is the operator credential — sent
+ * as a header, or held as the signed `HttpOnly` session cookie that
+ * `/api/operator/session` mints for a browser. A public visitor holds neither,
+ * so no anonymous request can start a repair job.
  *
- * A judge-facing deployment that wants the buttons live for anyone can set
- * `AI_RADAR_HEALING_DEMO_OPEN_CONTROLS=1`. That is a deliberate, server-side
- * opt-in, and it is still confined to the dedicated demo source: neither the
- * action allowlist nor the collector allowlist moves.
+ * `AI_RADAR_HEALING_DEMO_OPEN_CONTROLS=1` survives only as an explicit
+ * server-side opt-in for a throwaway deployment where anyone may press the
+ * buttons. It is *not* required for a public deployment and must not be set on
+ * one; the operator session is the supported mechanism. Even where it is set,
+ * the rate limit below still applies, so an open deployment still cannot be
+ * used to drain Bright Data quota.
  */
 function mayMutate(request: Request): boolean {
   if (process.env.AI_RADAR_HEALING_DEMO_OPEN_CONTROLS === "1") return true;
-  return authorizeSchedulerRequest(request).authorized;
+  return authorizeOperatorRequest(request).authorized;
 }
 
 export async function POST(request: Request) {
   if (!mayMutate(request)) {
     return NextResponse.json(
-      { error: "Healing demo controls require the operator credential" },
+      {
+        error: "Healing demo controls require the operator credential",
+        // Lets the UI offer an unlock prompt instead of a dead button. It
+        // reveals only whether unlocking is possible, never the credential.
+        unlockAvailable: isOperatorSessionConfigured(),
+      },
       { status: 401 },
     );
   }
@@ -73,10 +104,30 @@ export async function POST(request: Request) {
 
   const action: HealingDemoAction = body.action;
 
+  // Bounded however the caller was authorized: a shared operator credential, or
+  // an open-controls deployment, must not become a way to run repair jobs in a
+  // loop.
+  const expensive = EXPENSIVE_ACTIONS.has(action);
+  const decision = consumeRateLimit(
+    expensive ? "healing-demo-expensive" : "healing-demo-cheap",
+    rateLimitIdentity(request),
+    expensive
+      ? RATE_LIMIT_POLICIES.healingDemoExpensive
+      : RATE_LIMIT_POLICIES.healingDemoCheap,
+  );
+  if (!decision.allowed) {
+    return rateLimitedResponse(
+      decision,
+      expensive
+        ? "This step runs a real Bright Data job. Wait for the window to reset before running it again."
+        : "Too many demo requests. Wait and try again.",
+    );
+  }
+
   try {
     const adapter = getHealingDemoAdapter();
     const model = await adapter.runAction(action);
-    return NextResponse.json(model);
+    return NextResponse.json(model, { headers: rateLimitHeaders(decision) });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Real healing demo unavailable";

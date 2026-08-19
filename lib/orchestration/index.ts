@@ -12,6 +12,7 @@ export * from "./schedule";
 export * from "./repository";
 export * from "./runner";
 export * from "./fleet";
+export * from "./operator-session";
 export * from "./auth";
 export * from "./handler";
 export * from "./read-model";

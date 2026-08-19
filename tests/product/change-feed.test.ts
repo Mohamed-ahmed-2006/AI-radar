@@ -1,3 +1,8 @@
+// These tests exercise the explicit demo mode, which is gated behind a
+// server-side opt-in so production can never substitute the fabricated corpus.
+// `tests/security/fixture-isolation.test.ts` covers the ungated case.
+process.env.AI_RADAR_DEMO_EVIDENCE = "1";
+
 import test from "node:test";
 import assert from "node:assert/strict";
 

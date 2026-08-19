@@ -1,5 +1,6 @@
 export * from "./contracts";
 export * from "./demo-evidence";
+export * from "./demo-gate";
 export * from "./evidence-builder";
 export * from "./query-engine";
 export * from "./provider-comparison";

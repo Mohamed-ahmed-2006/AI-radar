@@ -6,4 +6,5 @@ export { HealingDemoLinks } from "./HealingDemoLinks";
 export { HealingDemoPhaseHero } from "./HealingDemoPhaseHero";
 export { HealingDemoView } from "./HealingDemoView";
 export { HealingIncidentPanel } from "./HealingIncidentPanel";
+export { OperatorUnlock } from "./OperatorUnlock";
 export { HealingTrustComparison } from "./HealingTrustComparison";

@@ -14,6 +14,23 @@
 alter type change_type add value if not exists 'capability_changed';
 alter type source_kind add value if not exists 'catalog';
 
+-- `array_to_string` is STABLE (it calls the element type's output function), so
+-- it cannot appear in a generated column: PostgreSQL rejects the table with
+-- "generation expression is not immutable" on every supported version. Joining
+-- a `text[]` with a fixed delimiter genuinely is immutable — text output depends
+-- on no session setting — so the guarantee is asserted here once, on the one
+-- concrete type the catalog uses, rather than being assumed of the polymorphic
+-- built-in.
+create or replace function radar_join_text_array(value text[])
+returns text
+language sql
+immutable
+parallel safe
+as $$ select coalesce(array_to_string(value, ','), '') $$;
+
+comment on function radar_join_text_array(text[]) is
+  'Immutable text[] join used by capability_snapshots.content_hash. Fixed delimiter, text elements: no session-dependent output.';
+
 create table if not exists capability_snapshots (
   id                    uuid primary key default gen_random_uuid(),
   run_id                uuid not null references collection_runs (id) on delete cascade,
@@ -54,9 +71,9 @@ create table if not exists capability_snapshots (
       coalesce(max_output_tokens::text, '') || '|' ||
       coalesce(supports_vision::text, 'unknown') || '|' ||
       coalesce(supports_tool_calling::text, 'unknown') || '|' ||
-      array_to_string(input_modalities, ',') || '|' ||
-      array_to_string(output_modalities, ',') || '|' ||
-      array_to_string(supported_features, ',')
+      radar_join_text_array(input_modalities) || '|' ||
+      radar_join_text_array(output_modalities) || '|' ||
+      radar_join_text_array(supported_features)
     )
   ) stored,
 

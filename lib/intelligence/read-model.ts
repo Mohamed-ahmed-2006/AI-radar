@@ -12,6 +12,7 @@ import type {
   TemporalQuery,
 } from "./contracts";
 import { getDemoTemporalEvidence } from "./demo-evidence";
+import { resolveDemoEvidence } from "./demo-gate";
 import { transformChangeEventsToEvidence } from "./evidence-builder";
 import { extractMostSignificantChanges } from "./ecosystem-highlights";
 import { compareProvidersOverPeriod } from "./provider-comparison";
@@ -81,7 +82,9 @@ export async function loadLiveTemporalEvidence(
 export async function queryTemporalIntelligence(
   query: TemporalQuery = {},
 ): Promise<EvidenceBundle> {
-  const isDemoRequested = query.demo === true;
+  // Requesting the demo corpus is not enough: the deployment must also have
+  // opted in. See `demo-gate.ts` — production never substitutes it.
+  const isDemoRequested = resolveDemoEvidence(query.demo);
 
   let dataset: TemporalEvidence[] = [];
 
@@ -145,7 +148,7 @@ export async function compareProvidersIntelligence(
 ): Promise<ProviderComparisonResult> {
   let dataset: TemporalEvidence[] = [];
 
-  if (options.demo) {
+  if (resolveDemoEvidence(options.demo)) {
     dataset = getDemoTemporalEvidence();
   } else {
     dataset = await loadLiveTemporalEvidence();
@@ -172,7 +175,7 @@ export async function getSignificantEcosystemMoves(
 ): Promise<EcosystemSignificanceSummary> {
   let dataset: TemporalEvidence[] = [];
 
-  if (options.demo) {
+  if (resolveDemoEvidence(options.demo)) {
     dataset = getDemoTemporalEvidence();
   } else {
     dataset = await loadLiveTemporalEvidence();

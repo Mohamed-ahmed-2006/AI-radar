@@ -19,14 +19,39 @@ import { HealingDemoKindBanner } from "./HealingDemoKindBanner";
 import { HealingDemoLinks } from "./HealingDemoLinks";
 import { HealingDemoPhaseHero } from "./HealingDemoPhaseHero";
 import { HealingIncidentPanel } from "./HealingIncidentPanel";
+import { OperatorUnlock } from "./OperatorUnlock";
 import { HealingTrustComparison } from "./HealingTrustComparison";
 
 interface HealingDemoViewProps {
   initial: HealingDemoReadModel;
 }
 
+/**
+ * A 401 from the action route is not a failure to report and forget: it means
+ * the deployment is correctly keeping real Bright Data jobs closed, and an
+ * operator can open a session. It is distinguished here so the view can offer
+ * the unlock instead of a dead error.
+ */
+class HealingDemoLockedError extends Error {
+  readonly unlockAvailable: boolean;
+  constructor(message: string, unlockAvailable: boolean) {
+    super(message);
+    this.name = "HealingDemoLockedError";
+    this.unlockAvailable = unlockAvailable;
+  }
+}
+
 async function readHealingDemo(response: Response): Promise<HealingDemoReadModel> {
-  const payload = (await response.json()) as HealingDemoReadModel & { error?: string };
+  const payload = (await response.json()) as HealingDemoReadModel & {
+    error?: string;
+    unlockAvailable?: boolean;
+  };
+  if (response.status === 401) {
+    throw new HealingDemoLockedError(
+      payload.error ?? "Healing demo controls require the operator credential",
+      payload.unlockAvailable === true,
+    );
+  }
   if (!response.ok) {
     throw new Error(payload.error ?? HEALING_DEMO_UNAVAILABLE_TITLE);
   }
@@ -37,6 +62,7 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
   const [model, setModel] = useState(initial);
   const [pendingAction, setPendingAction] = useState<HealingDemoAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
 
@@ -79,6 +105,7 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
       })
       .catch((cause: unknown) => {
         if (id !== requestId.current) return;
+        setLocked(cause instanceof HealingDemoLockedError && cause.unlockAvailable);
         setError(cause instanceof Error ? cause.message : HEALING_DEMO_UNAVAILABLE_TITLE);
       })
       .finally(() => {
@@ -131,6 +158,15 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
         <HealingBrightDataPanel model={model} />
         <HealingIncidentPanel model={model} />
       </div>
+
+      {locked && (
+        <OperatorUnlock
+          onUnlocked={() => {
+            setLocked(false);
+            setError(null);
+          }}
+        />
+      )}
 
       {loading && pendingAction === null ? (
         <LoadingState title="Reading real healing demo…" />

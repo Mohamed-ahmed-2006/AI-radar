@@ -172,15 +172,48 @@ where c.contype = 'f'
 \echo '--- TEST 11: RLS blocks writes but allows reads for anon ---'
 grant usage on schema public to anon;
 grant select on all tables in schema public to anon;
--- The blanket grant above would re-open the diagnostic columns the lifecycle
--- migration deliberately withholds, so restore that restriction immediately.
--- TEST 14 depends on this environment matching production.
+
+-- On Supabase the `anon` SELECT above arrives through ALTER DEFAULT PRIVILEGES,
+-- so it lands at CREATE TABLE time and each migration's later REVOKE wins. Here
+-- the grant is replayed *after* the migrations, so it would silently re-open
+-- every column those migrations withheld and TESTs 14 and 16 would report a
+-- leak that production does not have. Restore each withheld surface so this
+-- environment matches production exactly.
+--
+-- Keep this list in step with the REVOKEs in:
+--   20260817000003 (collection_runs), 20260817000004 (Sentinel),
+--   20260818000001 (orchestration_runs), 20260819000000 (demo events).
 revoke select on collection_runs from anon;
 grant select (
   id, source_id, status, external_run_id, triggered_by, started_at,
   completed_at, records_seen, records_accepted, records_rejected,
   error_message, created_at
 ) on collection_runs to anon;
+
+-- Verbatim malformed scraper output and DOM traces: service-role only.
+revoke select on sentinel_quarantine_payloads from anon;
+
+revoke select on sentinel_healing_attempts from anon;
+grant select (
+  id, incident_id, source_id, collector_id, attempt_number,
+  prompt, status, refactor_job_id, candidate_records_count,
+  candidate_passed_validation, error_message, started_at,
+  completed_at, created_at
+) on sentinel_healing_attempts to anon;
+
+revoke select on orchestration_runs from anon;
+grant select (
+  id, source_key, provider_slug, source_type, status, trigger,
+  attempt_count, started_at, completed_at, duration_ms, lease_expires_at,
+  collection_run_id, sentinel_incident_id, records_accepted, records_rejected,
+  changes_detected, outcome, reason_codes, created_at
+) on orchestration_runs to anon;
+
+revoke select on sentinel_demo_events from anon;
+grant select (
+  id, source_key, phase, action, status, summary, run_id, incident_id, created_at
+) on sentinel_demo_events to anon;
+
 grant insert on providers to anon;
 set role anon;
 select count(*) as anon_can_read_providers from providers;
@@ -393,4 +426,29 @@ exception when insufficient_privilege then
 end $$;
 select count(*) as anon_can_read_sentinel_source_health from sentinel_source_health;
 select count(*) as anon_can_read_sentinel_incidents from sentinel_incidents;
+reset role;
+
+\echo '--- TEST 17: orchestration and demo diagnostics are not public ---'
+-- Both columns echo verbatim collector output and Bright Data diagnostics. The
+-- migrations withhold them; nothing had asserted it, so a future blanket grant
+-- could have re-opened them unnoticed.
+set role anon;
+do $$
+begin
+  perform error_message from orchestration_runs;
+  raise exception 'FAIL: anon can read orchestration_runs.error_message';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read orchestration_runs.error_message';
+end $$;
+do $$
+begin
+  perform detail from sentinel_demo_events;
+  raise exception 'FAIL: anon can read sentinel_demo_events.detail';
+exception when insufficient_privilege then
+  raise notice 'PASS: anon cannot read sentinel_demo_events.detail';
+end $$;
+-- The safe columns must still be readable, or the public read model is broken.
+select count(*) as anon_can_read_orchestration_status from orchestration_runs;
+select count(*) as anon_can_read_demo_events
+from (select id, source_key, phase, action, status from sentinel_demo_events) as safe_columns;
 reset role;

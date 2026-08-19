@@ -15,8 +15,9 @@
  */
 
 import { secretsMatch } from "../pipeline";
+import { hasOperatorSession } from "./operator-session";
 
-export type SchedulerPrincipal = "vercel-cron" | "ingest-secret";
+export type SchedulerPrincipal = "vercel-cron" | "ingest-secret" | "operator-session";
 
 export type SchedulerAuthorization =
   | { authorized: true; principal: SchedulerPrincipal }
@@ -69,4 +70,30 @@ export function isAuthorizedSchedulerRequest(request: Request): boolean {
 /** Uniform 401 with no detail about which secret was expected. */
 export function schedulerUnauthorizedResponse(): Response {
   return Response.json({ success: false, error: "unauthorized" }, { status: 401 });
+}
+
+/**
+ * Authorization for operator controls driven from a browser.
+ *
+ * Identical authority to `authorizeSchedulerRequest`, plus a signed
+ * `HttpOnly` session cookie minted by `/api/operator/session`. That is the
+ * whole difference: a header secret is reachable from `curl` but not from a
+ * page, and shipping the secret to the page is not an option. See
+ * `./operator-session` for why the cookie carries a signature rather than the
+ * credential.
+ *
+ * Fails closed exactly as the scheduler does: no configured credential means
+ * no session can be minted and no request can be authorized.
+ */
+export function authorizeOperatorRequest(request: Request): SchedulerAuthorization {
+  const viaHeader = authorizeSchedulerRequest(request);
+  if (viaHeader.authorized) return viaHeader;
+  if (hasOperatorSession(request)) {
+    return { authorized: true, principal: "operator-session" };
+  }
+  return viaHeader;
+}
+
+export function isAuthorizedOperatorRequest(request: Request): boolean {
+  return authorizeOperatorRequest(request).authorized;
 }

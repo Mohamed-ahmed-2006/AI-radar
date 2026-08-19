@@ -109,16 +109,27 @@ export const CATALOG_PROVIDERS: Record<CatalogProviderSlug, CatalogProviderDefin
   },
 };
 
+/**
+ * A declared-but-empty variable is the common deployment mistake: the key
+ * exists in the dashboard with no value. `??` would accept `""` and hand an
+ * empty collector id to Bright Data, so the override only applies when it has
+ * content and the committed default wins otherwise.
+ */
+function overrideOrDefault(name: string, fallback: string): string {
+  const configured = process.env[name]?.trim();
+  return configured ? configured : fallback;
+}
+
 export function resolvePricingProviderConfiguration(provider: PricingProviderDefinition) {
   return {
-    collectorId: process.env[provider.collectorEnv] ?? provider.defaultCollectorId,
-    sourceUrl: process.env[provider.sourceUrlEnv] ?? provider.defaultSourceUrl,
+    collectorId: overrideOrDefault(provider.collectorEnv, provider.defaultCollectorId),
+    sourceUrl: overrideOrDefault(provider.sourceUrlEnv, provider.defaultSourceUrl),
   };
 }
 
 export function resolveCatalogProviderConfiguration(provider: CatalogProviderDefinition) {
   return {
-    collectorId: process.env[provider.collectorEnv] ?? provider.defaultCollectorId,
-    sourceUrl: process.env[provider.sourceUrlEnv] ?? provider.defaultSourceUrl,
+    collectorId: overrideOrDefault(provider.collectorEnv, provider.defaultCollectorId),
+    sourceUrl: overrideOrDefault(provider.sourceUrlEnv, provider.defaultSourceUrl),
   };
 }

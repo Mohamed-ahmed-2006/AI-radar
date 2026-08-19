@@ -2640,6 +2640,55 @@ body {
   color: var(--radar-text-muted);
 }
 
+/* Operator unlock: shown only when the server reports the controls are closed
+   and a session can be opened. */
+.radar-healing-unlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--radar-border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.radar-healing-unlock-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--radar-text-muted);
+}
+
+.radar-healing-unlock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.radar-healing-unlock-input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--radar-text-primary);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--radar-border);
+  border-radius: 6px;
+  padding: 0.625rem 0.75rem;
+}
+
+.radar-healing-unlock-input:focus-visible {
+  outline: 2px solid var(--radar-signal);
+  outline-offset: 2px;
+}
+
+.radar-healing-unlock-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--radar-danger);
+}
+
 .radar-healing-control-error {
   margin: 0.75rem 0 0;
   font-size: 0.75rem;

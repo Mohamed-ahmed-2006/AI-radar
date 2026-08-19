@@ -5,6 +5,12 @@ import {
   type OpenAiPricingIngestionResult,
 } from "./openai-pricing";
 import { SentinelQuarantineError } from "./sentinel-gate";
+import {
+  consumeRateLimit,
+  rateLimitedResponse,
+  rateLimitIdentity,
+  RATE_LIMIT_POLICIES,
+} from "../rate-limit";
 
 /** Constant-time shared-secret comparison. Absent secrets never match. */
 export function secretsMatch(provided: string | null, expected: string | undefined): boolean {
@@ -27,6 +33,16 @@ export async function handleProviderIngest(
 ): Promise<Response> {
   if (!isAuthorizedIngestRequest(request)) {
     return Response.json({ success: false, error: "unauthorized" }, { status: 401 });
+  }
+  // Every manual ingest is a real Bright Data collector job. The credential is
+  // the control; this bounds the damage a leaked or shared one can do.
+  const decision = consumeRateLimit(
+    "manual-ingest",
+    rateLimitIdentity(request),
+    RATE_LIMIT_POLICIES.manualIngest,
+  );
+  if (!decision.allowed) {
+    return rateLimitedResponse(decision, "Manual ingest is rate limited.");
   }
   try {
     const result = await ingest();
