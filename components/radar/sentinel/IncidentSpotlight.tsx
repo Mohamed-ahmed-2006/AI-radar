@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatAbsoluteTime, formatRelativeTime } from "../utils";
 import { AnomalyReason } from "./AnomalyReason";
 import { LastKnownGoodComparison } from "./LastKnownGoodComparison";
@@ -44,7 +45,12 @@ export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
           </p>
           <div className="mt-1 flex items-center gap-2.5 flex-wrap">
             <h2 id="spotlight-heading" className="radar-spotlight-title">
-              {source.name}
+              <Link
+                href={`/sources/${encodeURIComponent(source.sourceId)}`}
+                className="radar-explorer-model-link"
+              >
+                {source.name}
+              </Link>
             </h2>
             <SentinelStatusBadge status={source.status} size="lg" />
           </div>

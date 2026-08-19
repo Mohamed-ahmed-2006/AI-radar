@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import type { AskReadModel } from "../../../lib/product/ask";
 import { formatAbsoluteTime } from "../../radar/utils";
-import { EmptyState } from "../../radar/ui/DataState";
+import { EmptyState, EvidenceState } from "../../radar/ui/DataState";
 import { Panel } from "../../radar/ui/Panel";
 import { FreshnessStatus } from "../explorer/FreshnessStatus";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
@@ -60,15 +60,19 @@ export function AskResult({ result }: { result: AskReadModel }) {
         <p className="radar-ask-answer">{result.answer}</p>
 
         {result.unsupportedReason && (
-          <p className="radar-ask-unsupported" role="status">
-            {result.unsupportedReason}
-          </p>
+          <EvidenceState
+            tone="unsupported"
+            title="This question is unsupported"
+            description={result.unsupportedReason}
+          />
         )}
 
         {result.missingData && (
-          <p className="radar-ask-missing" role="note">
-            Missing data: {result.missingData}
-          </p>
+          <EvidenceState
+            tone="unknown"
+            title="Unknown or missing evidence"
+            description={result.missingData}
+          />
         )}
 
         {result.observedAt && (
@@ -178,6 +182,25 @@ export function AskResult({ result }: { result: AskReadModel }) {
           </ul>
         </Panel>
       )}
+
+      <nav className="radar-workflow-links" aria-label="Continue from this answer">
+        {result.intent === "decision" && (
+          <Link href="/optimizer" className="radar-inline-link">
+            Open Optimizer
+          </Link>
+        )}
+        {(result.intent === "temporal" || result.intent === "decision") && (
+          <Link href="/changes" className="radar-inline-link">
+            View Changes
+          </Link>
+        )}
+        <Link href="/models" className="radar-inline-link">
+          Explore Models
+        </Link>
+        <Link href="/sources" className="radar-inline-link">
+          Sources
+        </Link>
+      </nav>
     </article>
   );
 }

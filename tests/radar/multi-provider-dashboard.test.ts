@@ -10,7 +10,29 @@ import type { RadarDashboardData } from "../../components/radar/types";
 test("dashboard renders live pricing intelligence from multiple providers", () => {
   const data: RadarDashboardData = {
     isMock: false, fixtureVersion: "live-supabase",
-    ecosystem: { status: "healthy", modelsTracked: 2, providersTracked: 2, changesLast24h: 0, priceChangesLast7d: 0, activeAlerts: 0, lastGlobalRefreshAt: "2026-08-17T10:00:00Z" },
+    ecosystem: {
+      status: "healthy",
+      modelsTracked: 2,
+      providersTracked: 2,
+      sourcesMonitored: 0,
+      changesLast24h: 0,
+      priceChangesLast7d: 0,
+      lifecycleChangesLast7d: 0,
+      activeAlerts: 0,
+      lastGlobalRefreshAt: "2026-08-17T10:00:00Z",
+    },
+    sentinel: {
+      available: false,
+      unavailableReason: "Sentinel was not attached in this test.",
+      isDemo: false,
+      totalSources: null,
+      healthy: null,
+      degraded: null,
+      quarantined: null,
+      recovered: null,
+      healing: null,
+      needsReview: null,
+    },
     changes: [],
     models: [
       { id: "anthropic-model", provider: "Anthropic", name: "Claude Sonnet 5", slug: "Claude Sonnet 5", status: "active", contextWindow: null, lastVerifiedAt: "2026-08-17T10:00:00Z", rates: [{ tier: "standard", inputPerMillion: 2, outputPerMillion: 10 }] },

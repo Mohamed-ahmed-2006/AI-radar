@@ -10,6 +10,7 @@ export type {
   ProvenanceRecord,
   ProviderHealth,
   RadarDashboardData,
+  SentinelFleetSnapshot,
   SourceFreshness,
 } from "./types";
 

@@ -5,9 +5,11 @@ import {
   type ChangeTone,
   significanceTierLabel,
 } from "../../../lib/product/change-feed";
+import { modelDetailHref } from "../../../lib/product/explorer";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
 import { WatchButton } from "../watchlist/WatchButton";
 import { BeforeAfter } from "./BeforeAfter";
+import Link from "next/link";
 
 const TONE_VARIANT: Record<ChangeTone, "success" | "critical" | "warning" | "info" | "muted"> = {
   positive: "success",
@@ -57,7 +59,9 @@ export function ChangeFeedItemCard({
       <p className="radar-change-item-model">
         <span className="text-radar-text-secondary">{item.providerName}</span>
         <span aria-hidden="true"> · </span>
-        <span className="font-mono">{item.modelLabel}</span>
+        <Link href={modelDetailHref(item.modelKey)} className="radar-explorer-model-link font-mono">
+          {item.modelLabel}
+        </Link>
       </p>
 
       <p id={`change-${item.id}-summary`} className="radar-change-item-summary">
@@ -78,6 +82,19 @@ export function ChangeFeedItemCard({
           <span aria-hidden="true"> · </span>
           <span className="tabular-nums">{item.significanceScore}</span>
           <span className="sr-only"> significance score out of 100</span>
+        </span>
+        <span className="radar-page-intro-links">
+          {item.sourceId && (
+            <Link
+              href={`/sources/${encodeURIComponent(item.sourceId)}`}
+              className="radar-inline-link"
+            >
+              Source
+            </Link>
+          )}
+          <Link href="/source-health" className="radar-inline-link">
+            Source Health
+          </Link>
         </span>
         {onToggleWatch && (
           <WatchButton

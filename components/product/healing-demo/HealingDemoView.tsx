@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ErrorState, LoadingState } from "../../radar/ui/DataState";
+import { EvidenceState, LoadingState } from "../../radar/ui/DataState";
 import { Panel } from "../../radar/ui/Panel";
 import { RecoveryTimeline } from "../../radar/sentinel/RecoveryTimeline";
 import {
@@ -92,7 +92,8 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
     return (
       <div className="radar-healing-demo">
         <HealingDemoKindBanner kind={model.kind} kindLabel={model.kindLabel} />
-        <ErrorState
+        <EvidenceState
+          tone="unavailable"
           title={model.unavailableTitle ?? HEALING_DEMO_UNAVAILABLE_TITLE}
           description={model.unavailableReason ?? undefined}
         />

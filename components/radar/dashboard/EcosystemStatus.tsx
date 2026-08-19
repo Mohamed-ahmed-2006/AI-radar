@@ -1,18 +1,25 @@
-import type { EcosystemSummary } from "../types";
+import Link from "next/link";
+import type { EcosystemSummary, SentinelFleetSnapshot } from "../types";
+import { EvidenceState } from "../ui/DataState";
 import { StatCard } from "../ui/StatCard";
 import { StatusDot } from "../ui/StatusDot";
 import { formatAbsoluteTime } from "../utils";
 
 interface EcosystemStatusProps {
   data: EcosystemSummary;
+  sentinel: SentinelFleetSnapshot;
   loading?: boolean;
 }
 
-export function EcosystemStatus({ data, loading }: EcosystemStatusProps) {
+function countLabel(value: number | null): string {
+  return value === null ? "—" : String(value);
+}
+
+export function EcosystemStatus({ data, sentinel, loading }: EcosystemStatusProps) {
   if (loading) {
     return (
-      <section aria-label="Ecosystem status" className="radar-stat-grid">
-        {Array.from({ length: 6 }).map((_, i) => (
+      <section aria-label="Ecosystem status" className="radar-stat-grid radar-stat-grid-wide">
+        {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} className="radar-stat-card animate-pulse">
             <div className="h-3 w-20 bg-radar-surface-raised rounded mb-2" />
             <div className="h-6 w-12 bg-radar-surface-raised rounded" />
@@ -29,41 +36,93 @@ export function EcosystemStatus({ data, loading }: EcosystemStatusProps) {
     unknown: "neutral" as const,
   };
 
+  const freshnessHint = data.lastGlobalRefreshAt
+    ? "global collection"
+    : "not observed";
+
   return (
-    <section aria-label="Ecosystem status" className="radar-stat-grid">
-      <StatCard
-        label="Ecosystem"
-        value={
-          <span className="inline-flex items-center gap-2">
-            <StatusDot status={data.status} pulse={data.status === "healthy"} />
-            <span className="capitalize">{data.status}</span>
-          </span>
-        }
-        status={statusMap[data.status]}
-      />
-      <StatCard
-        label="Models tracked"
-        value={data.modelsTracked}
-      />
-      <StatCard
-        label="Providers"
-        value={data.providersTracked}
-      />
-      <StatCard
-        label="Changes (24h)"
-        value={data.changesLast24h}
-        hint={data.changesLast24h > 0 ? "since last cycle" : undefined}
-      />
-      <StatCard
-        label="Price changes (7d)"
-        value={data.priceChangesLast7d}
-        status={data.priceChangesLast7d > 0 ? "warning" : "neutral"}
-      />
-      <StatCard
-        label="Last refresh"
-        value={formatAbsoluteTime(data.lastGlobalRefreshAt)}
-        hint="global collection"
-      />
-    </section>
+    <div className="radar-ecosystem-block">
+      <section aria-label="Ecosystem status" className="radar-stat-grid radar-stat-grid-wide">
+        <StatCard
+          label="Ecosystem"
+          value={
+            <span className="inline-flex items-center gap-2">
+              <StatusDot status={data.status} pulse={data.status === "healthy"} />
+              <span className="capitalize">{data.status}</span>
+            </span>
+          }
+          status={statusMap[data.status]}
+        />
+        <StatCard label="Canonical models" value={data.modelsTracked} />
+        <StatCard label="Providers" value={data.providersTracked} />
+        <StatCard
+          label="Monitored sources"
+          value={data.sourcesMonitored}
+          hint="collection registry"
+        />
+        <StatCard
+          label="Changes (24h)"
+          value={data.changesLast24h}
+          hint={data.changesLast24h > 0 ? "meaningful events" : "none observed"}
+        />
+        <StatCard
+          label="Lifecycle (7d)"
+          value={data.lifecycleChangesLast7d}
+          status={data.lifecycleChangesLast7d > 0 ? "warning" : "neutral"}
+          hint="deprecation & removal"
+        />
+        <StatCard
+          label="Price changes (7d)"
+          value={data.priceChangesLast7d}
+          status={data.priceChangesLast7d > 0 ? "warning" : "neutral"}
+        />
+        <StatCard
+          label="Last refresh"
+          value={formatAbsoluteTime(data.lastGlobalRefreshAt)}
+          hint={freshnessHint}
+        />
+      </section>
+
+      <section aria-label="Source health" className="radar-sentinel-glance">
+        {sentinel.available ? (
+          <div className="radar-stat-grid radar-stat-grid-sentinel">
+            <StatCard
+              label="Source health"
+              value={countLabel(sentinel.totalSources)}
+              hint={sentinel.isDemo ? "labelled demo fleet" : "Sentinel fleet"}
+            />
+            <StatCard
+              label="Degraded"
+              value={countLabel(sentinel.degraded)}
+              status={sentinel.degraded && sentinel.degraded > 0 ? "warning" : "neutral"}
+            />
+            <StatCard
+              label="Quarantined"
+              value={countLabel(sentinel.quarantined)}
+              status={sentinel.quarantined && sentinel.quarantined > 0 ? "negative" : "neutral"}
+            />
+            <StatCard
+              label="Recovered"
+              value={countLabel(sentinel.recovered)}
+              status={sentinel.recovered && sentinel.recovered > 0 ? "positive" : "neutral"}
+            />
+          </div>
+        ) : (
+          <EvidenceState
+            tone="unavailable"
+            title="Source health counts are not available"
+            description={
+              sentinel.unavailableReason ??
+              "Sentinel did not return a fleet snapshot. No production numbers are invented."
+            }
+            action={
+              <Link href="/source-health" className="radar-inline-link">
+                Open Source Health
+              </Link>
+            }
+          />
+        )}
+      </section>
+    </div>
   );
 }

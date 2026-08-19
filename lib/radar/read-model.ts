@@ -52,7 +52,7 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-  const [snapshots, lifecycle, capabilities, sourceHealth, recentEvents, recentEvents24h, priceEvents7d] = await Promise.all([
+  const [snapshots, lifecycle, capabilities, sourceHealth, recentEvents, recentEvents24h, priceEvents7d, lifecycleEvents7d] = await Promise.all([
     getLatestPricingSnapshots(db),
     getLatestLifecycleSnapshots(db),
     getLatestCapabilitySnapshots(db),
@@ -62,6 +62,11 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
     getRecentChangeEvents(db, {
       since: sevenDaysAgo,
       changeTypes: ["price_increased", "price_decreased"],
+      limit: 500,
+    }),
+    getRecentChangeEvents(db, {
+      since: sevenDaysAgo,
+      changeTypes: ["lifecycle_changed", "model_removed"],
       limit: 500,
     }),
   ]);
@@ -140,19 +145,27 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
     };
   });
 
-  const changes: DashboardChangeEvent[] = recentEvents.map((event) => ({
-    id: event.id,
-    type: dashboardChangeType(event.change_type),
-    provider: providerNameById.get(event.provider_id) ?? event.provider_id,
-    model: snapshots.find((snapshot) => snapshot.model_id === event.model_id)?.model_name,
-    summary: event.summary ?? event.change_type.replaceAll("_", " "),
-    detail: event.field_name
-      ? `${event.field_name}: ${JSON.stringify(event.old_value)} → ${JSON.stringify(event.new_value)}`
-      : undefined,
-    detectedAt: event.detected_at,
-    sourceId: event.source_id ?? "—",
-    severity: eventSeverity(event.change_type),
-  }));
+  const changes: DashboardChangeEvent[] = recentEvents.map((event) => {
+    const cap = event.model_id ? capabilityByModel.get(event.model_id) : undefined;
+    const modelCanonicalId =
+      cap?.provider_slug && cap?.api_model_id
+        ? `${cap.provider_slug}:${cap.api_model_id}`
+        : null;
+    return {
+      id: event.id,
+      type: dashboardChangeType(event.change_type),
+      provider: providerNameById.get(event.provider_id) ?? event.provider_id,
+      model: snapshots.find((snapshot) => snapshot.model_id === event.model_id)?.model_name,
+      modelCanonicalId,
+      summary: event.summary ?? event.change_type.replaceAll("_", " "),
+      detail: event.field_name
+        ? `${event.field_name}: ${JSON.stringify(event.old_value)} → ${JSON.stringify(event.new_value)}`
+        : undefined,
+      detectedAt: event.detected_at,
+      sourceId: event.source_id ?? "—",
+      severity: eventSeverity(event.change_type),
+    };
+  });
   const sources = sourceHealth.map((source) => {
     const lastSuccessAt = source.last_run_status === "succeeded" ? source.last_run_completed_at : null;
     const reference = lastSuccessAt ?? source.last_run_started_at;
@@ -181,10 +194,24 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
       status: aggregateStatus(sources.map((source) => source.status)),
       modelsTracked: modelsByKey.size,
       providersTracked: providers.length,
+      sourcesMonitored: sources.length,
       changesLast24h: recentEvents24h.length,
       priceChangesLast7d: priceEvents7d.length,
+      lifecycleChangesLast7d: lifecycleEvents7d.length,
       activeAlerts: sourceHealth.filter((source) => source.last_run_status === "failed").length,
       lastGlobalRefreshAt,
+    },
+    sentinel: {
+      available: false,
+      unavailableReason: "Source health is attached by the dashboard page.",
+      isDemo: false,
+      totalSources: null,
+      healthy: null,
+      degraded: null,
+      quarantined: null,
+      recovered: null,
+      healing: null,
+      needsReview: null,
     },
     changes,
     models: [...modelsByKey.values()].sort((left, right) => left.slug.localeCompare(right.slug)),

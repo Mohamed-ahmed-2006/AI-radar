@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { SourceFreshness } from "../types";
 import { Badge } from "../ui/Badge";
 import { EmptyState, LoadingState } from "../ui/DataState";
@@ -29,7 +30,9 @@ function FreshnessBar({
       ? "bg-radar-signal"
       : status === "degraded"
         ? "bg-radar-warn"
-        : "bg-radar-danger";
+        : status === "unknown"
+          ? "bg-radar-muted"
+          : "bg-radar-danger";
 
   return (
     <div className="mt-1.5" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -40,7 +43,9 @@ function FreshnessBar({
         />
       </div>
       <span className="sr-only">
-        {pct}% of expected refresh interval elapsed
+        {status === "unknown"
+          ? "Freshness interval unknown"
+          : `${pct}% of expected refresh interval elapsed`}
       </span>
     </div>
   );
@@ -55,6 +60,16 @@ export function SourceFreshnessPanel({
       id="sources"
       title="Source freshness"
       subtitle="Collection recency vs expected interval"
+      action={
+        <span className="radar-page-intro-links">
+          <Link href="/sources" className="radar-inline-link">
+            Sources
+          </Link>
+          <Link href="/source-health" className="radar-inline-link">
+            Health
+          </Link>
+        </span>
+      }
     >
       {loading ? (
         <LoadingState title="Loading source status…" />
@@ -74,11 +89,17 @@ export function SourceFreshnessPanel({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusDot status={source.status} />
-                    <span className="text-sm text-radar-text-primary truncate">
+                    <Link
+                      href={`/sources/${encodeURIComponent(source.id)}`}
+                      className="text-sm text-radar-text-primary truncate radar-explorer-model-link"
+                    >
                       {source.label}
-                    </span>
+                    </Link>
                     {source.status === "degraded" && (
                       <Badge variant="warning">Stale</Badge>
+                    )}
+                    {source.status === "unknown" && (
+                      <Badge variant="muted">Unknown</Badge>
                     )}
                   </div>
                   <p className="text-[10px] text-radar-text-muted mt-0.5">

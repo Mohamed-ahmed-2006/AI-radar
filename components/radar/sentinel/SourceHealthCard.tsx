@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { StatusDot } from "../ui/StatusDot";
 import { formatAbsoluteTime, formatRelativeTime } from "../utils";
 import { AnomalyReason } from "./AnomalyReason";
@@ -48,7 +49,12 @@ export function SourceHealthCard({
               id={`source-${source.sourceId}-name`}
               className="radar-source-card-name truncate"
             >
-              {source.name}
+              <Link
+                href={`/sources/${encodeURIComponent(source.sourceId)}`}
+                className="radar-explorer-model-link"
+              >
+                {source.name}
+              </Link>
             </h3>
           </div>
           <p className="mt-0.5 text-[10px] text-radar-text-muted truncate">
@@ -122,20 +128,28 @@ export function SourceHealthCard({
           <span className="truncate pt-1.5">
             {healingSummaryLabel(source.healing)}
           </span>
-          {source.sourceUrl && (
-            <a
-              href={source.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 pt-1.5 text-radar-info hover:underline"
+          <span className="shrink-0 pt-1.5 radar-page-intro-links">
+            <Link
+              href={`/sources/${encodeURIComponent(source.sourceId)}`}
+              className="radar-inline-link"
             >
-              Source
-              <span className="sr-only">
-                {" "}
-                page for {source.name} (opens in a new tab)
-              </span>
-            </a>
-          )}
+              Detail
+            </Link>
+            {source.sourceUrl && (
+              <a
+                href={source.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-radar-info hover:underline"
+              >
+                Origin
+                <span className="sr-only">
+                  {" "}
+                  page for {source.name} (opens in a new tab)
+                </span>
+              </a>
+            )}
+          </span>
         </div>
       </div>
     </article>

@@ -61,6 +61,9 @@ export default async function MyStackPage({
               <Link href="/optimizer" className="radar-inline-link">
                 Optimize this stack
               </Link>
+              <Link href="/models" className="radar-inline-link">
+                Explore Models
+              </Link>
               <Link href="/changes" className="radar-inline-link">
                 Browse all changes
               </Link>
