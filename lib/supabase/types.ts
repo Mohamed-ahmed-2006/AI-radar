@@ -24,7 +24,9 @@ export type ChangeType =
   | "price_increased"
   | "price_decreased"
   | "metadata_changed"
-  | "lifecycle_changed";
+  | "lifecycle_changed"
+  | "capability_changed";
+
 
 export type LifecycleState = "active" | "legacy" | "deprecated" | "retired";
 
@@ -177,6 +179,31 @@ export type LifecycleSnapshotRow = {
   content_hash: string;
 };
 
+export type CapabilitySnapshotRow = {
+  id: string;
+  run_id: string;
+  source_id: string;
+  provider_id: string;
+  model_id: string;
+  api_model_id: string;
+  display_name: string | null;
+  model_family: string | null;
+  model_stage: string | null;
+  context_window: number | null;
+  max_output_tokens: number | null;
+  supports_vision: boolean | null;
+  supports_tool_calling: boolean | null;
+  input_modalities: string[];
+  output_modalities: string[];
+  supported_features: string[];
+  source_url: string;
+  extra: Json;
+  raw: Json | null;
+  observed_at: string;
+  created_at: string;
+  content_hash: string;
+};
+
 export type ChangeEventRow = {
   id: string;
   provider_id: string;
@@ -185,7 +212,7 @@ export type ChangeEventRow = {
   model_id: string | null;
   change_type: ChangeType;
   field_name: string | null;
-  /** Null for whole-model lifecycle events; set for tier-scoped changes. */
+  /** Null for whole-model lifecycle/capability events; set for tier-scoped changes. */
   pricing_mode: string | null;
   context_tier: string | null;
   old_value: Json | null;
@@ -194,10 +221,13 @@ export type ChangeEventRow = {
   current_snapshot_id: string | null;
   previous_lifecycle_snapshot_id: string | null;
   current_lifecycle_snapshot_id: string | null;
+  previous_capability_snapshot_id?: string | null;
+  current_capability_snapshot_id?: string | null;
   summary: string | null;
   detected_at: string;
   created_at: string;
 };
+
 
 export type SentinelIncidentRow = {
   id: string;
@@ -378,6 +408,12 @@ type View<Row> = {
   Relationships: [];
 };
 
+export type LatestCapabilitySnapshotRow = CapabilitySnapshotRow & {
+  model_name: string;
+  provider_slug: string;
+  provider_name: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -403,7 +439,17 @@ export type Database = {
         | "source_url"
         | "observed_at"
       >;
+      capability_snapshots: Table<
+        CapabilitySnapshotRow,
+        | "run_id"
+        | "source_id"
+        | "provider_id"
+        | "model_id"
+        | "api_model_id"
+        | "source_url"
+      >;
       change_events: Table<ChangeEventRow, "provider_id" | "change_type">;
+
       sentinel_incidents: Table<SentinelIncidentRow, "source_id" | "provider_id">;
       sentinel_quarantine_payloads: Table<
         SentinelQuarantinePayloadRow,
@@ -423,6 +469,8 @@ export type Database = {
       latest_comparable_pricing_snapshots: View<LatestPricingSnapshotRow>;
       latest_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
       latest_comparable_lifecycle_snapshots: View<LatestLifecycleSnapshotRow>;
+      latest_capability_snapshots: View<LatestCapabilitySnapshotRow>;
+      latest_comparable_capability_snapshots: View<LatestCapabilitySnapshotRow>;
       source_health: View<SourceHealthRow>;
       sentinel_source_health: View<SentinelSourceHealthRow>;
     };

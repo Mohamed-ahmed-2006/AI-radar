@@ -13,15 +13,20 @@ import {
   DEFAULT_GEMINI_LIFECYCLE_COLLECTOR_ID,
   DEFAULT_GEMINI_LIFECYCLE_SOURCE_URL,
   fetchAnthropicLifecycle,
+  fetchCatalogCollector,
   fetchGeminiLifecycle,
   fetchPricingCollector,
 } from "../brightdata";
 import {
+  CATALOG_PROVIDERS,
   PRICING_PROVIDERS,
   ingestAnthropicLifecycle,
+  ingestCatalogProvider,
   ingestGeminiLifecycle,
   ingestPricingProvider,
+  resolveCatalogProviderConfiguration,
   resolvePricingProviderConfiguration,
+  type CatalogProviderSlug,
   type PricingProviderSlug,
 } from "../pipeline";
 import { createSourceHealthContractFor } from "../sentinel";
@@ -41,6 +46,8 @@ export const ORCHESTRATION_DEFAULTS = {
   pricingCadenceMinutes: 360,
   /** Deprecation pages move more slowly still. */
   lifecycleCadenceMinutes: 720,
+  /** Catalog pages move slowly; 12 hours keeps cost and drift both low. */
+  catalogCadenceMinutes: 720,
   /** Bright Data collector budget for one attempt. */
   timeoutMs: 120_000,
   maxAttempts: 3,
@@ -49,6 +56,7 @@ export const ORCHESTRATION_DEFAULTS = {
   maxBackoffMs: 30_000,
   alertAfterConsecutiveFailures: 3,
 } as const;
+
 
 const FAILURE_ISOLATION: FailureIsolationPolicy = {
   continueFleetOnFailure: true,
@@ -235,6 +243,45 @@ function defineGeminiLifecycleSource(): CollectionSourceDefinition {
   };
 }
 
+function defineCatalogSource(slug: CatalogProviderSlug): CollectionSourceDefinition {
+  const provider = CATALOG_PROVIDERS[slug];
+  const key = `${slug}-catalog` as CollectionSourceKey;
+  const configuration = resolveCatalogProviderConfiguration(provider);
+  const cadenceMinutes = resolveCadenceMinutes(key, ORCHESTRATION_DEFAULTS.catalogCadenceMinutes);
+
+  return {
+    key,
+    provider: provider.name,
+    providerSlug: provider.slug,
+    providerHomepageUrl: provider.homepageUrl,
+    sourceType: "catalog",
+    sourceKind: "models",
+    label: provider.label,
+    sourceUrl: configuration.sourceUrl,
+    collectorId: configuration.collectorId,
+    enabled: readBoolean(envKey(key, "ENABLED"), true),
+    schedule: { cadenceMinutes, cronHint: cadenceToCronHint(cadenceMinutes) },
+    timeoutMs: resolveTimeoutMs(key),
+    retry: resolveRetryPolicy(key),
+    failureIsolation: FAILURE_ISOLATION,
+    collect: () =>
+      fetchCatalogCollector({
+        collectorId: configuration.collectorId,
+        sourceUrl: configuration.sourceUrl,
+      }),
+    persist: (payload, context) =>
+      ingestCatalogProvider(provider, {
+        collect: async () => payload,
+        triggeredBy: context.triggeredBy,
+        sentinelRepository: context.sentinelRepository,
+        collectorId: configuration.collectorId,
+        sourceUrl: configuration.sourceUrl,
+      }),
+    createHealthContract: (sourceId) =>
+      createSourceHealthContractFor({ domain: "catalog", providerSlug: slug }, sourceId),
+  };
+}
+
 /** Declaration order is execution order for a sequential fleet run. */
 export const COLLECTION_SOURCE_KEYS: readonly CollectionSourceKey[] = [
   "openai-pricing",
@@ -243,6 +290,10 @@ export const COLLECTION_SOURCE_KEYS: readonly CollectionSourceKey[] = [
   "xai-pricing",
   "anthropic-lifecycle",
   "gemini-lifecycle",
+  "openai-catalog",
+  "anthropic-catalog",
+  "gemini-catalog",
+  "xai-catalog",
 ];
 
 /**
@@ -258,6 +309,10 @@ export function listCollectionSources(): CollectionSourceDefinition[] {
     definePricingSource("xai"),
     defineAnthropicLifecycleSource(),
     defineGeminiLifecycleSource(),
+    defineCatalogSource("openai"),
+    defineCatalogSource("anthropic"),
+    defineCatalogSource("gemini"),
+    defineCatalogSource("xai"),
   ];
 }
 

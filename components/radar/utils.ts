@@ -49,7 +49,9 @@ export function changeTypeLabel(type: ChangeType): string {
     deprecation: "Deprecation",
     source_refresh: "Source refresh",
     schema_update: "Schema update",
+    capability_change: "Capability update",
   };
+
   return labels[type];
 }
 

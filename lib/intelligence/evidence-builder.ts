@@ -23,6 +23,8 @@ export interface BuildEvidenceOptions {
   modelNamesById?: ReadonlyMap<string, string>;
   providerSlugsById?: ReadonlyMap<string, string>;
   providerNamesById?: ReadonlyMap<string, string>;
+  /** Bright Data run ids keyed by collection run id, for run-level provenance. */
+  externalRunIdsByRunId?: ReadonlyMap<string, string | null>;
 }
 
 function calculatePriceDelta(
@@ -295,12 +297,14 @@ export function transformChangeEventToEvidence(
     observedAt: row.detected_at,
     source: {
       url: sourceUrl,
+      sourceId: row.source_id,
       collectorId,
       kind: category === "pricing" ? "pricing" : "models",
       label: `${providerName} ${category}`,
     },
     provenance: {
       runId: row.run_id,
+      externalRunId: options.externalRunIdsByRunId?.get(row.run_id ?? "") ?? null,
       previousSnapshotId: row.previous_snapshot_id,
       currentSnapshotId: row.current_snapshot_id,
       previousLifecycleSnapshotId: row.previous_lifecycle_snapshot_id,

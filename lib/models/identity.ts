@@ -35,6 +35,32 @@ export function geminiModelFamilyKey(modelName: string): string {
   return key.replace(/-\d{3}$/, "");
 }
 
+export function openAiModelIdentityKey(modelName: string): string {
+  return normalizedIdentityKey(modelName);
+}
+
+/**
+ * Strips snapshot dates (e.g. gpt-4o-2024-08-06 -> gpt-4o), but preserves
+ * distinct variants like mini, nano, audio, realtime, preview.
+ */
+export function openAiModelFamilyKey(modelName: string): string {
+  const key = openAiModelIdentityKey(modelName);
+  return key.replace(/-\d{4}-\d{2}-\d{2}$/, "").replace(/-\d{8}$/, "");
+}
+
+export function xaiModelIdentityKey(modelName: string): string {
+  return normalizedIdentityKey(modelName);
+}
+
+/**
+ * Strips release dates (e.g. grok-4.20-0309 -> grok-4.20), but preserves
+ * distinct variants like reasoning, non-reasoning, multi-agent, build.
+ */
+export function xaiModelFamilyKey(modelName: string): string {
+  const key = xaiModelIdentityKey(modelName);
+  return key.replace(/-\d{4}$/, "").replace(/-\d{8}$/, "");
+}
+
 export interface ModelMatchPlan {
   apiModelId: string;
   model: ModelRow | null;
@@ -44,6 +70,8 @@ export interface ModelMatchPlan {
 
 export type AnthropicModelMatchPlan = ModelMatchPlan;
 export type GeminiModelMatchPlan = ModelMatchPlan;
+export type OpenAiModelMatchPlan = ModelMatchPlan;
+export type XaiModelMatchPlan = ModelMatchPlan;
 
 export interface PlanModelMatchesOptions {
   /** Authoritative sources throw; pricing may safely create its own row. */
@@ -62,7 +90,7 @@ interface IdentityStrategy {
  * Shared alias/exact/family planner. Family matching is two-pass and only
  * succeeds when both the remaining canonical rows and incoming identifiers
  * are unique. This is the fail-closed identity machinery used by lifecycle
- * ingestion for every supported provider.
+ * and catalog ingestion for every supported provider.
  */
 function planProviderModelMatches(
   apiModelIds: readonly string[],
@@ -161,4 +189,49 @@ export function planGeminiModelMatches(
     exactKey: geminiModelIdentityKey,
     familyKey: geminiModelFamilyKey,
   }, options);
+}
+
+export function planOpenAiModelMatches(
+  apiModelIds: readonly string[],
+  models: readonly ModelRow[],
+  aliases: readonly ModelAliasRow[],
+  options: PlanModelMatchesOptions = {},
+): OpenAiModelMatchPlan[] {
+  return planProviderModelMatches(apiModelIds, models, aliases, {
+    providerLabel: "OpenAI",
+    exactKey: openAiModelIdentityKey,
+    familyKey: openAiModelFamilyKey,
+  }, options);
+}
+
+export function planXaiModelMatches(
+  apiModelIds: readonly string[],
+  models: readonly ModelRow[],
+  aliases: readonly ModelAliasRow[],
+  options: PlanModelMatchesOptions = {},
+): XaiModelMatchPlan[] {
+  return planProviderModelMatches(apiModelIds, models, aliases, {
+    providerLabel: "xAI",
+    exactKey: xaiModelIdentityKey,
+    familyKey: xaiModelFamilyKey,
+  }, options);
+}
+
+export function planCatalogModelMatches(
+  providerSlug: "openai" | "anthropic" | "gemini" | "xai",
+  apiModelIds: readonly string[],
+  models: readonly ModelRow[],
+  aliases: readonly ModelAliasRow[],
+  options: PlanModelMatchesOptions = {},
+): ModelMatchPlan[] {
+  switch (providerSlug) {
+    case "openai":
+      return planOpenAiModelMatches(apiModelIds, models, aliases, options);
+    case "anthropic":
+      return planAnthropicModelMatches(apiModelIds, models, aliases, options);
+    case "gemini":
+      return planGeminiModelMatches(apiModelIds, models, aliases, options);
+    case "xai":
+      return planXaiModelMatches(apiModelIds, models, aliases, options);
+  }
 }
