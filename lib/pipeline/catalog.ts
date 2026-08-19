@@ -184,6 +184,29 @@ function capabilityChangeSummary(event: CapabilityChangeEvent): string {
   return `${event.provider} model ${event.apiModelId}: ${event.field} changed from ${oldVal} to ${newVal}`;
 }
 
+/**
+ * True when every record in a same-identity group observed the same capability
+ * evidence, meaning the source simply emitted one model more than once.
+ */
+function capabilityEvidenceMatches(group: readonly NormalizedCatalogRecord[]): boolean {
+  const [first, ...rest] = group;
+  const fingerprint = (record: NormalizedCatalogRecord) =>
+    JSON.stringify([
+      record.displayName,
+      record.modelFamily,
+      record.modelStage,
+      record.contextWindow,
+      record.maxOutputTokens,
+      record.supportsVision,
+      record.supportsToolCalling,
+      record.inputModalities,
+      record.outputModalities,
+      record.supportedFeatures,
+    ]);
+  const expected = fingerprint(first);
+  return rest.every((record) => fingerprint(record) === expected);
+}
+
 export async function ingestCatalogProvider(
   providerDef: CatalogProviderDefinition,
   options: IngestCatalogOptions = {},
@@ -323,12 +346,29 @@ export async function ingestCatalogProvider(
     }
   }
 
-  // Deduplicate by apiModelId within the batch (keep latest)
-  const uniqueRecordsMap = new Map<string, NormalizedCatalogRecord>();
+  // Collapse repeated emissions of one model, but fail closed on a genuine
+  // identity collision. Two records sharing an apiModelId while carrying
+  // different capability evidence are two different models wearing one id --
+  // a source-side identity bug, not a duplicate. Silently keeping the last one
+  // would attribute one model's capabilities to the other and drop a real
+  // model, so both are rejected and their raw evidence is retained.
+  const recordsByIdentity = new Map<string, NormalizedCatalogRecord[]>();
   for (const record of adaptedRecords) {
-    uniqueRecordsMap.set(record.apiModelId, record);
+    const existing = recordsByIdentity.get(record.apiModelId);
+    if (existing) existing.push(record);
+    else recordsByIdentity.set(record.apiModelId, [record]);
   }
-  const uniqueRecords = Array.from(uniqueRecordsMap.values());
+
+  const uniqueRecords: NormalizedCatalogRecord[] = [];
+  for (const group of recordsByIdentity.values()) {
+    if (group.length === 1 || capabilityEvidenceMatches(group)) {
+      uniqueRecords.push(group[group.length - 1]);
+      continue;
+    }
+    for (const conflicting of group) {
+      rejectedRecords.push(conflicting.rawEvidence);
+    }
+  }
 
   // Plan model identity matches against existing models & aliases
   const existingModels = await repository.listModels(provider.id);

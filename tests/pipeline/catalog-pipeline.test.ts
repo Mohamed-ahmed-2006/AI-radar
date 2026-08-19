@@ -173,3 +173,98 @@ test("catalog absence never deletes models or modifies lifecycle state", async (
   assert.ok(repository.models.every((m) => m.is_active === true));
   assert.ok(repository.models.every((m) => m.lifecycle_state === null));
 });
+
+/**
+ * Sentinel only quarantines a run once the invalid share crosses its threshold,
+ * so a single duplicate among many records degrades the source and still
+ * reaches persistence. These fillers reproduce that live shape.
+ */
+function geminiFillerRecords(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    model_id: `gemini-filler-${index}`,
+    display_name: `Gemini Filler ${index}`,
+    context_window_raw: 1048576,
+    max_output_tokens_raw: 65536,
+    supports_function_calling: true,
+    input_modalities: ["text"],
+    output_modalities: ["text"],
+  }));
+}
+
+test("ingestCatalogProvider collapses a model the source emitted twice identically", async () => {
+  const repository = new RecordingCatalogRepository("provider-gemini");
+  const sentinelRepository = new InMemorySentinelRepository();
+
+  const record = {
+    model_id: "gemini-3.7-flash",
+    display_name: "Gemini 3.7 Flash",
+    context_window_raw: 1048576,
+    max_output_tokens_raw: 65536,
+    supports_function_calling: true,
+    input_modalities: ["text", "image"],
+    output_modalities: ["text"],
+  };
+  const fillers = geminiFillerRecords(20);
+
+  const result = await ingestCatalogProvider(CATALOG_PROVIDERS.gemini, {
+    repository,
+    sentinelRepository,
+    collect: async () =>
+      collectorPayload([record, { ...record }, ...fillers], {
+        collectorId: "c_gemini_catalog",
+        runId: "run-gemini-dupe",
+      }),
+    triggeredBy: "test",
+  });
+
+  assert.equal(result.recordsAccepted, fillers.length + 1);
+  assert.equal(result.recordsRejected, 0);
+  assert.equal(
+    repository.capabilitySnapshots.filter((s) => s.apiModelId === "gemini-3.7-flash").length,
+    1,
+  );
+});
+
+test("ingestCatalogProvider fails closed when two models collide on one api id", async () => {
+  const repository = new RecordingCatalogRepository("provider-gemini");
+  const sentinelRepository = new InMemorySentinelRepository();
+
+  // Google's lyria-3-pro-preview page publishes lyria-3-clip-preview as its
+  // model code, so two distinct models arrive wearing one identifier. Keeping
+  // the last one would attribute Pro's capabilities to Clip and lose a model.
+  const colliding = [
+    {
+      model_id: "lyria-3-clip-preview",
+      display_name: "Lyria 3 Pro preview",
+      context_window_raw: 131072,
+      output_modalities: ["audio"],
+    },
+    {
+      model_id: "lyria-3-clip-preview",
+      display_name: "Lyria 3 Clip preview",
+      context_window_raw: 131072,
+      output_modalities: ["audio", "text"],
+    },
+  ];
+  const fillers = geminiFillerRecords(20);
+
+  const result = await ingestCatalogProvider(CATALOG_PROVIDERS.gemini, {
+    repository,
+    sentinelRepository,
+    collect: async () =>
+      collectorPayload([...colliding, ...fillers], {
+        collectorId: "c_gemini_catalog",
+        runId: "run-gemini-collision",
+      }),
+    triggeredBy: "test",
+  });
+
+  // The unambiguous models still land; only the colliding pair is withheld.
+  assert.equal(result.recordsAccepted, fillers.length);
+  assert.equal(result.recordsRejected, colliding.length);
+  assert.equal(
+    repository.capabilitySnapshots.some((s) => s.apiModelId === "lyria-3-clip-preview"),
+    false,
+    "an ambiguous identity must not persist capability evidence",
+  );
+});

@@ -81,6 +81,20 @@ model IDs stay distinct: `gemini-3.1-pro-preview` is not merged into
 rather than overwriting the first. An ambiguous match fails rather than
 guessing.
 
+The same rule applies inside a single batch. A source that emits one model
+twice with identical evidence is collapsed to one record, but two records that
+share an `apiModelId` while carrying *different* capability evidence are two
+different models wearing one identifier, and both are rejected with their raw
+evidence retained.
+
+This is not hypothetical: Google's `lyria-3-pro-preview` page publishes
+`lyria-3-clip-preview` in its Model code row, so a live Gemini run delivers two
+distinct models under one id. Sentinel reports `DUPLICATE_IDENTIFIERS` and
+degrades the source, and because one duplicate among 38 records is well under
+the quarantine threshold the run still reaches persistence — which is exactly
+why the pipeline must refuse the pair rather than let the last one win and
+silently attribute Pro's capabilities to Clip.
+
 ## Verifying live acquisition
 
 `scripts/ingestion/verify-catalog-collectors.ts` runs the real collectors and
