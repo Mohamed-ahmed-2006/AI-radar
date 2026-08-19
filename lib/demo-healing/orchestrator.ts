@@ -510,7 +510,15 @@ export class DemoHealingOrchestrator {
    */
   private async requestHeal(): Promise<DemoActionResult> {
     const state = await this.harness.getState();
-    if (!state.source_id || !state.current_incident_id || state.phase !== "quarantined") {
+    // Retrying after a rejected candidate is the same request, not a new one:
+    // the incident is still open and still unrepaired. Refusing it here would
+    // strand the demo, and would make the healing budget below unreachable.
+    const healablePhases: SentinelDemoPhase[] = ["quarantined", "preview_rejected"];
+    if (
+      !state.source_id
+      || !state.current_incident_id
+      || !healablePhases.includes(state.phase)
+    ) {
       return this.emit({
         action: "request_heal",
         status: "refused",

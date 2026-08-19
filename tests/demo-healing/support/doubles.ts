@@ -15,7 +15,6 @@ import type {
   DemoHealGateOutcome,
   DemoCollectorHealer,
   DemoHealRequest,
-  DemoHealerPollOptions,
 } from "../../../lib/demo-healing/healer";
 import type {
   DemoPipelineRepository,
@@ -431,10 +430,8 @@ export class ScriptedHealer implements DemoCollectorHealer {
     return { jobId: nextId("ia") };
   }
 
-  public async waitForGate(
-    _collectorId: string,
-    _options?: DemoHealerPollOptions,
-  ): Promise<DemoHealGateOutcome> {
+  /** The scripted outcome, whichever collector or poll options are supplied. */
+  public async waitForGate(): Promise<DemoHealGateOutcome> {
     return this.outcome;
   }
 

@@ -122,11 +122,15 @@ export class DcaTemplateClient {
     body?: unknown,
   ): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
+    // Built before the try: a missing credential is a configuration fault, and
+    // rewrapping it as a network error would send an operator hunting the
+    // wrong problem.
+    const headers = authHeaders(this.apiKey);
     let response: Response;
     try {
       response = await this.fetchFn(url, {
         method,
-        headers: authHeaders(this.apiKey),
+        headers,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch (error) {
