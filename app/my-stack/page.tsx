@@ -57,9 +57,14 @@ export default async function MyStackPage({
           title="My Stack"
           description="The models you depend on. Changes affecting them are prioritized here and in the change feed. Your stack is stored in this browser only — there is no account and nothing is sent anywhere."
           action={
-            <Link href="/changes" className="radar-inline-link">
-              Browse all changes
-            </Link>
+            <span className="radar-page-intro-links">
+              <Link href="/optimizer" className="radar-inline-link">
+                Optimize this stack
+              </Link>
+              <Link href="/changes" className="radar-inline-link">
+                Browse all changes
+              </Link>
+            </span>
           }
         />
         <MyStackView initialFeed={feed} filters={filters} />

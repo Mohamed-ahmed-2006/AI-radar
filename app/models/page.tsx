@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ModelExplorerView } from "@/components/product/explorer/ModelExplorerView";
 import { PageIntro } from "@/components/product/common/PageIntro";
@@ -48,6 +49,16 @@ export default async function ModelsPage({
         <PageIntro
           title="Model explorer"
           description="Observed pricing, capabilities, context, lifecycle and freshness across the catalog. Unknown capabilities are shown as Unknown — not as unsupported. Select models to compare; this page does not rank them."
+          action={
+            <span className="radar-page-intro-links">
+              <Link href="/optimizer" className="radar-inline-link">
+                Find a best fit
+              </Link>
+              <Link href="/ask" className="radar-inline-link">
+                Ask AI Radar
+              </Link>
+            </span>
+          }
         />
 
         {error !== null || !catalog ? (
