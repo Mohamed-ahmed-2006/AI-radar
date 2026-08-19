@@ -48,6 +48,8 @@ export type PriceDelta = z.infer<typeof PriceDeltaSchema>;
 
 export const SourceProvenanceSchema = z.object({
   url: z.string(),
+  /** Source row id, so a feed item can be resolved through the provenance API. */
+  sourceId: z.string().nullable().optional(),
   collectorId: z.string().nullable().optional(),
   kind: z.string().nullable().optional(),
   label: z.string().nullable().optional(),
