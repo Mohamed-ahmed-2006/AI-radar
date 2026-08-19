@@ -408,6 +408,81 @@ type View<Row> = {
   Relationships: [];
 };
 
+export type DemoQuoteSnapshotRow = {
+  id: string;
+  run_id: string;
+  source_id: string;
+  provider_id: string;
+  quote_key: string;
+  quote_text: string;
+  author: string;
+  tags: string[];
+  source_url: string;
+  observed_at: string;
+  created_at: string;
+};
+
+/** Which layout the demo collector is currently pointed at. */
+export type DemoArmedLayout = "healthy" | "broken";
+
+/** How the controlled failure is produced. */
+export type DemoBreakMode = "layout" | "template";
+
+export type SentinelDemoPhase =
+  | "unprepared"
+  | "healthy"
+  | "failure_armed"
+  | "quarantined"
+  | "healing"
+  | "preview_rejected"
+  | "preview_validated"
+  | "approved"
+  | "recovered"
+  | "needs_review";
+
+export type SentinelDemoApprovalState =
+  | "not_requested"
+  | "awaiting_decision"
+  | "approved"
+  | "rejected";
+
+export type SentinelDemoStateRow = {
+  source_key: string;
+  source_id: string | null;
+  armed_layout: DemoArmedLayout;
+  break_mode: DemoBreakMode;
+  phase: SentinelDemoPhase;
+  baseline_run_id: string | null;
+  broken_run_id: string | null;
+  recovered_run_id: string | null;
+  current_incident_id: string | null;
+  current_healing_attempt_id: string | null;
+  healing_job_id: string | null;
+  healing_requested_at: string | null;
+  preview_records_count: number | null;
+  preview_passed: boolean | null;
+  preview_reason_codes: string[];
+  preview_summary: string | null;
+  approval_state: SentinelDemoApprovalState;
+  approved_at: string | null;
+  is_live: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SentinelDemoEventRow = {
+  id: string;
+  source_key: string;
+  phase: SentinelDemoPhase;
+  action: string;
+  status: "ok" | "refused" | "failed";
+  summary: string;
+  run_id: string | null;
+  incident_id: string | null;
+  detail: Json;
+  created_at: string;
+};
+
 export type LatestCapabilitySnapshotRow = CapabilitySnapshotRow & {
   model_name: string;
   provider_slug: string;
@@ -462,6 +537,23 @@ export type Database = {
       orchestration_runs: Table<
         OrchestrationRunRow,
         "source_key" | "provider_slug" | "source_type" | "lease_expires_at"
+      >;
+
+      demo_quote_snapshots: Table<
+        DemoQuoteSnapshotRow,
+        | "run_id"
+        | "source_id"
+        | "provider_id"
+        | "quote_key"
+        | "quote_text"
+        | "author"
+        | "source_url"
+        | "observed_at"
+      >;
+      sentinel_demo_state: Table<SentinelDemoStateRow, "source_key">;
+      sentinel_demo_events: Table<
+        SentinelDemoEventRow,
+        "source_key" | "phase" | "action" | "status" | "summary"
       >;
     };
     Views: {

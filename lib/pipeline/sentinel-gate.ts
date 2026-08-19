@@ -71,10 +71,16 @@ export interface SentinelIngestionSummary {
   summary: string;
 }
 
-export interface AssertSentinelSafeInput {
-  /** Chooses the health contract; `contract` overrides it when supplied. */
-  target: SourceHealthContractTarget;
-  contract?: SourceHealthContract<unknown>;
+/**
+ * Either name a configured production source and let the registry resolve its
+ * contract, or supply a contract directly. Supplying neither does not compile,
+ * so no caller can reach the gate without a contract governing the payload.
+ */
+export type SentinelContractSelection =
+  | { target: SourceHealthContractTarget; contract?: SourceHealthContract<unknown> }
+  | { target?: undefined; contract: SourceHealthContract<unknown> };
+
+export type AssertSentinelSafeInput = SentinelContractSelection & {
   source: {
     id: string;
     providerId: string;
@@ -90,6 +96,16 @@ export interface AssertSentinelSafeInput {
   repository?: SentinelRepository;
   /** Closes the collection run before the quarantine error propagates. */
   failRun: (message: string, details: Json) => Promise<unknown>;
+};
+
+function resolveContract(input: AssertSentinelSafeInput): SourceHealthContract<unknown> {
+  if (input.contract) return input.contract;
+  // The union guarantees a target whenever no contract was supplied; this
+  // check keeps that guarantee true at runtime for untyped callers.
+  if (!input.target) {
+    throw new Error("assertSentinelSafe requires either a contract or a source target");
+  }
+  return createSourceHealthContractFor(input.target, input.source.id);
 }
 
 /**
@@ -100,8 +116,7 @@ export interface AssertSentinelSafeInput {
 export async function assertSentinelSafe(
   input: AssertSentinelSafeInput,
 ): Promise<Extract<SentinelGateDecision, { safe: true }>> {
-  const contract =
-    input.contract ?? createSourceHealthContractFor(input.target, input.source.id);
+  const contract = resolveContract(input);
 
   const decision = await evaluateSentinelGate({
     contract,
