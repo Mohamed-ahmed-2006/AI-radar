@@ -46,6 +46,9 @@ export default async function SourcesPage() {
               <Link href="/source-health" className="radar-inline-link">
                 Sentinel fleet view
               </Link>
+              <Link href="/demo/healing" className="radar-inline-link">
+                Real healing demo
+              </Link>
             </span>
           }
         />

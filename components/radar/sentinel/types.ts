@@ -32,6 +32,8 @@ export interface SentinelTimelineStage {
   detail?: string;
   at: string | null;
   status: SentinelStageStatus;
+  /** Backend-supplied duration for the stage, in milliseconds. */
+  durationMs?: number | null;
 }
 
 /** One side of the last-known-good comparison. */

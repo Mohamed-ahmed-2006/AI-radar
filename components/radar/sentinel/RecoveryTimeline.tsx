@@ -1,4 +1,4 @@
-import { formatRelativeTime } from "../utils";
+import { formatDuration, formatRelativeTime } from "../utils";
 import type { SentinelStageStatus, SentinelTimelineStage } from "./types";
 
 const nodeClass: Record<SentinelStageStatus, string> = {
@@ -55,6 +55,9 @@ export function RecoveryTimeline({
           {stage.at ? (
             <time dateTime={stage.at} className="radar-rail-time">
               {formatRelativeTime(stage.at)}
+              {formatDuration(stage.durationMs)
+                ? ` · ${formatDuration(stage.durationMs)}`
+                : ""}
             </time>
           ) : (
             <span className="radar-rail-time">pending</span>

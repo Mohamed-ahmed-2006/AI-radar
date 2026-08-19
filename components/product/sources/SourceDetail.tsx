@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { Panel } from "../../radar/ui/Panel";
+import { HEALING_DEMO_HREF } from "../../../lib/product/healing-demo";
 import type { SourceDetailView } from "../../../lib/product/source-detail";
 import { DemoNotice } from "../common/DemoNotice";
 import { PageIntro } from "../common/PageIntro";
@@ -23,6 +26,16 @@ export function SourceDetail({ detail }: { detail: SourceDetailView }) {
       <PageIntro
         title={detail.identity.name}
         description={`${detail.identity.providerName} · ${detail.identity.category} source. Collection integrity, freshness, provenance and the path from raw payload to trusted data.`}
+        action={
+          <span className="radar-page-intro-links">
+            <Link href="/source-health" className="radar-inline-link">
+              Source Health
+            </Link>
+            <Link href={HEALING_DEMO_HREF} className="radar-inline-link">
+              Real healing demo
+            </Link>
+          </span>
+        }
       />
 
       {detail.isDemo && (

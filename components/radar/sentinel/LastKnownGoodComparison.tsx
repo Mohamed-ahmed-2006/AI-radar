@@ -1,20 +1,27 @@
 import { formatAbsoluteTime } from "../utils";
 import type { SentinelSnapshotView } from "./types";
 
-function SnapshotSummary({
+export function SentinelSnapshotCard({
   snapshot,
   fallbackCaption,
   tone,
 }: {
   snapshot: SentinelSnapshotView | null;
   fallbackCaption: string;
-  tone: "good" | "bad";
+  tone: "good" | "bad" | "neutral";
 }) {
   const accent =
     tone === "good"
       ? "border-radar-signal/25 bg-radar-signal/5"
-      : "border-radar-danger/25 bg-radar-danger/5";
-  const captionColor = tone === "good" ? "text-radar-signal" : "text-radar-danger";
+      : tone === "bad"
+        ? "border-radar-danger/25 bg-radar-danger/5"
+        : "border-radar-border-subtle bg-radar-surface";
+  const captionColor =
+    tone === "good"
+      ? "text-radar-signal"
+      : tone === "bad"
+        ? "text-radar-danger"
+        : "text-radar-text-muted";
 
   return (
     <div className={`rounded border px-2.5 py-2 min-w-0 ${accent}`}>
@@ -77,12 +84,12 @@ export function LastKnownGoodComparison({
     // narrow card and inside the wide spotlight panel.
     <div className="@container flex flex-col gap-2">
       <div className="grid grid-cols-1 @sm:grid-cols-2 gap-2">
-        <SnapshotSummary
+        <SentinelSnapshotCard
           snapshot={lastKnownGood}
           fallbackCaption="Last-known-good"
           tone="good"
         />
-        <SnapshotSummary
+        <SentinelSnapshotCard
           snapshot={candidate}
           fallbackCaption="Rejected candidate"
           tone="bad"
