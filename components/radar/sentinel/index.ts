@@ -16,7 +16,7 @@ export type {
 
 export { AnomalyReason } from "./AnomalyReason";
 export { IncidentSpotlight } from "./IncidentSpotlight";
-export { LastKnownGoodComparison } from "./LastKnownGoodComparison";
+export { LastKnownGoodComparison, SentinelSnapshotCard } from "./LastKnownGoodComparison";
 export { RecoveryTimeline } from "./RecoveryTimeline";
 export { SentinelStatusBadge } from "./SentinelStatusBadge";
 export { SentinelSummaryHeader } from "./SentinelSummaryHeader";

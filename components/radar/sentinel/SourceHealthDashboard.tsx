@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { EmptyState, ErrorState } from "../ui/DataState";
 import { Panel } from "../ui/Panel";
 import { IncidentSpotlight } from "./IncidentSpotlight";
@@ -76,13 +78,17 @@ export function SourceHealthDashboard({
         <p className="radar-page-description">
           Every collection run is validated before it reaches the read model.
           This page shows what each source is serving right now, what Sentinel
-          rejected, and how a broken source got back to a trusted state.
+          rejected, and how a broken source got back to a trusted state.{" "}
+          <Link href="/demo/healing" className="radar-inline-link">
+            Real Bright Data healing demo
+          </Link>
           {view?.isDemo && (
             <span className="radar-mock-notice">
               {" "}
               Demo simulation
               {view.demoScenario ? ` — ${view.demoScenario}` : ""}. Deterministic
-              in-memory scenario, not live collector telemetry.
+              in-memory scenario, not live collector telemetry. The real healing
+              demo never uses this simulation.
             </span>
           )}
         </p>
