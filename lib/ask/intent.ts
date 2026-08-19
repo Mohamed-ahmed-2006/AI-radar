@@ -518,15 +518,27 @@ function interpretDeterministically(question: string, options: PlanOptions): Que
     });
 
   if (wantsComparison && (wantsCost || workload)) {
+    // A named monthly volume is preferred. Without one, ranking uses 1M input
+    // and 1M output tokens so published unit prices stay comparable, and the
+    // default is recorded rather than implied to have come from the question.
+    const UNIT_COMPARISON_TOKENS = 1_000_000;
+    const comparisonWorkload = workload ?? {
+      monthlyInputTokens: UNIT_COMPARISON_TOKENS,
+      monthlyOutputTokens: UNIT_COMPARISON_TOKENS,
+    };
     if (!workload) {
-      return plan({
-        kind: "unsupported",
-        reason: "missing_workload",
-        detail:
-          "A cost comparison needs a monthly workload. State the monthly input and " +
-          "output token volumes, for example 100M input and 20M output tokens.",
-        missing: ["monthlyInputTokens", "monthlyOutputTokens"],
-      });
+      found.add(
+        "monthlyInputTokens",
+        UNIT_COMPARISON_TOKENS,
+        "default",
+        "1M tokens (unit-price comparison)",
+      );
+      found.add(
+        "monthlyOutputTokens",
+        UNIT_COMPARISON_TOKENS,
+        "default",
+        "1M tokens (unit-price comparison)",
+      );
     }
     const constraints = readSelectionConstraints(text, found, providers);
     const priority = readPriority(text, found);
@@ -545,7 +557,7 @@ function interpretDeterministically(question: string, options: PlanOptions): Que
     return plan(
       ComparisonIntentSchema.parse({
         kind: "comparison_query",
-        workload,
+        workload: comparisonWorkload,
         constraints: { ...constraints, providers: providers.map((p) => p.slug) },
         compareProviders: providers.map((provider) => provider.slug),
         priority,
@@ -570,7 +582,8 @@ function interpretDeterministically(question: string, options: PlanOptions): Que
     CHEAPEST_PATTERN.test(text) ||
     SELECTION_PATTERN.test(text) ||
     VISION_PATTERN.test(text) ||
-    CONTEXT_PATTERNS.some((pattern) => pattern.test(text));
+    CONTEXT_PATTERNS.some((pattern) => pattern.test(text)) ||
+    (wantsComparison && providers.length >= 2);
 
   if (TEMPORAL_CHANGE_PATTERN.test(text) || TEMPORAL_WINDOW_PATTERN.test(text)) {
     return plan(readTemporalIntent(text, found, providers));

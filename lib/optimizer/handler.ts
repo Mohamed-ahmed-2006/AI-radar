@@ -18,7 +18,7 @@
 import { z } from "zod";
 
 import { optimizeStack, type StackOptimizerOptions } from "./optimize";
-import type { StackOptimizerRequest } from "./types";
+import type { OptimizationPriority, StackOptimizerRequest } from "./types";
 
 const tokenCount = z
   .number()
@@ -76,21 +76,40 @@ function readFlag(params: URLSearchParams, name: string): boolean | undefined {
   return undefined;
 }
 
+const PRIORITY_ALIASES: Record<string, OptimizationPriority> = {
+  lowest_total_cost: "lowest_total_cost",
+  lowest_input_cost: "lowest_input_cost",
+  lowest_output_cost: "lowest_output_cost",
+  lowest_monthly_cost: "lowest_total_cost",
+  lowest_input_price: "lowest_input_cost",
+  lowest_output_price: "lowest_output_cost",
+};
+
+function readPriority(params: URLSearchParams): string | undefined {
+  const raw = params.get("priority")?.trim();
+  if (!raw) return undefined;
+  return PRIORITY_ALIASES[raw] ?? raw;
+}
+
 export function parseOptimizerParams(params: URLSearchParams): unknown {
   return {
     workload: {
-      monthlyInputTokens: readNumber(params, "inputTokens") ?? 0,
-      monthlyOutputTokens: readNumber(params, "outputTokens") ?? 0,
+      monthlyInputTokens:
+        readNumber(params, "inputTokens") ?? readNumber(params, "inTokens") ?? 0,
+      monthlyOutputTokens:
+        readNumber(params, "outputTokens") ?? readNumber(params, "outTokens") ?? 0,
     },
     minContextWindow: readNumber(params, "minContext"),
-    minMaxOutputTokens: readNumber(params, "minMaxOutputTokens"),
-    visionRequired: readFlag(params, "visionRequired"),
-    toolCallingRequired: readFlag(params, "toolCallingRequired"),
-    providers: readList(params, "provider"),
-    activeOnly: readFlag(params, "activeOnly"),
+    minMaxOutputTokens:
+      readNumber(params, "minMaxOutputTokens") ?? readNumber(params, "minMaxOutput"),
+    visionRequired: readFlag(params, "visionRequired") ?? readFlag(params, "vision"),
+    toolCallingRequired:
+      readFlag(params, "toolCallingRequired") ?? readFlag(params, "tools"),
+    providers: readList(params, "provider") ?? readList(params, "providers"),
+    activeOnly: readFlag(params, "activeOnly") ?? readFlag(params, "active"),
     excludeModelIds: readList(params, "excludeModel"),
     excludeProviders: readList(params, "excludeProvider"),
-    priority: params.get("priority")?.trim() || undefined,
+    priority: readPriority(params),
     limit: readNumber(params, "limit"),
     currency: params.get("currency")?.trim() || undefined,
   };
