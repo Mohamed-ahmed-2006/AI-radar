@@ -53,7 +53,7 @@ export function ModelExplorerView({
     setStatus("loading");
     setError(null);
 
-    fetch(`/api/models${filterQuery}`, { signal: controller.signal })
+    fetch(`/api/explorer${filterQuery}`, { signal: controller.signal })
       .then(async (response) => {
         const payload = (await response.json()) as ModelExplorerCatalog & {
           error?: string;

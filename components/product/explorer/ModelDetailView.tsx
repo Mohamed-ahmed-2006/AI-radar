@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import { Badge } from "../../radar/ui/Badge";
 import { Panel } from "../../radar/ui/Panel";
 import { formatAbsoluteTime, formatRelativeTime } from "../../radar/utils";
-import type { ModelDetailReadModel, SectionState } from "../../../lib/product/explorer";
+import type {
+  ModelDetailReadModel,
+  SectionState,
+} from "../../../lib/product/explorer";
+import type { ProvenanceView } from "../../../lib/product/provenance";
 import { UnavailableNote } from "../common/UnavailableNote";
 import { ProvenanceDetails } from "../provenance/ProvenanceDetails";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
@@ -20,6 +24,27 @@ function Section<T>({
 }) {
   if (!state.available) return <UnavailableNote reason={state.reason} />;
   return <>{children(state.data)}</>;
+}
+
+/**
+ * Discloses the provenance of one evidence domain. A domain with no
+ * observation says so, rather than borrowing another domain's source.
+ */
+function DomainProvenance({
+  provenance,
+  subject,
+}: {
+  provenance: ProvenanceView | null;
+  subject: string;
+}) {
+  if (!provenance) {
+    return (
+      <p className="text-xs text-radar-text-muted">
+        No {subject} source has been observed for this model.
+      </p>
+    );
+  }
+  return <ProvenanceDisclosure provenance={provenance} subject={subject} />;
 }
 
 function Fact({
@@ -90,6 +115,20 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
                 empty={!identity.modelStage}
               />
             </dl>
+            <div className="mt-3">
+              <p className="radar-fact-label">Known API model ids</p>
+              <Section state={detail.apiModelIds}>
+                {(ids) => (
+                  <ul className="radar-tag-list" aria-label="Known API model ids">
+                    {ids.map((id) => (
+                      <li key={id} className="radar-tag font-mono">
+                        {id}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            </div>
           </Panel>
 
           <Panel id="model-pricing" title="Pricing" subtitle="USD per 1M tokens, as observed">
@@ -136,8 +175,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
                       ))}
                     </tbody>
                   </table>
-                  <ProvenanceDisclosure
-                    provenance={detail.provenance}
+                  <DomainProvenance
+                    provenance={detail.provenanceByDomain.pricing}
                     subject="pricing"
                   />
                 </div>
@@ -178,8 +217,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
                       empty={capabilities.supportedFeatures.length === 0}
                     />
                   </dl>
-                  <ProvenanceDisclosure
-                    provenance={detail.provenance}
+                  <DomainProvenance
+                    provenance={detail.provenanceByDomain.capability}
                     subject="capabilities"
                   />
                 </>
@@ -250,8 +289,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
                       empty={!lifecycle.retirementNotBefore}
                     />
                   </dl>
-                  <ProvenanceDisclosure
-                    provenance={detail.provenance}
+                  <DomainProvenance
+                    provenance={detail.provenanceByDomain.lifecycle}
                     subject="lifecycle"
                   />
                 </>
@@ -326,6 +365,107 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
                 </li>
               ))}
             </ol>
+          )}
+        </Section>
+      </Panel>
+
+      <Panel
+        id="model-pricing-history"
+        title="Pricing history"
+        subtitle="Every price this model has been observed at, newest first"
+      >
+        <Section state={detail.pricingHistory}>
+          {(history) => (
+            <div className="overflow-x-auto">
+              <table className="radar-table w-full" aria-label="Pricing history">
+                <thead>
+                  <tr>
+                    <th scope="col" className="radar-table-head text-left">Observed</th>
+                    <th scope="col" className="radar-table-head text-left">Tier</th>
+                    <th scope="col" className="radar-table-head text-right">Input</th>
+                    <th scope="col" className="radar-table-head text-right">Cached</th>
+                    <th scope="col" className="radar-table-head text-right">Output</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item, index) => (
+                    <tr
+                      key={`${item.observedAt}-${item.pricingMode ?? "mode"}-${item.contextTier ?? "tier"}-${index}`}
+                      className="radar-table-row"
+                    >
+                      <td className="radar-table-cell">
+                        <time dateTime={item.observedAt}>
+                          {formatAbsoluteTime(item.observedAt)}
+                        </time>
+                      </td>
+                      <td className="radar-table-cell">
+                        {item.contextTier ?? "Not observed"}
+                      </td>
+                      <td className="radar-table-cell text-right tabular-nums">
+                        {formatObservedPrice(item.inputPerMillion)}
+                      </td>
+                      <td className="radar-table-cell text-right tabular-nums">
+                        {formatObservedPrice(item.cachedInputPerMillion)}
+                      </td>
+                      <td className="radar-table-cell text-right tabular-nums">
+                        {formatObservedPrice(item.outputPerMillion)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+      </Panel>
+
+      <Panel
+        id="model-lifecycle-history"
+        title="Lifecycle history"
+        subtitle="What the lifecycle source has published over time"
+      >
+        <Section state={detail.lifecycleHistory}>
+          {(history) => (
+            <div className="overflow-x-auto">
+              <table className="radar-table w-full" aria-label="Lifecycle history">
+                <thead>
+                  <tr>
+                    <th scope="col" className="radar-table-head text-left">Observed</th>
+                    <th scope="col" className="radar-table-head text-left">State</th>
+                    <th scope="col" className="radar-table-head text-left">Deprecated on</th>
+                    <th scope="col" className="radar-table-head text-left">Retirement</th>
+                    <th scope="col" className="radar-table-head text-left">Replacement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((item, index) => (
+                    <tr
+                      key={`${item.observedAt}-${item.apiModelId ?? "model"}-${index}`}
+                      className="radar-table-row"
+                    >
+                      <td className="radar-table-cell">
+                        <time dateTime={item.observedAt}>
+                          {formatAbsoluteTime(item.observedAt)}
+                        </time>
+                      </td>
+                      <td className="radar-table-cell">{item.label}</td>
+                      <td className="radar-table-cell">
+                        {item.deprecatedOn ?? "Not observed"}
+                      </td>
+                      <td className="radar-table-cell">
+                        {item.retirementDate ??
+                          (item.retirementNotBefore
+                            ? `Not before ${item.retirementNotBefore}`
+                            : "Not observed")}
+                      </td>
+                      <td className="radar-table-cell font-mono">
+                        {item.recommendedReplacement ?? "Not observed"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Section>
       </Panel>

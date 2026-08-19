@@ -22,6 +22,7 @@ import { ErrorState, LoadingState } from "../../components/radar/ui/DataState";
 import { observedBoolean } from "../../lib/product/explorer";
 import { DEFAULT_EXPLORER_FILTERS } from "../../lib/product/explorer";
 import {
+  compareColumn,
   compareReadModel,
   detailReadModel,
   explorerRow,
@@ -227,27 +228,10 @@ test("Empty, error and loading states announce themselves as status or alert", (
 });
 
 test("Compare table uses row headers and does not rank or name a winner", () => {
-  const row = explorerRow();
   const html = renderToStaticMarkup(
     <ModelCompareView
       comparison={compareReadModel(
-        [
-          {
-            identity: row.identity,
-            inputPrice: row.inputPrice,
-            outputPrice: row.outputPrice,
-            currency: row.currency,
-            contextWindow: row.contextWindow,
-            maxOutputTokens: row.maxOutputTokens,
-            vision: observedBoolean(null),
-            toolCalling: row.toolCalling,
-            inputModalities: row.inputModalities,
-            outputModalities: row.outputModalities,
-            lifecycle: row.lifecycle,
-            freshness: row.freshness,
-            provenance: row.provenance,
-          },
-        ],
+        [compareColumn({ vision: observedBoolean(null) })],
         ["missing:model"],
       )}
     />,
@@ -262,7 +246,11 @@ test("Compare table uses row headers and does not rank or name a winner", () => 
   assert.match(html, /<th scope="row"[^>]*>Tools/);
   assert.match(html, /<th scope="row"[^>]*>Lifecycle/);
   assert.match(html, /<th scope="row"[^>]*>Freshness/);
-  assert.match(html, /<th scope="row"[^>]*>Provenance/);
+  assert.match(html, /<th scope="row"[^>]*>Pricing source/);
+  assert.match(html, /<th scope="row"[^>]*>Capability source/);
+  assert.match(html, /<th scope="row"[^>]*>Lifecycle source/);
+  // A domain with no observation says so rather than borrowing another source.
+  assert.match(html, /Not observed/);
   assert.match(html, /Unknown/);
   assert.match(html, /does not rank/i);
   assert.doesNotMatch(html, /best model/i);

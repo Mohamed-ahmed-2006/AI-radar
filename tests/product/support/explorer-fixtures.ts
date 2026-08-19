@@ -1,14 +1,7 @@
-import type {
-  ModelCapabilityView,
-  ModelDetailView as CatalogModelDetailView,
-} from "../../../lib/radar/catalog-read-model";
-import type {
-  ChangeEventRow,
-  LatestPricingSnapshotRow,
-} from "../../../lib/supabase";
 import { DEFAULT_EXPLORER_FILTERS, observedBoolean } from "../../../lib/product/explorer";
 import { provenanceFromSource } from "../../../lib/product/provenance";
 import type {
+  ModelCompareColumn,
   ModelCompareReadModel,
   ModelDetailReadModel,
   ModelExplorerCatalog,
@@ -17,101 +10,6 @@ import type {
 import { available, unavailable } from "../../../lib/product/explorer";
 
 export const NOW = new Date("2026-08-19T12:00:00.000Z");
-
-export function capabilityView(
-  overrides: Partial<ModelCapabilityView> = {},
-): ModelCapabilityView {
-  return {
-    modelId: "m-sonnet",
-    modelName: "claude-sonnet-4-5",
-    displayName: "Claude Sonnet 4.5",
-    provider: "Anthropic",
-    providerSlug: "anthropic",
-    isActive: true,
-    lifecycleState: "active",
-    apiModelId: "claude-sonnet-4-5",
-    modelFamily: "Claude",
-    modelStage: "ga",
-    contextWindow: 200000,
-    maxOutputTokens: 8192,
-    supportsVision: true,
-    supportsToolCalling: true,
-    inputModalities: ["text", "image"],
-    outputModalities: ["text"],
-    supportedFeatures: ["function_calling"],
-    sourceUrl: "https://docs.anthropic.com/en/docs/models-overview",
-    observedAt: "2026-08-19T09:00:00.000Z",
-    ...overrides,
-  };
-}
-
-export function pricingRow(
-  overrides: Partial<LatestPricingSnapshotRow> = {},
-): LatestPricingSnapshotRow {
-  return {
-    id: "price-1",
-    run_id: "run-1",
-    source_id: "src-pricing",
-    provider_id: "p-anthropic",
-    model_id: "m-sonnet",
-    pricing_mode: "standard",
-    context_tier: "standard",
-    input_price_per_1m_tokens: 3,
-    cached_input_price_per_1m_tokens: 0.3,
-    cache_write_price_per_1m_tokens: null,
-    output_price_per_1m_tokens: 15,
-    currency: "USD",
-    pricing_unit: "USD per 1M tokens",
-    source_url: "https://www.anthropic.com/pricing",
-    extra: {},
-    raw: {},
-    observed_at: "2026-08-19T09:00:00.000Z",
-    created_at: "2026-08-19T09:00:00.000Z",
-    content_hash: "hash",
-    model_name: "claude-sonnet-4-5",
-    provider_slug: "anthropic",
-    provider_name: "Anthropic",
-    ...overrides,
-  };
-}
-
-export function changeEvent(overrides: Partial<ChangeEventRow> = {}): ChangeEventRow {
-  return {
-    id: "evt-1",
-    provider_id: "p-anthropic",
-    source_id: "src-pricing",
-    run_id: "run-1",
-    model_id: "m-sonnet",
-    change_type: "price_decreased",
-    field_name: "input_price_per_1m_tokens",
-    pricing_mode: "standard",
-    context_tier: "standard",
-    old_value: 3.5,
-    new_value: 3,
-    previous_snapshot_id: "snap-old",
-    current_snapshot_id: "snap-new",
-    previous_lifecycle_snapshot_id: null,
-    current_lifecycle_snapshot_id: null,
-    summary: "Input price fell from $3.50 to $3.00.",
-    detected_at: "2026-08-18T12:00:00.000Z",
-    created_at: "2026-08-18T12:00:00.000Z",
-    ...overrides,
-  };
-}
-
-export function catalogDetail(
-  model: ModelCapabilityView = capabilityView(),
-  overrides: Partial<CatalogModelDetailView> = {},
-): CatalogModelDetailView {
-  return {
-    model,
-    pricing: [pricingRow({ model_id: model.modelId })],
-    lifecycle: null,
-    capabilityHistory: [],
-    recentChangeEvents: [],
-    ...overrides,
-  };
-}
 
 export function explorerRow(
   overrides: Partial<ModelExplorerRow> = {},
@@ -217,9 +115,44 @@ export function detailReadModel(
     freshness: row.freshness,
     recentChanges: unavailable("No recent changes have been recorded for this model."),
     history: unavailable("No capability history has been recorded for this model."),
+    pricingHistory: unavailable("No pricing history has been recorded for this model."),
+    lifecycleHistory: unavailable("No lifecycle history has been recorded for this model."),
+    apiModelIds: available(["claude-sonnet-4-5"]),
     provenance: row.provenance,
+    provenanceByDomain: {
+      pricing: row.provenance,
+      capability: row.provenance,
+      lifecycle: null,
+    },
     isDemo: false,
     generatedAt: NOW.toISOString(),
+    ...overrides,
+  };
+}
+
+export function compareColumn(
+  overrides: Partial<ModelCompareColumn> = {},
+): ModelCompareColumn {
+  const row = explorerRow();
+  return {
+    identity: row.identity,
+    inputPrice: row.inputPrice,
+    outputPrice: row.outputPrice,
+    currency: row.currency,
+    contextWindow: row.contextWindow,
+    maxOutputTokens: row.maxOutputTokens,
+    vision: row.vision,
+    toolCalling: row.toolCalling,
+    inputModalities: row.inputModalities,
+    outputModalities: row.outputModalities,
+    lifecycle: row.lifecycle,
+    freshness: row.freshness,
+    provenance: row.provenance,
+    provenanceByDomain: {
+      pricing: row.provenance,
+      capability: row.provenance,
+      lifecycle: null,
+    },
     ...overrides,
   };
 }

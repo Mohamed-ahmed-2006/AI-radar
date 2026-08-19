@@ -8,6 +8,7 @@ import {
   modelDetailHref,
   type ModelCompareReadModel,
 } from "../../../lib/product/explorer";
+import type { ProvenanceView } from "../../../lib/product/provenance";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
 import { CapabilityStatus } from "./CapabilityStatus";
 import { FreshnessStatus } from "./FreshnessStatus";
@@ -152,12 +153,32 @@ export function ModelCompareView({
                 ))}
               />
               <CompareDataRow
-                label="Provenance"
+                label="Pricing source"
                 values={columns.map((c) => (
-                  <ProvenanceDisclosure
+                  <DomainProvenanceCell
                     key={c.identity.canonicalId}
-                    provenance={c.provenance}
-                    subject={c.identity.displayName}
+                    provenance={c.provenanceByDomain.pricing}
+                    subject={`${c.identity.displayName} pricing`}
+                  />
+                ))}
+              />
+              <CompareDataRow
+                label="Capability source"
+                values={columns.map((c) => (
+                  <DomainProvenanceCell
+                    key={c.identity.canonicalId}
+                    provenance={c.provenanceByDomain.capability}
+                    subject={`${c.identity.displayName} capabilities`}
+                  />
+                ))}
+              />
+              <CompareDataRow
+                label="Lifecycle source"
+                values={columns.map((c) => (
+                  <DomainProvenanceCell
+                    key={c.identity.canonicalId}
+                    provenance={c.provenanceByDomain.lifecycle}
+                    subject={`${c.identity.displayName} lifecycle`}
                   />
                 ))}
               />
@@ -167,6 +188,23 @@ export function ModelCompareView({
       </Panel>
     </div>
   );
+}
+
+/**
+ * Each evidence domain discloses its own source. A domain with no observation
+ * says so rather than showing another domain's page.
+ */
+function DomainProvenanceCell({
+  provenance,
+  subject,
+}: {
+  provenance: ProvenanceView | null;
+  subject: string;
+}) {
+  if (!provenance) {
+    return <span className="text-xs text-radar-text-muted">Not observed</span>;
+  }
+  return <ProvenanceDisclosure provenance={provenance} subject={subject} />;
 }
 
 function CompareDataRow({

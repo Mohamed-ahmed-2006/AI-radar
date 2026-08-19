@@ -3,15 +3,15 @@
  * whatever backend supplies them.
  *
  * Every explorer screen is written against the types in this module only.
- * Today's catalog adapter projects the current capability/pricing/lifecycle
- * read model. A richer Explorer/Compare read model can be dropped in by
- * implementing `ModelExplorerAdapter` and calling `setModelExplorerAdapter`
- * — no component redesign, and no other module needs to know which adapter
- * is installed.
+ * The installed adapter projects the canonical Explorer/Compare read model in
+ * `lib/explorer`. Another backend can be dropped in by implementing
+ * `ModelExplorerAdapter` and calling `setModelExplorerAdapter` — no component
+ * redesign, and no other module needs to know which adapter is installed.
  *
- * Filter *controls* live in the UI as presentation state. Matching those
- * controls to rows is the adapter's job (today, the catalog adapter; later,
- * the richer read model). Components must not re-implement filter rules.
+ * Filter *controls* live in the UI as presentation state. Deciding what those
+ * controls match is the read model's job: the adapter renames them into
+ * canonical filters and passes them through. Neither components nor adapters
+ * re-implement a filter rule.
  *
  * Two rules make the swap safe:
  *
@@ -162,6 +162,42 @@ export interface CapabilityHistoryItem {
   sourceUrl: string | null;
 }
 
+export interface PricingHistoryItem {
+  observedAt: string;
+  pricingMode: string | null;
+  contextTier: string | null;
+  inputPerMillion: number | null;
+  cachedInputPerMillion: number | null;
+  outputPerMillion: number | null;
+  currency: string | null;
+  sourceUrl: string | null;
+}
+
+export interface LifecycleHistoryItem {
+  observedAt: string;
+  apiModelId: string | null;
+  state: string | null;
+  label: string;
+  deprecatedOn: string | null;
+  retirementDate: string | null;
+  retirementNotBefore: string | null;
+  recommendedReplacement: string | null;
+  sourceUrl: string | null;
+}
+
+/**
+ * Provenance kept per evidence domain rather than collapsed into one record.
+ *
+ * A model's price, its capabilities and its lifecycle come from different
+ * pages collected at different times, so one provenance record cannot honestly
+ * describe all three. `null` means that domain has no observation to trace.
+ */
+export interface DomainProvenanceView {
+  pricing: ProvenanceView | null;
+  capability: ProvenanceView | null;
+  lifecycle: ProvenanceView | null;
+}
+
 /** One scan-friendly row in the explorer catalog. */
 export interface ModelExplorerRow {
   identity: ModelIdentityView;
@@ -201,7 +237,13 @@ export interface ModelDetailReadModel {
   freshness: FreshnessView;
   recentChanges: SectionState<ModelChangeItem[]>;
   history: SectionState<CapabilityHistoryItem[]>;
+  pricingHistory: SectionState<PricingHistoryItem[]>;
+  lifecycleHistory: SectionState<LifecycleHistoryItem[]>;
+  /** Every API model id this canonical model is known by. Never guessed. */
+  apiModelIds: SectionState<string[]>;
+  /** Page-level provenance: the newest evidence behind this model. */
   provenance: ProvenanceView;
+  provenanceByDomain: DomainProvenanceView;
   isDemo: boolean;
   generatedAt: string;
 }
@@ -220,6 +262,7 @@ export interface ModelCompareColumn {
   lifecycle: ModelLifecycleView;
   freshness: FreshnessView;
   provenance: ProvenanceView;
+  provenanceByDomain: DomainProvenanceView;
 }
 
 export interface ModelCompareReadModel {

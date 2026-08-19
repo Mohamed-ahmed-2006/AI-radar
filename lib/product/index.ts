@@ -6,8 +6,8 @@
  * `getSourceDetailAdapter()` / `getModelExplorerAdapter()`. The richer
  * source-detail and provenance read model is installed explicitly below, after
  * both adapter modules have loaded, so the winner never depends on import
- * order. The catalog-backed explorer adapter is the current default; a richer
- * Explorer/Compare read model replaces it the same way.
+ * order. The explorer seam is served by the canonical Explorer/Compare read
+ * model in `lib/explorer`, installed the same way.
  */
 
 export * from "./provenance";
@@ -17,10 +17,10 @@ export * from "./source-detail";
 export * from "./sentinel-source-detail";
 export * from "./source-detail-read-model";
 export * from "./explorer";
-export * from "./explorer-catalog";
+export * from "./explorer-read-model";
 
-import { installCatalogExplorerAdapter } from "./explorer-catalog";
+import { installCanonicalExplorerAdapter } from "./explorer-read-model";
 import { installSourceReadModelAdapter } from "./source-detail-read-model";
 
 installSourceReadModelAdapter();
-installCatalogExplorerAdapter();
+installCanonicalExplorerAdapter();
