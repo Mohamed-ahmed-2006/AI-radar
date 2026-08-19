@@ -782,9 +782,717 @@ body {
   to { transform: translateX(100%); }
 }
 
+/* ── Product surfaces: shared scaffolding ─────────────── */
+
+.radar-surface-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.radar-surface-stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.radar-page-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.radar-subheading {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--radar-text-muted);
+  margin-bottom: 0.375rem;
+}
+
+.radar-inline-link {
+  font-size: 0.75rem;
+  color: var(--radar-info);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.radar-inline-link:hover {
+  border-bottom-color: currentColor;
+}
+
+.radar-breadcrumb {
+  font-size: 0.6875rem;
+  color: var(--radar-text-muted);
+}
+
+/* One focus treatment for every interactive control these surfaces add. */
+.radar-inline-link:focus-visible,
+.radar-nav-link:focus-visible,
+.radar-provenance-summary:focus-visible,
+.radar-filter-control:focus-visible,
+.radar-filter-checkbox:focus-visible,
+.radar-watch-button:focus-visible,
+.radar-remove-button:focus-visible,
+.radar-source-row:focus-visible {
+  outline: 2px solid var(--radar-signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.radar-panel-priority {
+  border-color: rgba(61, 214, 140, 0.28);
+}
+
+/* ── Product surfaces: demo + unavailable states ──────── */
+
+.radar-demo-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--radar-warn);
+  border-radius: 6px;
+  background: rgba(229, 168, 75, 0.08);
+}
+
+.radar-demo-notice-tag {
+  flex-shrink: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--radar-warn);
+  border: 1px solid var(--radar-warn);
+  border-radius: 3px;
+  padding: 0.1875rem 0.375rem;
+}
+
+.radar-demo-notice-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--radar-warn);
+  line-height: 1.4;
+}
+
+.radar-demo-notice-body {
+  font-size: 0.6875rem;
+  color: var(--radar-text-secondary);
+  line-height: 1.5;
+  margin-top: 0.125rem;
+}
+
+.radar-unavailable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--radar-text-muted);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px dashed var(--radar-border);
+  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+}
+
+.radar-unavailable-tag {
+  flex-shrink: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--radar-text-secondary);
+}
+
+/* ── Product surfaces: provenance ─────────────────────── */
+
+.radar-provenance {
+  border-top: 1px solid var(--radar-border-subtle);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.radar-provenance-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.radar-provenance-summary::-webkit-details-marker {
+  display: none;
+}
+
+.radar-provenance-summary-label {
+  font-size: 0.6875rem;
+  color: var(--radar-text-muted);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.radar-provenance-summary:hover .radar-provenance-summary-label {
+  color: var(--radar-text-secondary);
+}
+
+.radar-provenance[open] .radar-provenance-summary {
+  margin-bottom: 0.5rem;
+}
+
+.radar-provenance-body {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--radar-border-subtle);
+  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+}
+
+.radar-provenance-grid {
+  display: grid;
+  gap: 0.375rem 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .radar-provenance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.radar-provenance-row {
+  min-width: 0;
+}
+
+.radar-provenance-term {
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--radar-text-muted);
+}
+
+.radar-provenance-def {
+  font-size: 0.6875rem;
+  color: var(--radar-text-primary);
+  line-height: 1.45;
+  min-width: 0;
+}
+
+/* ── Product surfaces: filters ────────────────────────── */
+
+.radar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.625rem 0.75rem;
+  background: var(--radar-surface);
+  border: 1px solid var(--radar-border-subtle);
+  border-radius: 6px;
+  padding: 0.625rem 0.75rem;
+}
+
+.radar-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 10rem;
+}
+
+.radar-filter-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+  padding-bottom: 0.3125rem;
+}
+
+.radar-filter-label {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--radar-text-muted);
+}
+
+.radar-filter-control {
+  appearance: none;
+  width: 100%;
+  background: var(--radar-surface-raised);
+  border: 1px solid var(--radar-border);
+  border-radius: 4px;
+  color: var(--radar-text-primary);
+  font-size: 0.75rem;
+  padding: 0.375rem 0.5rem;
+}
+
+.radar-filter-checkbox {
+  width: 0.875rem;
+  height: 0.875rem;
+  accent-color: var(--radar-signal);
+}
+
+.radar-filter-status {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  min-width: 6rem;
+  text-align: right;
+  padding-bottom: 0.375rem;
+}
+
+@media (min-width: 1024px) {
+  .radar-filter {
+    flex: 0 1 12rem;
+  }
+
+  .radar-filter-status {
+    margin-left: auto;
+  }
+}
+
+/* ── Product surfaces: change feed ────────────────────── */
+
+.radar-change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.radar-change-item {
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid var(--radar-border-subtle);
+  border-radius: 6px;
+  padding: 0.625rem 0.75rem;
+  min-width: 0;
+}
+
+.radar-change-item-watched {
+  border-left: 2px solid var(--radar-signal);
+}
+
+.radar-change-item-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.radar-change-item-time {
+  margin-left: auto;
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.radar-change-item-model {
+  font-size: 0.6875rem;
+  color: var(--radar-text-muted);
+  margin-top: 0.375rem;
+  overflow-wrap: anywhere;
+}
+
+.radar-change-item-summary {
+  font-size: 0.8125rem;
+  color: var(--radar-text-primary);
+  line-height: 1.45;
+  margin-top: 0.1875rem;
+}
+
+.radar-change-item-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.radar-change-item-significance {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--radar-text-muted);
+}
+
+.radar-delta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+  margin-top: 0.5rem;
+}
+
+.radar-delta-side {
+  min-width: 0;
+}
+
+.radar-delta-label {
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--radar-text-muted);
+}
+
+.radar-delta-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--radar-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.radar-delta-arrow {
+  color: var(--radar-text-muted);
+  font-size: 0.875rem;
+  align-self: flex-end;
+  padding-bottom: 0.0625rem;
+}
+
+.radar-delta-up {
+  color: var(--radar-danger);
+}
+
+.radar-delta-down {
+  color: var(--radar-signal);
+}
+
+/* ── Product surfaces: My Stack ───────────────────────── */
+
+.radar-watch-button,
+.radar-remove-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--radar-text-secondary);
+  background: var(--radar-surface-raised);
+  border: 1px solid var(--radar-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.radar-watch-button:hover:not(:disabled),
+.radar-remove-button:hover {
+  color: var(--radar-text-primary);
+  border-color: var(--radar-text-muted);
+}
+
+.radar-watch-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.radar-watch-button-on {
+  color: var(--radar-signal);
+  border-color: rgba(61, 214, 140, 0.35);
+  background: rgba(61, 214, 140, 0.08);
+}
+
+.radar-watch-button-md {
+  font-size: 0.6875rem;
+  padding: 0.375rem 0.625rem;
+}
+
+.radar-remove-button:hover {
+  color: var(--radar-danger);
+  border-color: rgba(232, 93, 93, 0.4);
+}
+
+.radar-stack-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .radar-stack-grid {
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  }
+}
+
+.radar-stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.radar-stack-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--radar-border-subtle);
+}
+
+.radar-stack-item:last-child {
+  border-bottom: none;
+}
+
+.radar-stack-item-name {
+  font-size: 0.75rem;
+  color: var(--radar-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.radar-stack-item-meta {
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  margin-top: 0.125rem;
+}
+
+/* ── Product surfaces: source directory + detail ──────── */
+
+.radar-source-directory {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.radar-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.625rem 0.5rem;
+  margin: 0 -0.5rem;
+  border-radius: 4px;
+  border-bottom: 1px solid var(--radar-border-subtle);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.1s;
+}
+
+.radar-source-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.radar-source-directory li:last-child .radar-source-row {
+  border-bottom: none;
+}
+
+.radar-source-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.radar-source-row-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--radar-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.radar-source-row-meta {
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.radar-source-row-side {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.radar-source-row-time {
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.radar-source-detail-health {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.radar-source-detail-state {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.radar-source-detail-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .radar-source-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.radar-fact-grid {
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .radar-fact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.radar-fact {
+  min-width: 0;
+}
+
+.radar-fact-label {
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--radar-text-muted);
+}
+
+.radar-fact-value {
+  font-size: 0.75rem;
+  color: var(--radar-text-primary);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.radar-run-list,
+.radar-incident-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.radar-run-item {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--radar-border-subtle);
+  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.radar-run-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.radar-run-item-time {
+  font-size: 0.625rem;
+  color: var(--radar-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-run-item-error {
+  font-size: 0.6875rem;
+  color: var(--radar-danger);
+  line-height: 1.45;
+}
+
+.radar-run-item-id {
+  font-size: 0.5625rem;
+  color: var(--radar-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.radar-pipeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.radar-pipeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.radar-pipeline-index {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  border: 1px solid var(--radar-border);
+  background: var(--radar-surface-raised);
+  color: var(--radar-text-secondary);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.0625rem;
+}
+
+.radar-pipeline-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--radar-text-primary);
+}
+
+.radar-pipeline-detail {
+  font-weight: 400;
+  color: var(--radar-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-pipeline-description {
+  font-size: 0.6875rem;
+  color: var(--radar-text-muted);
+  line-height: 1.5;
+  margin-top: 0.0625rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .radar-recovery-sweep::after,
   .radar-rail-node-active {
     animation: none;
+  }
+
+  .radar-inline-link,
+  .radar-source-row,
+  .radar-watch-button,
+  .radar-remove-button,
+  .radar-nav-link {
+    transition: none;
   }
 }
