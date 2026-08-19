@@ -15,7 +15,6 @@ import {
   type CapabilitySnapshotInput,
   type CapabilitySnapshotRow,
   type ChangeEventInput,
-  type ChangeEventRow,
   type CollectionRunRow,
   type Json,
   type LatestCapabilitySnapshotRow,

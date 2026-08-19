@@ -1,20 +1,20 @@
 import { BrightDataClient } from "../client";
 import type { CollectorPollProgress, CollectorRunResult } from "../types";
 
-export const DEFAULT_OPENAI_CATALOG_COLLECTOR_ID = "c_msx_openai_catalog";
+export const DEFAULT_OPENAI_CATALOG_COLLECTOR_ID = "c_msz67jyrmiom6mbvn";
 export const DEFAULT_OPENAI_CATALOG_SOURCE_URL =
-  "https://developers.openai.com/api/docs/models.md";
+  "https://developers.openai.com/api/docs/models";
 
-export const DEFAULT_ANTHROPIC_CATALOG_COLLECTOR_ID = "c_msx_anthropic_catalog";
+export const DEFAULT_ANTHROPIC_CATALOG_COLLECTOR_ID = "c_msz68u3ovithdetgu";
 export const DEFAULT_ANTHROPIC_CATALOG_SOURCE_URL =
-  "https://docs.anthropic.com/en/docs/about-claude/models/all-models";
+  "https://platform.claude.com/docs/en/about-claude/models/overview";
 
-export const DEFAULT_GEMINI_CATALOG_COLLECTOR_ID = "c_msx_gemini_catalog";
+export const DEFAULT_GEMINI_CATALOG_COLLECTOR_ID = "c_msz708an1gawux0njo";
 export const DEFAULT_GEMINI_CATALOG_SOURCE_URL =
-  "https://ai.google.dev/gemini-api/docs/models/gemini";
+  "https://ai.google.dev/gemini-api/docs/models";
 
-export const DEFAULT_XAI_CATALOG_COLLECTOR_ID = "c_msx_xai_catalog";
-export const DEFAULT_XAI_CATALOG_SOURCE_URL = "https://docs.x.ai/docs/models";
+export const DEFAULT_XAI_CATALOG_COLLECTOR_ID = "c_msz6ahaofpm2d9j73";
+export const DEFAULT_XAI_CATALOG_SOURCE_URL = "https://docs.x.ai/developers/models";
 
 export interface FetchCatalogCollectorOptions {
   client?: BrightDataClient;
