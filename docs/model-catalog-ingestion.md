@@ -81,19 +81,41 @@ model IDs stay distinct: `gemini-3.1-pro-preview` is not merged into
 rather than overwriting the first. An ambiguous match fails rather than
 guessing.
 
-The same rule applies inside a single batch. A source that emits one model
-twice with identical evidence is collapsed to one record, but two records that
-share an `apiModelId` while carrying *different* capability evidence are two
-different models wearing one identifier, and both are rejected with their raw
-evidence retained.
+The same rule applies inside a single batch, in `lib/models/catalog-identity.ts`,
+which normalizes identity before anything canonical is written.
+
+**Enumerated ids.** Some pages document a whole family and publish every
+member's code in one Model code row — Google's Veo page lists
+`veo-3.1-generate-preview veo-3.1-fast-generate-preview`, and the Imagen page
+lists three. A space-joined string is an enumeration, not an identifier, so it
+is split into one observation per real id. Splitting only happens when *every*
+token is shaped like an API model id and no token repeats; anything else is
+left exactly as published rather than guessed apart. The page's single property
+table is copied to each id, because that is what the page states, and
+`rawEvidence` still carries the original joined string.
+
+**Colliding ids.** A source that emits one model twice with identical evidence
+is collapsed. Two observations that share an `apiModelId` while carrying
+*different* capability evidence are two different models wearing one
+identifier, and the tie is settled by provenance rather than arrival order:
+when exactly one of them came from the page named after that id, that page is
+the trustworthy evidence and the rest become recorded conflicts. When
+provenance cannot settle it, none of them is written.
 
 This is not hypothetical: Google's `lyria-3-pro-preview` page publishes
 `lyria-3-clip-preview` in its Model code row, so a live Gemini run delivers two
 distinct models under one id. Sentinel reports `DUPLICATE_IDENTIFIERS` and
 degrades the source, and because one duplicate among 38 records is well under
-the quarantine threshold the run still reaches persistence — which is exactly
-why the pipeline must refuse the pair rather than let the last one win and
-silently attribute Pro's capabilities to Clip.
+the quarantine threshold the run still reaches persistence — which is why
+identity must be resolved before the write. Clip keeps its own page's evidence
+and ingests normally; Pro is retained as an `identity_conflict` in the run's
+rejected payload, with its source URL and raw evidence.
+
+A conflicted observation is never re-keyed onto its own page slug. Slugs name
+pages, not models — the Imagen family is served from `/models/imagen`, which is
+not a callable id — so minting an id from one would be a guess. The conflict is
+preserved instead, and the affected model stays unresolved until the source is
+corrected.
 
 ## Verifying live acquisition
 

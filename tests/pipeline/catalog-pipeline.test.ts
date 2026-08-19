@@ -225,25 +225,126 @@ test("ingestCatalogProvider collapses a model the source emitted twice identical
   );
 });
 
-test("ingestCatalogProvider fails closed when two models collide on one api id", async () => {
+const GEMINI_MODELS_BASE = "https://ai.google.dev/gemini-api/docs/models";
+
+test("ingestCatalogProvider splits a family page that enumerates several api ids", async () => {
+  const repository = new RecordingCatalogRepository("provider-gemini");
+  const sentinelRepository = new InMemorySentinelRepository();
+
+  // Google documents the Veo family on one page whose Model code row lists two
+  // codes, and the Imagen family on a page listing three.
+  const familyRecords = [
+    {
+      model_id: "veo-3.1-generate-preview veo-3.1-fast-generate-preview",
+      display_name: "Veo 3.1",
+      context_window_raw: 1024,
+      input_modalities: ["text", "image"],
+      output_modalities: ["video"],
+      source_url: `${GEMINI_MODELS_BASE}/veo-3.1-generate-preview`,
+    },
+    {
+      model_id:
+        "imagen-4.0-generate-001 imagen-4.0-ultra-generate-001 imagen-4.0-fast-generate-001",
+      display_name: "Imagen 4",
+      input_modalities: ["text"],
+      output_modalities: ["image"],
+      source_url: `${GEMINI_MODELS_BASE}/imagen`,
+    },
+  ];
+
+  const result = await ingestCatalogProvider(CATALOG_PROVIDERS.gemini, {
+    repository,
+    sentinelRepository,
+    collect: async () =>
+      collectorPayload([...familyRecords, ...geminiFillerRecords(20)], {
+        collectorId: "c_gemini_catalog",
+        runId: "run-gemini-family",
+      }),
+    triggeredBy: "test",
+  });
+
+  assert.equal(result.recordsRejected, 0);
+
+  const ids = repository.capabilitySnapshots.map((s) => s.apiModelId);
+  assert.ok(
+    ids.every((id) => !/\s/.test(id)),
+    "a space-joined enumeration must never become a canonical api model id",
+  );
+  for (const id of [
+    "veo-3.1-generate-preview",
+    "veo-3.1-fast-generate-preview",
+    "imagen-4.0-generate-001",
+    "imagen-4.0-ultra-generate-001",
+    "imagen-4.0-fast-generate-001",
+  ]) {
+    assert.ok(ids.includes(id), `${id} should be its own observation`);
+  }
+
+  // The page publishes one property table for every code it lists, so the
+  // shared evidence is copied, and the original enumeration is still on record.
+  const fast = repository.capabilitySnapshots.find(
+    (s) => s.apiModelId === "veo-3.1-fast-generate-preview",
+  );
+  assert.ok(fast);
+  assert.equal(fast.contextWindow, 1024);
+  assert.equal(
+    (fast.raw as { model_id?: string }).model_id,
+    "veo-3.1-generate-preview veo-3.1-fast-generate-preview",
+  );
+});
+
+test("ingestCatalogProvider keeps a bare family name out of the canonical catalog", async () => {
+  const repository = new RecordingCatalogRepository("provider-gemini");
+  const sentinelRepository = new InMemorySentinelRepository();
+
+  // Only real ids may be split out. A value carrying a bare word is not an
+  // enumeration we can trust, so it is left exactly as published.
+  const record = {
+    model_id: "imagen and its variants",
+    display_name: "Imagen",
+    source_url: `${GEMINI_MODELS_BASE}/imagen`,
+  };
+
+  const result = await ingestCatalogProvider(CATALOG_PROVIDERS.gemini, {
+    repository,
+    sentinelRepository,
+    collect: async () =>
+      collectorPayload([record, ...geminiFillerRecords(20)], {
+        collectorId: "c_gemini_catalog",
+        runId: "run-gemini-bare",
+      }),
+    triggeredBy: "test",
+  });
+
+  assert.equal(result.success, true);
+  const split = repository.capabilitySnapshots.filter((s) =>
+    /^imagen/.test(s.apiModelId),
+  );
+  assert.equal(split.length, 1, "prose must not be guessed apart into ids");
+  assert.equal(split[0].apiModelId, "imagen and its variants");
+});
+
+test("ingestCatalogProvider trusts the page named after the id when two pages collide", async () => {
   const repository = new RecordingCatalogRepository("provider-gemini");
   const sentinelRepository = new InMemorySentinelRepository();
 
   // Google's lyria-3-pro-preview page publishes lyria-3-clip-preview as its
-  // model code, so two distinct models arrive wearing one identifier. Keeping
-  // the last one would attribute Pro's capabilities to Clip and lose a model.
+  // model code, so two distinct pages claim one id. Only the page named after
+  // that id is trustworthy evidence for it.
   const colliding = [
     {
       model_id: "lyria-3-clip-preview",
       display_name: "Lyria 3 Pro preview",
       context_window_raw: 131072,
       output_modalities: ["audio"],
+      source_url: `${GEMINI_MODELS_BASE}/lyria-3-pro-preview`,
     },
     {
       model_id: "lyria-3-clip-preview",
       display_name: "Lyria 3 Clip preview",
       context_window_raw: 131072,
       output_modalities: ["audio", "text"],
+      source_url: `${GEMINI_MODELS_BASE}/lyria-3-clip-preview`,
     },
   ];
   const fillers = geminiFillerRecords(20);
@@ -254,17 +355,68 @@ test("ingestCatalogProvider fails closed when two models collide on one api id",
     collect: async () =>
       collectorPayload([...colliding, ...fillers], {
         collectorId: "c_gemini_catalog",
-        runId: "run-gemini-collision",
+        runId: "run-gemini-lyria",
       }),
     triggeredBy: "test",
   });
 
-  // The unambiguous models still land; only the colliding pair is withheld.
+  // The healthy models still ingest, and Clip keeps its own page's evidence.
+  assert.equal(result.recordsAccepted, fillers.length + 1);
+  assert.equal(result.recordsRejected, 1);
+
+  const clip = repository.capabilitySnapshots.filter(
+    (s) => s.apiModelId === "lyria-3-clip-preview",
+  );
+  assert.equal(clip.length, 1, "two official pages must not collapse into one model");
+  assert.equal(clip[0].displayName, "Lyria 3 Clip preview");
+  assert.deepEqual(clip[0].outputModalities, ["audio", "text"]);
+
+  // Pro is preserved as an unresolved conflict rather than re-keyed onto its
+  // own slug, which would be guessing an api id from page structure.
+  assert.equal(
+    repository.capabilitySnapshots.some((s) => s.apiModelId === "lyria-3-pro-preview"),
+    false,
+  );
+});
+
+test("ingestCatalogProvider withholds every side of an unresolvable collision", async () => {
+  const repository = new RecordingCatalogRepository("provider-gemini");
+  const sentinelRepository = new InMemorySentinelRepository();
+
+  // Neither page is named after the id it published, so provenance cannot say
+  // which one owns it and no capability evidence may be written for it.
+  const colliding = [
+    {
+      model_id: "lyria-3-clip-preview",
+      display_name: "Lyria 3 Pro preview",
+      context_window_raw: 131072,
+      source_url: `${GEMINI_MODELS_BASE}/lyria-3-pro-preview`,
+    },
+    {
+      model_id: "lyria-3-clip-preview",
+      display_name: "Lyria 3 Realtime",
+      context_window_raw: 65536,
+      source_url: `${GEMINI_MODELS_BASE}/lyria-realtime-exp`,
+    },
+  ];
+  const fillers = geminiFillerRecords(20);
+
+  const result = await ingestCatalogProvider(CATALOG_PROVIDERS.gemini, {
+    repository,
+    sentinelRepository,
+    collect: async () =>
+      collectorPayload([...colliding, ...fillers], {
+        collectorId: "c_gemini_catalog",
+        runId: "run-gemini-unresolvable",
+      }),
+    triggeredBy: "test",
+  });
+
   assert.equal(result.recordsAccepted, fillers.length);
   assert.equal(result.recordsRejected, colliding.length);
   assert.equal(
     repository.capabilitySnapshots.some((s) => s.apiModelId === "lyria-3-clip-preview"),
     false,
-    "an ambiguous identity must not persist capability evidence",
+    "an unresolvable identity must not persist capability evidence",
   );
 });
