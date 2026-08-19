@@ -39,9 +39,14 @@ export default async function SourcesPage() {
           title="Sources"
           description="Every page AI Radar collects from, with its current collection state. Open a source to inspect its run history, what it observed versus what was trusted, its incident and healing record, and how its raw payload becomes normalized data."
           action={
-            <Link href="/source-health" className="radar-inline-link">
-              Sentinel fleet view
-            </Link>
+            <span className="radar-page-intro-links">
+              <Link href="/ask" className="radar-inline-link">
+                Ask AI Radar
+              </Link>
+              <Link href="/source-health" className="radar-inline-link">
+                Sentinel fleet view
+              </Link>
+            </span>
           }
         />
 

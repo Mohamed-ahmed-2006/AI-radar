@@ -4,25 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MockDataBadge } from "./MockDataBadge";
 import { RadarMark } from "./RadarMark";
-
-const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/models", label: "Models" },
-  { href: "/changes", label: "Changes" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/sources", label: "Sources" },
-  { href: "/my-stack", label: "My Stack" },
-] as const;
-
-/** Hash entries always target the dashboard, so they are never "the page". */
-function isRouteActive(pathname: string, href: string): boolean {
-  if (href.includes("#")) return false;
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import { ASK_NAV, RADAR_PRIMARY_NAV, isRouteActive } from "./nav";
 
 export function RadarHeader({ isMock }: { isMock: boolean }) {
   const pathname = usePathname();
+  const askActive = isRouteActive(pathname, ASK_NAV.href);
 
   return (
     <header className="radar-header">
@@ -37,7 +23,7 @@ export function RadarHeader({ isMock }: { isMock: boolean }) {
 
         <nav className="radar-nav" aria-label="Main navigation">
           <ul className="flex items-center gap-1 flex-nowrap">
-            {navItems.map((item) => {
+            {RADAR_PRIMARY_NAV.map((item) => {
               const isActive = isRouteActive(pathname, item.href);
               return (
                 <li key={item.href}>
@@ -55,6 +41,13 @@ export function RadarHeader({ isMock }: { isMock: boolean }) {
         </nav>
 
         <div className="radar-header-meta">
+          <Link
+            href={ASK_NAV.href}
+            className={`radar-ask-nav ${askActive ? "radar-ask-nav-active" : ""}`}
+            aria-current={askActive ? "page" : undefined}
+          >
+            {ASK_NAV.label}
+          </Link>
           <MockDataBadge isMock={isMock} />
         </div>
       </div>

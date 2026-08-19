@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ChangeFeedView } from "@/components/product/changes/ChangeFeedView";
 import { PageIntro } from "@/components/product/common/PageIntro";
@@ -73,6 +74,11 @@ export default async function ChangesPage({
         <PageIntro
           title="What changed?"
           description="Observed movement across the AI model ecosystem — price changes, lifecycle transitions, deprecation and retirement schedules, and recommended replacements. Every entry can be traced back to the source page and collection run that produced it."
+          action={
+            <Link href="/ask" className="radar-inline-link">
+              Ask what changed
+            </Link>
+          }
         />
         <ChangeFeedView
           initialFeed={feed}

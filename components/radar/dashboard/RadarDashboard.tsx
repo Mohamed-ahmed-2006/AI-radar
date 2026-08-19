@@ -1,4 +1,5 @@
 import type { RadarDashboardData } from "../types";
+import { DecisionActions } from "./DecisionActions";
 import { EcosystemStatus } from "./EcosystemStatus";
 import { PricingMatrix } from "./PricingMatrix";
 import { ProviderHealthOverview } from "./ProviderHealthOverview";
@@ -25,6 +26,8 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
           )}
         </p>
       </div>
+
+      <DecisionActions />
 
       <EcosystemStatus data={data.ecosystem} loading={loading} />
 

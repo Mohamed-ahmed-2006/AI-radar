@@ -1,22 +1,34 @@
+import { NextResponse } from "next/server";
+
 import {
-  handleStackOptimizerGet,
-  handleStackOptimizerPost,
-} from "@/lib/optimizer";
+  getOptimizerAdapter,
+  optimizerInputFromParams,
+  optimizerInputWithDefaults,
+} from "@/lib/product";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Stack Optimizer: a stated monthly workload in, a deterministic ranking out.
+ * Presentation-state optimizer controls in, ranked read model out.
  *
- * GET carries the request in the query string. POST carries the same shape as
- * JSON. Neither verb accepts free text, and neither path lets a language model
- * calculate a price or choose a rank.
+ * This route does not rank, filter, or estimate cost. The installed adapter
+ * calls `optimizeStack`; eligibility, arithmetic and order live there. Client
+ * refetch and the Optimizer page share that same projection.
  */
-export function GET(request: Request): Promise<Response> {
-  return handleStackOptimizerGet(request);
-}
-
-export function POST(request: Request): Promise<Response> {
-  return handleStackOptimizerPost(request);
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const input = optimizerInputWithDefaults(
+      optimizerInputFromParams(searchParams),
+      searchParams,
+    );
+    const adapter = getOptimizerAdapter();
+    const result = await adapter.optimize(input);
+    return NextResponse.json(result);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to read the optimizer";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
