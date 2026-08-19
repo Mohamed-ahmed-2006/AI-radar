@@ -79,6 +79,10 @@ export function SourceHealthDashboard({
           Every collection run is validated before it reaches the read model.
           This page shows what each source is serving right now, what Sentinel
           rejected, and how a broken source got back to a trusted state.{" "}
+          <Link href="/sources" className="radar-inline-link">
+            Sources
+          </Link>
+          {" · "}
           <Link href="/demo/healing" className="radar-inline-link">
             Real Bright Data healing demo
           </Link>

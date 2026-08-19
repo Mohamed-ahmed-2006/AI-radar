@@ -151,7 +151,9 @@ test("unavailable backend shows the exact fail-closed title and no fake timeline
   assert.doesNotMatch(html, /aria-label="SourcePulse recovery timeline"/);
   assert.doesNotMatch(html, />RECOVERED</);
   assert.doesNotMatch(html, /MOCK DATA/);
-  assert.match(html, /role="alert"/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /role="alert"/);
 });
 
 test("controls are buttons with an allowlisted vocabulary and no free-text targeting", () => {

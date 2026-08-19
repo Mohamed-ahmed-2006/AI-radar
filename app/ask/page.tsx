@@ -60,6 +60,9 @@ export default async function AskPage({
               <Link href="/models" className="radar-inline-link">
                 Models
               </Link>
+              <Link href="/sources" className="radar-inline-link">
+                Sources
+              </Link>
             </span>
           }
         />

@@ -38,6 +38,7 @@ export function changeFeedItem(overrides: Partial<ChangeFeedItem> = {}): ChangeF
       confidence: 1,
     }),
     isDemo: false,
+    sourceId: "src-anthropic-pricing",
     ...overrides,
   };
 }

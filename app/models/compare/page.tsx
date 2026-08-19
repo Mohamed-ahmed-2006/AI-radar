@@ -55,9 +55,23 @@ export default async function ModelComparePage({
           title="Compare models"
           description="Aligned observations for the canonical ids in this URL. Values that were not observed stay Not observed. This view does not rank models or name a winner."
           action={
-            <Link href="/optimizer" className="radar-inline-link">
-              Rank with Optimizer
-            </Link>
+            <span className="radar-page-intro-links">
+              <Link href="/models" className="radar-inline-link">
+                Models
+              </Link>
+              <Link href="/models/compare" className="radar-inline-link">
+                Compare
+              </Link>
+              <Link href="/my-stack" className="radar-inline-link">
+                My Stack
+              </Link>
+              <Link href="/optimizer" className="radar-inline-link">
+                Rank with Optimizer
+              </Link>
+              <Link href="/ask" className="radar-inline-link">
+                Ask AI Radar
+              </Link>
+            </span>
           }
         />
 

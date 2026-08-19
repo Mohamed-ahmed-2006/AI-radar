@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { Badge } from "../../radar/ui/Badge";
 import { Panel } from "../../radar/ui/Panel";
@@ -7,10 +8,12 @@ import type {
   ModelDetailReadModel,
   SectionState,
 } from "../../../lib/product/explorer";
+import { compareHref } from "../../../lib/product/explorer";
 import type { ProvenanceView } from "../../../lib/product/provenance";
 import { UnavailableNote } from "../common/UnavailableNote";
 import { ProvenanceDetails } from "../provenance/ProvenanceDetails";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
+import { ModelWatchControl } from "../watchlist/ModelWatchControl";
 import { CapabilityStatus } from "./CapabilityStatus";
 import { FreshnessStatus } from "./FreshnessStatus";
 import { formatModalities, formatObservedPrice, formatObservedTokens } from "./format";
@@ -82,6 +85,19 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
 
   return (
     <div className="radar-surface-stack">
+      <nav className="radar-workflow-links" aria-label="Model actions">
+        <ModelWatchControl identity={identity} />
+        <Link href={compareHref([identity.canonicalId])} className="radar-inline-link">
+          Compare
+        </Link>
+        <Link href="/optimizer" className="radar-inline-link">
+          Optimize Stack
+        </Link>
+        <Link href="/my-stack" className="radar-inline-link">
+          My Stack
+        </Link>
+      </nav>
+
       <div className="radar-source-detail-grid">
         <div className="radar-surface-stack">
           <Panel

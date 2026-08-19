@@ -1,18 +1,36 @@
+import Link from "next/link";
 import type { ProvenanceRecord } from "../types";
 import { EmptyState, LoadingState } from "../ui/DataState";
 import { Panel } from "../ui/Panel";
-import { formatAbsoluteTime } from "../utils";
+import { ProvenanceDisclosure } from "../../product/provenance/ProvenanceDisclosure";
+import { provenanceFromSource } from "../../../lib/product/provenance";
 
 interface SourceProvenanceProps {
   records: ProvenanceRecord[];
   loading?: boolean;
+  isDemo?: boolean;
 }
 
-export function SourceProvenance({ records, loading }: SourceProvenanceProps) {
+function placeholder(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "—") return null;
+  return trimmed;
+}
+
+export function SourceProvenance({
+  records,
+  loading,
+  isDemo = false,
+}: SourceProvenanceProps) {
   return (
     <Panel
       title="Source provenance"
       subtitle="Verified data origins and collection metadata"
+      action={
+        <Link href="/sources" className="radar-inline-link">
+          Sources
+        </Link>
+      }
     >
       {loading ? (
         <LoadingState title="Loading provenance…" />
@@ -23,46 +41,36 @@ export function SourceProvenance({ records, loading }: SourceProvenanceProps) {
         />
       ) : (
         <ul className="space-y-2" aria-label="Data source provenance">
-          {records.map((record) => (
-            <li
-              key={record.sourceId}
-              className="rounded border border-radar-border-subtle bg-radar-surface px-3 py-2"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <a
-                    href={record.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-mono text-radar-info hover:underline truncate block"
-                  >
-                    {record.label}
-                  </a>
-                  <dl className="mt-1 grid grid-cols-1 gap-0.5 text-[10px]">
-                    <div className="flex gap-2">
-                      <dt className="text-radar-text-muted shrink-0">Collector</dt>
-                      <dd className="font-mono text-radar-text-secondary truncate">
-                        {record.collector}
-                      </dd>
-                    </div>
-                    <div className="flex gap-2">
-                      <dt className="text-radar-text-muted shrink-0">Dataset</dt>
-                      <dd className="font-mono text-radar-text-secondary truncate">
-                        {record.datasetVersion}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-                <time
-                  dateTime={record.scrapedAt ?? undefined}
-                  className="text-[10px] text-radar-text-muted whitespace-nowrap shrink-0 tabular-nums"
-                  title="Scraped at"
-                >
-                  {record.scrapedAt ? formatAbsoluteTime(record.scrapedAt) : "not collected"}
-                </time>
-              </div>
-            </li>
-          ))}
+          {records.map((record) => {
+            const sourceHref =
+              record.sourceId && record.sourceId !== "—"
+                ? `/sources/${encodeURIComponent(record.sourceId)}`
+                : null;
+            const provenance = provenanceFromSource({
+              sourceLabel: placeholder(record.label),
+              sourceUrl: placeholder(record.url),
+              collectorId: placeholder(record.collector),
+              observedAt: record.scrapedAt,
+              runId: placeholder(record.datasetVersion),
+              isDemo,
+            });
+            return (
+              <li
+                key={record.sourceId}
+                className="rounded border border-radar-border-subtle bg-radar-surface px-3 py-2"
+              >
+                {sourceHref && (
+                  <Link href={sourceHref} className="radar-inline-link">
+                    Source detail
+                  </Link>
+                )}
+                <ProvenanceDisclosure
+                  provenance={provenance}
+                  subject={record.label}
+                />
+              </li>
+            );
+          })}
         </ul>
       )}
     </Panel>

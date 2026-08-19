@@ -51,6 +51,12 @@ export default async function ModelsPage({
           description="Observed pricing, capabilities, context, lifecycle and freshness across the catalog. Unknown capabilities are shown as Unknown — not as unsupported. Select models to compare; this page does not rank them."
           action={
             <span className="radar-page-intro-links">
+              <Link href="/models/compare" className="radar-inline-link">
+                Compare
+              </Link>
+              <Link href="/my-stack" className="radar-inline-link">
+                My Stack
+              </Link>
               <Link href="/optimizer" className="radar-inline-link">
                 Find a best fit
               </Link>

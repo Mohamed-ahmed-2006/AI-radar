@@ -51,6 +51,8 @@ export interface ChangeFeedItem {
   summary: string;
   provenance: ProvenanceView;
   isDemo: boolean;
+  /** Present only when the producing source recorded its registry id. */
+  sourceId: string | null;
 }
 
 export interface ChangeFeedFilterOption {
@@ -257,6 +259,7 @@ function projectEvidence(evidence: TemporalEvidence): ChangeFeedItem {
     summary: evidence.summary,
     provenance: provenanceFromEvidence(evidence),
     isDemo: evidence.isDemo === true,
+    sourceId: evidence.source.sourceId ?? null,
   };
 }
 

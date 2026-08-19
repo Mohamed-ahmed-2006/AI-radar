@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { DecisionActions } from "../../components/radar/dashboard/DecisionActions";
-import { ASK_NAV, RADAR_PRIMARY_NAV, isRouteActive } from "../../components/radar/layout/nav";
+import {
+  ASK_NAV,
+  PRODUCT_TOUR,
+  RADAR_PRIMARY_NAV,
+  RADAR_SECONDARY_NAV,
+  isRouteActive,
+} from "../../components/radar/layout/nav";
 import { OptimizerResults } from "../../components/product/optimizer/OptimizerResults";
 import { AskResult } from "../../components/product/ask/AskResult";
 import { PageIntro } from "../../components/product/common/PageIntro";
@@ -11,39 +17,55 @@ import { DEFAULT_OPTIMIZER_INPUT, appliedConstraintsFromInput } from "../../lib/
 import { fixtureOptimizerModels } from "../../lib/product/optimizer-fixture";
 import { createFixtureAskAdapter } from "../../lib/product/ask-fixture";
 
-test("Primary navigation includes Optimizer without crowding Ask into the text list", () => {
+test("Primary navigation stays compact; tools live in secondary nav; Ask stays a distinct action", () => {
   const hrefs = RADAR_PRIMARY_NAV.map((item) => item.href);
-  const labels = RADAR_PRIMARY_NAV.map((item) => item.label);
+  const secondary = RADAR_SECONDARY_NAV.map((item) => item.href);
 
-  assert.ok(hrefs.includes("/optimizer"));
-  assert.ok(labels.includes("Optimizer"));
-  assert.ok(hrefs.includes("/models"));
-  assert.ok(hrefs.includes("/changes"));
-  assert.ok(hrefs.includes("/my-stack"));
-  assert.ok(hrefs.includes("/sources"));
+  assert.deepEqual(hrefs, ["/", "/models", "/changes", "/my-stack", "/sources"]);
+  assert.ok(secondary.includes("/models/compare"));
+  assert.ok(secondary.includes("/optimizer"));
+  assert.ok(secondary.includes("/source-health"));
+  assert.ok(secondary.includes("/demo/healing"));
   assert.equal(ASK_NAV.href, "/ask");
   assert.equal(ASK_NAV.label, "Ask");
-  assert.equal(RADAR_PRIMARY_NAV.length, 6);
+  assert.equal(RADAR_PRIMARY_NAV.length, 5);
+  assert.equal(RADAR_SECONDARY_NAV.length, 4);
 });
 
-test("Optimizer route is treated as the current page, Ask is a distinct action", () => {
+test("Models is current on detail, Compare is current only on the compare route", () => {
+  assert.equal(isRouteActive("/models", "/models"), true);
+  assert.equal(isRouteActive("/models/anthropic:claude", "/models"), true);
+  assert.equal(isRouteActive("/models/compare", "/models"), false);
+  assert.equal(isRouteActive("/models/compare", "/models/compare"), true);
   assert.equal(isRouteActive("/optimizer", "/optimizer"), true);
-  assert.equal(isRouteActive("/optimizer/unused", "/optimizer"), true);
-  assert.equal(isRouteActive("/models", "/optimizer"), false);
   assert.equal(isRouteActive("/ask", "/ask"), true);
   assert.equal(isRouteActive("/", "/"), true);
   assert.equal(isRouteActive("/models", "/"), false);
 });
 
-test("Dashboard decision actions link to Optimizer and Ask", () => {
+test("Dashboard command center links every major product action", () => {
   const html = renderToStaticMarkup(<DecisionActions />);
 
-  assert.match(html, /aria-label="Decision intelligence"/);
+  assert.match(html, /aria-label="Command center"/);
+  assert.match(html, /href="\/models"/);
+  assert.match(html, /Explore Models/);
+  assert.match(html, /href="\/models\/compare"/);
+  assert.match(html, />Compare</);
   assert.match(html, /href="\/optimizer"/);
-  assert.match(html, /Find the best-fit model/);
+  assert.match(html, /Optimize Stack/);
   assert.match(html, /href="\/ask"/);
-  assert.match(html, /Ask from live evidence/);
+  assert.match(html, /Ask AI Radar/);
   assert.match(html, /not model memory/);
+  assert.match(html, /href="\/changes"/);
+  assert.match(html, /View Changes/);
+  assert.match(html, /href="\/source-health"/);
+  assert.match(html, /Source Health/);
+  assert.match(html, /href="\/demo\/healing"/);
+  assert.match(html, /Real Healing Demo/);
+  assert.match(html, /aria-label="Product tour"/);
+  for (const step of PRODUCT_TOUR) {
+    assert.match(html, new RegExp(`href="${step.href.replaceAll("/", "\\/")}"`));
+  }
 });
 
 test("Existing product intros can link into Optimizer and Ask", () => {
@@ -89,7 +111,7 @@ test("Optimizer results compare-eligible control uses canonical ids", () => {
   assert.match(html, /Compare eligible/);
 });
 
-test("Ask decision evidence can hand off to Optimizer and model detail", async () => {
+test("Ask decision evidence can hand off to Optimizer, models, changes and sources", async () => {
   const result = await createFixtureAskAdapter().ask(
     "Compare eligible Anthropic and OpenAI options.",
   );
@@ -97,4 +119,8 @@ test("Ask decision evidence can hand off to Optimizer and model detail", async (
 
   assert.match(html, /href="\/models\/anthropic%3Aclaude-sonnet-4-5"/);
   assert.match(html, /href="\/models\/compare\?ids=/);
+  assert.match(html, /href="\/optimizer"/);
+  assert.match(html, /href="\/changes"/);
+  assert.match(html, /href="\/sources"/);
+  assert.match(html, /Open Optimizer/);
 });

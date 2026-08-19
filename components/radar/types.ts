@@ -37,6 +37,8 @@ export interface ChangeEvent {
   type: ChangeType;
   provider: string;
   model?: string;
+  /** Canonical `provider:apiModelId` when the catalog observed it; never guessed. */
+  modelCanonicalId?: string | null;
   summary: string;
   detail?: string;
   detectedAt: string;
@@ -81,10 +83,29 @@ export interface EcosystemSummary {
   status: HealthStatus;
   modelsTracked: number;
   providersTracked: number;
+  sourcesMonitored: number;
   changesLast24h: number;
   priceChangesLast7d: number;
+  lifecycleChangesLast7d: number;
   activeAlerts: number;
   lastGlobalRefreshAt: string;
+}
+
+/**
+ * Sentinel fleet counts for the dashboard. Null counts mean the read failed
+ * or was never attempted — they must not render as zero.
+ */
+export interface SentinelFleetSnapshot {
+  available: boolean;
+  unavailableReason: string | null;
+  isDemo: boolean;
+  totalSources: number | null;
+  healthy: number | null;
+  degraded: number | null;
+  quarantined: number | null;
+  recovered: number | null;
+  healing: number | null;
+  needsReview: number | null;
 }
 
 export interface RadarDashboardData {
@@ -92,6 +113,7 @@ export interface RadarDashboardData {
   isMock: boolean;
   fixtureVersion: string;
   ecosystem: EcosystemSummary;
+  sentinel: SentinelFleetSnapshot;
   changes: ChangeEvent[];
   models: ModelPricing[];
   providers: ProviderHealth[];

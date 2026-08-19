@@ -75,9 +75,17 @@ export default async function ChangesPage({
           title="What changed?"
           description="Observed movement across the AI model ecosystem — price changes, lifecycle transitions, deprecation and retirement schedules, and recommended replacements. Every entry can be traced back to the source page and collection run that produced it."
           action={
-            <Link href="/ask" className="radar-inline-link">
-              Ask what changed
-            </Link>
+            <span className="radar-page-intro-links">
+              <Link href="/models" className="radar-inline-link">
+                Models
+              </Link>
+              <Link href="/sources" className="radar-inline-link">
+                Sources
+              </Link>
+              <Link href="/ask" className="radar-inline-link">
+                Ask what changed
+              </Link>
+            </span>
           }
         />
         <ChangeFeedView

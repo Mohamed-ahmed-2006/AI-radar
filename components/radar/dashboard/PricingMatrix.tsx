@@ -2,6 +2,7 @@ import type { ModelPricing } from "../types";
 import { Badge } from "../ui/Badge";
 import { EmptyState, LoadingState } from "../ui/DataState";
 import { Panel } from "../ui/Panel";
+import Link from "next/link";
 import {
   formatAbsoluteTime,
   formatContextWindow,
@@ -28,6 +29,16 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
       id="pricing"
       title="Model pricing matrix"
       subtitle="Per-million-token rates · standard, short, and long context tiers"
+      action={
+        <span className="radar-page-intro-links">
+          <Link href="/models" className="radar-inline-link">
+            Explore Models
+          </Link>
+          <Link href="/models/compare" className="radar-inline-link">
+            Compare
+          </Link>
+        </span>
+      }
     >
       {loading ? (
         <LoadingState title="Loading pricing data…" />
@@ -37,7 +48,7 @@ export function PricingMatrix({ models, loading }: PricingMatrixProps) {
           description="Pricing data will appear once collectors verify provider rates."
         />
       ) : (
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="radar-table-scroll">
           <table className="radar-table w-full" aria-label="Model pricing matrix">
             <thead>
               <tr>

@@ -43,6 +43,9 @@ export function ProviderHealthOverview({
                     {provider.status === "degraded" && (
                       <Badge variant="warning">Degraded</Badge>
                     )}
+                    {provider.status === "unknown" && (
+                      <Badge variant="muted">Unknown</Badge>
+                    )}
                   </div>
                   <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                     <div>

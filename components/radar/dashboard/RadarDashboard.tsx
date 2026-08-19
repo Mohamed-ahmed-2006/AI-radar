@@ -6,6 +6,7 @@ import { ProviderHealthOverview } from "./ProviderHealthOverview";
 import { RecentChangesFeed } from "./RecentChangesFeed";
 import { SourceFreshnessPanel } from "./SourceFreshnessPanel";
 import { SourceProvenance } from "./SourceProvenance";
+import { StackPulseCard } from "./StackPulseCard";
 
 interface RadarDashboardProps {
   data: RadarDashboardData;
@@ -18,7 +19,8 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
       <div className="radar-dashboard-intro">
         <h1 className="radar-page-title">Intelligence Console</h1>
         <p className="radar-page-description">
-          Live ecosystem signals for AI model pricing, launches, and source health.
+          Command center for StackPulse and SourcePulse: live catalog, changes,
+          stack decisions, and collection integrity.
           {data.isMock && (
             <span className="radar-mock-notice">
               {" "}Displaying fixture data — not connected to live collectors.
@@ -29,16 +31,25 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
 
       <DecisionActions />
 
-      <EcosystemStatus data={data.ecosystem} loading={loading} />
+      <EcosystemStatus
+        data={data.ecosystem}
+        sentinel={data.sentinel}
+        loading={loading}
+      />
 
       <div className="radar-dashboard-grid">
         <div className="radar-dashboard-primary">
           <RecentChangesFeed changes={data.changes} loading={loading} />
         </div>
         <div className="radar-dashboard-secondary space-y-4">
+          <StackPulseCard changes={data.changes} />
           <ProviderHealthOverview providers={data.providers} loading={loading} />
           <SourceFreshnessPanel sources={data.sources} loading={loading} />
-          <SourceProvenance records={data.provenance} loading={loading} />
+          <SourceProvenance
+            records={data.provenance}
+            loading={loading}
+            isDemo={data.isMock}
+          />
         </div>
       </div>
 
