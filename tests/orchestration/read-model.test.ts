@@ -95,11 +95,12 @@ test("the status read model reports every source, including one that failed", as
     now: () => new Date(NOW.getTime() + 60_000),
   });
 
-  assert.equal(readModel.sources.length, 6, "a failing source never hides the others");
-  assert.equal(readModel.summary.succeeding, 4);
+  assert.equal(readModel.sources.length, 10, "a failing source never hides the others");
+  assert.equal(readModel.summary.succeeding, 8);
   assert.equal(readModel.summary.failing, 1);
   assert.equal(readModel.summary.quarantined, 1);
   assert.equal(readModel.summary.running, 0);
+
   assert.equal(readModel.scheduler.mechanism, "vercel-cron");
   assert.equal(readModel.scheduler.path, SCHEDULER_TICK.path);
   assert.equal(readModel.scheduler.cronExpression, SCHEDULER_TICK.cronExpression);

@@ -8,7 +8,9 @@ export type ChangeType =
   | "model_removal"
   | "deprecation"
   | "source_refresh"
-  | "schema_update";
+  | "schema_update"
+  | "capability_change";
+
 
 export type PricingTier = "short" | "long";
 

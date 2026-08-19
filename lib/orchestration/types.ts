@@ -8,7 +8,7 @@
  */
 
 import type { CollectorRunResult } from "../brightdata/types";
-import type { OpenAiPricingIngestionResult } from "../pipeline";
+import type { CatalogIngestionResult, OpenAiPricingIngestionResult } from "../pipeline";
 import type {
   SentinelReasonCode,
   SentinelRepository,
@@ -18,7 +18,7 @@ import type {
 import type { SourceKind } from "../supabase";
 
 /** Intelligence domain a configured source contributes to. */
-export type CollectionSourceType = "pricing" | "lifecycle";
+export type CollectionSourceType = "pricing" | "lifecycle" | "catalog";
 
 /** Stable identity of a configured source. Used for locking and reporting. */
 export type CollectionSourceKey =
@@ -27,7 +27,16 @@ export type CollectionSourceKey =
   | "gemini-pricing"
   | "xai-pricing"
   | "anthropic-lifecycle"
-  | "gemini-lifecycle";
+  | "gemini-lifecycle"
+  | "openai-catalog"
+  | "anthropic-catalog"
+  | "gemini-catalog"
+  | "xai-catalog";
+
+export type CollectionPersistenceResult =
+  | OpenAiPricingIngestionResult
+  | CatalogIngestionResult;
+
 
 /** What made a failed attempt worth repeating. */
 export type RetryableFailureKind = "collector_error" | "collector_timeout";
@@ -94,7 +103,8 @@ export interface CollectionSourceDefinition {
   persist: (
     payload: CollectorRunResult<unknown>,
     context: { triggeredBy: string; sentinelRepository?: SentinelRepository },
-  ) => Promise<OpenAiPricingIngestionResult>;
+  ) => Promise<CollectionPersistenceResult>;
+
   /** Sentinel health contract governing this source's payloads. */
   createHealthContract: (sourceId: string) => SourceHealthContract<unknown>;
 }

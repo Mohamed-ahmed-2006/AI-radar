@@ -33,9 +33,10 @@ export type SentinelReasonCode =
 
 export type SentinelSeverity = "info" | "warning" | "critical";
 
-export type SourceCategory = "pricing" | "lifecycle" | "models" | "other";
+export type SourceCategory = "pricing" | "lifecycle" | "models" | "catalog" | "other";
 
-export type AuthorityDomain = "pricing" | "lifecycle" | "models";
+export type AuthorityDomain = "pricing" | "lifecycle" | "models" | "catalog" | "capabilities";
+
 
 export interface RecordCountDriftConfig {
   /** Minimum expected record count before collapse alert */

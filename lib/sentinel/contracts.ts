@@ -10,6 +10,15 @@ import {
   type RawAnthropicLifecycleRecord,
   RawGeminiLifecycleRecordSchema,
   type RawGeminiLifecycleRecord,
+  RawOpenAiCatalogRecordSchema,
+  type RawOpenAiCatalogRecord,
+  RawAnthropicCatalogRecordSchema,
+  type RawAnthropicCatalogRecord,
+  RawGeminiCatalogRecordSchema,
+  type RawGeminiCatalogRecord,
+  RawXaiCatalogRecordSchema,
+  type RawXaiCatalogRecord,
+  type CatalogProviderSlug,
 } from "../contracts";
 import { PRICING_PROVIDERS, type PricingProviderSlug } from "../pipeline/providers";
 import type {
@@ -45,7 +54,8 @@ export function createSourceHealthContract<T = unknown>(
 /** The provider/domain pair a health contract is chosen by. */
 export type SourceHealthContractTarget =
   | { domain: "pricing"; providerSlug: PricingProviderSlug }
-  | { domain: "lifecycle"; providerSlug: "anthropic" | "gemini" };
+  | { domain: "lifecycle"; providerSlug: "anthropic" | "gemini" }
+  | { domain: "catalog"; providerSlug: CatalogProviderSlug };
 
 /**
  * Single resolution point from a configured source to its health contract, so
@@ -62,12 +72,19 @@ export function createSourceHealthContractFor(
       sourceId,
     ) as SourceHealthContract<unknown>;
   }
+  if (target.domain === "catalog") {
+    return createCatalogSourceHealthContract(
+      target.providerSlug,
+      sourceId,
+    ) as SourceHealthContract<unknown>;
+  }
   return (
     target.providerSlug === "anthropic"
       ? createAnthropicLifecycleSourceHealthContract(sourceId)
       : createGeminiLifecycleSourceHealthContract(sourceId)
   ) as SourceHealthContract<unknown>;
 }
+
 
 /**
  * Factory for pricing source contracts across all supported providers (OpenAI, Anthropic, Gemini, xAI).
@@ -321,4 +338,208 @@ export function createGeminiLifecycleSourceHealthContract(
       }
     },
   });
+}
+
+/**
+ * Factory for OpenAI model catalog health contract.
+ */
+export function createOpenAiCatalogSourceHealthContract(
+  sourceId = "catalog-openai",
+): SourceHealthContract<RawOpenAiCatalogRecord> {
+  return createSourceHealthContract<RawOpenAiCatalogRecord>({
+    sourceId,
+    sourceCategory: "models",
+    authorityDomain: "catalog",
+    isAuthoritative: true,
+    requiredFields: ["model_id"],
+    minViableRecords: 1,
+    recordCountDrift: {
+      minExpectedCount: 1,
+      maxDropPercentage: 0.4,
+      maxSpikePercentage: 3.0,
+    },
+    sourceFreshness: {
+      maxStalenessMinutes: 1440,
+    },
+    failurePolicy: {
+      maxHealingAttempts: 3,
+      autoHeal: true,
+      quarantineThresholdPercentage: 0.15,
+    },
+    extractKey: (record) => record.model_id,
+    validateRecord: (raw) => {
+      try {
+        const result = RawOpenAiCatalogRecordSchema.safeParse(raw);
+        if (!result.success) {
+          return {
+            success: false,
+            issues: result.error.issues.map(
+              (issue) => `[${issue.path.join(".") || "root"}] ${issue.message}`,
+            ),
+          };
+        }
+        return { success: true, data: result.data };
+      } catch (err) {
+        return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
+      }
+    },
+  });
+}
+
+/**
+ * Factory for Anthropic model catalog health contract.
+ */
+export function createAnthropicCatalogSourceHealthContract(
+  sourceId = "catalog-anthropic",
+): SourceHealthContract<RawAnthropicCatalogRecord> {
+  return createSourceHealthContract<RawAnthropicCatalogRecord>({
+    sourceId,
+    sourceCategory: "models",
+    authorityDomain: "catalog",
+    isAuthoritative: true,
+    requiredFields: ["api_model_id"],
+    minViableRecords: 1,
+    recordCountDrift: {
+      minExpectedCount: 1,
+      maxDropPercentage: 0.4,
+      maxSpikePercentage: 3.0,
+    },
+    sourceFreshness: {
+      maxStalenessMinutes: 1440,
+    },
+    failurePolicy: {
+      maxHealingAttempts: 3,
+      autoHeal: true,
+      quarantineThresholdPercentage: 0.15,
+    },
+    extractKey: (record) => record.api_model_id,
+    validateRecord: (raw) => {
+      try {
+        const result = RawAnthropicCatalogRecordSchema.safeParse(raw);
+        if (!result.success) {
+          return {
+            success: false,
+            issues: result.error.issues.map(
+              (issue) => `[${issue.path.join(".") || "root"}] ${issue.message}`,
+            ),
+          };
+        }
+        return { success: true, data: result.data };
+      } catch (err) {
+        return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
+      }
+    },
+  });
+}
+
+/**
+ * Factory for Gemini model catalog health contract.
+ */
+export function createGeminiCatalogSourceHealthContract(
+  sourceId = "catalog-gemini",
+): SourceHealthContract<RawGeminiCatalogRecord> {
+  return createSourceHealthContract<RawGeminiCatalogRecord>({
+    sourceId,
+    sourceCategory: "models",
+    authorityDomain: "catalog",
+    isAuthoritative: true,
+    requiredFields: ["model_id"],
+    minViableRecords: 1,
+    recordCountDrift: {
+      minExpectedCount: 1,
+      maxDropPercentage: 0.4,
+      maxSpikePercentage: 3.0,
+    },
+    sourceFreshness: {
+      maxStalenessMinutes: 1440,
+    },
+    failurePolicy: {
+      maxHealingAttempts: 3,
+      autoHeal: true,
+      quarantineThresholdPercentage: 0.15,
+    },
+    extractKey: (record) => record.model_id,
+    validateRecord: (raw) => {
+      try {
+        const result = RawGeminiCatalogRecordSchema.safeParse(raw);
+        if (!result.success) {
+          return {
+            success: false,
+            issues: result.error.issues.map(
+              (issue) => `[${issue.path.join(".") || "root"}] ${issue.message}`,
+            ),
+          };
+        }
+        return { success: true, data: result.data };
+      } catch (err) {
+        return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
+      }
+    },
+  });
+}
+
+/**
+ * Factory for xAI model catalog health contract.
+ */
+export function createXaiCatalogSourceHealthContract(
+  sourceId = "catalog-xai",
+): SourceHealthContract<RawXaiCatalogRecord> {
+  return createSourceHealthContract<RawXaiCatalogRecord>({
+    sourceId,
+    sourceCategory: "models",
+    authorityDomain: "catalog",
+    isAuthoritative: true,
+    requiredFields: ["name"],
+    minViableRecords: 1,
+    recordCountDrift: {
+      minExpectedCount: 1,
+      maxDropPercentage: 0.4,
+      maxSpikePercentage: 3.0,
+    },
+    sourceFreshness: {
+      maxStalenessMinutes: 1440,
+    },
+    failurePolicy: {
+      maxHealingAttempts: 3,
+      autoHeal: true,
+      quarantineThresholdPercentage: 0.15,
+    },
+
+    extractKey: (record) => record.name,
+    validateRecord: (raw) => {
+      try {
+        const result = RawXaiCatalogRecordSchema.safeParse(raw);
+        if (!result.success) {
+          return {
+            success: false,
+            issues: result.error.issues.map(
+              (issue) => `[${issue.path.join(".") || "root"}] ${issue.message}`,
+            ),
+          };
+        }
+        return { success: true, data: result.data };
+      } catch (err) {
+        return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
+      }
+    },
+  });
+}
+
+/**
+ * Factory for catalog source contracts across all supported providers (OpenAI, Anthropic, Gemini, xAI).
+ */
+export function createCatalogSourceHealthContract(
+  providerSlug: CatalogProviderSlug,
+  sourceId = `catalog-${providerSlug}`,
+): SourceHealthContract<unknown> {
+  switch (providerSlug) {
+    case "openai":
+      return createOpenAiCatalogSourceHealthContract(sourceId) as SourceHealthContract<unknown>;
+    case "anthropic":
+      return createAnthropicCatalogSourceHealthContract(sourceId) as SourceHealthContract<unknown>;
+    case "gemini":
+      return createGeminiCatalogSourceHealthContract(sourceId) as SourceHealthContract<unknown>;
+    case "xai":
+      return createXaiCatalogSourceHealthContract(sourceId) as SourceHealthContract<unknown>;
+  }
 }

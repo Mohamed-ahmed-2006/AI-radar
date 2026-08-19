@@ -7,14 +7,18 @@
  */
 
 import type {
+  CatalogPipelineRepository,
   LifecyclePipelineRepository,
   OpenAiCollectorResult,
   OpenAiPricingPipelineRepository,
 } from "../../../lib/pipeline";
 import type {
+  CapabilitySnapshotInput,
+  CapabilitySnapshotRow,
   ChangeEventInput,
   CollectionRunRow,
   Json,
+  LatestCapabilitySnapshotRow,
   LatestLifecycleSnapshotRow,
   LatestPricingSnapshotRow,
   LifecycleSnapshotInput,
@@ -58,6 +62,7 @@ export interface CanonicalWriteLog {
   models: ModelRow[];
   pricingSnapshots: PricingSnapshotInput[];
   lifecycleSnapshots: LifecycleSnapshotInput[];
+  capabilitySnapshots: CapabilitySnapshotInput[];
   lifecycleProjections: ModelLifecycleProjectionInput[];
   changeEvents: ChangeEventInput[];
   runs: CollectionRunRow[];
@@ -68,21 +73,25 @@ export function canonicalWriteCount(log: CanonicalWriteLog): number {
     log.models.length +
     log.pricingSnapshots.length +
     log.lifecycleSnapshots.length +
+    (log.capabilitySnapshots?.length ?? 0) +
     log.lifecycleProjections.length +
     log.changeEvents.length
   );
 }
 
+
 export class RecordingPricingRepository implements OpenAiPricingPipelineRepository {
   readonly models: ModelRow[] = [];
   readonly pricingSnapshots: PricingSnapshotInput[] = [];
   readonly lifecycleSnapshots: LifecycleSnapshotInput[] = [];
+  readonly capabilitySnapshots: CapabilitySnapshotInput[] = [];
   readonly lifecycleProjections: ModelLifecycleProjectionInput[] = [];
   readonly changeEvents: ChangeEventInput[] = [];
   readonly runs: CollectionRunRow[] = [];
   private nextRun = 1;
   private nextModel = 1;
   private nextSnapshot = 1;
+
 
   constructor(private readonly providerId = "provider-1") {}
 
@@ -219,12 +228,14 @@ export class RecordingLifecycleRepository implements LifecyclePipelineRepository
   readonly aliases: ModelAliasRow[] = [];
   readonly pricingSnapshots: PricingSnapshotInput[] = [];
   readonly lifecycleSnapshots: LifecycleSnapshotInput[] = [];
+  readonly capabilitySnapshots: CapabilitySnapshotInput[] = [];
   readonly lifecycleProjections: ModelLifecycleProjectionInput[] = [];
   readonly changeEvents: ChangeEventInput[] = [];
   readonly runs: CollectionRunRow[] = [];
   private nextRun = 1;
   private nextModel = 1;
   private nextSnapshot = 1;
+
 
   constructor(private readonly providerId = "provider-1") {}
 
@@ -405,6 +416,204 @@ export class RecordingLifecycleRepository implements LifecyclePipelineRepository
     return run;
   }
 }
+
+export class RecordingCatalogRepository implements CatalogPipelineRepository {
+  readonly models: ModelRow[] = [];
+  readonly aliases: ModelAliasRow[] = [];
+  readonly pricingSnapshots: PricingSnapshotInput[] = [];
+  readonly lifecycleSnapshots: LifecycleSnapshotInput[] = [];
+  readonly capabilitySnapshots: CapabilitySnapshotInput[] = [];
+  readonly lifecycleProjections: ModelLifecycleProjectionInput[] = [];
+  readonly changeEvents: ChangeEventInput[] = [];
+  readonly runs: CollectionRunRow[] = [];
+  private nextRun = 1;
+  private nextModel = 1;
+  private nextSnapshot = 1;
+
+
+  constructor(private readonly providerId = "provider-1") {}
+
+  async upsertProvider(input: { slug: string; name: string; homepageUrl?: string | null }) {
+    return {
+      id: this.providerId,
+      slug: input.slug,
+      name: input.name,
+      homepage_url: input.homepageUrl ?? null,
+      created_at: TIMESTAMP,
+      updated_at: TIMESTAMP,
+    } satisfies ProviderRow;
+  }
+
+  async upsertSource(input: {
+    providerId: string;
+    sourceUrl: string;
+    collectorId?: string | null;
+    label?: string | null;
+  }) {
+    return {
+      id: "source-catalog",
+      provider_id: input.providerId,
+      source_url: input.sourceUrl,
+      collector_id: input.collectorId ?? null,
+      kind: "models",
+      label: input.label ?? null,
+      is_active: true,
+      created_at: TIMESTAMP,
+      updated_at: TIMESTAMP,
+    } satisfies SourceRow;
+  }
+
+  async startCollectionRun(input: {
+    sourceId: string;
+    externalRunId?: string | null;
+    triggeredBy?: string;
+  }) {
+    const row: CollectionRunRow = {
+      id: `run-${this.nextRun++}`,
+      source_id: input.sourceId,
+      status: "running",
+      external_run_id: input.externalRunId ?? null,
+      triggered_by: input.triggeredBy ?? "scheduler",
+      started_at: TIMESTAMP,
+      completed_at: null,
+      records_seen: 0,
+      records_accepted: 0,
+      records_rejected: 0,
+      error_message: null,
+      error_details: null,
+      validation_errors: [],
+      created_at: TIMESTAMP,
+    };
+    this.runs.push(row);
+    return row;
+  }
+
+  async failCollectionRun(
+    runId: string,
+    error: { message: string; details?: Json },
+    counts: Partial<{ recordsSeen: number; recordsAccepted: number; recordsRejected: number }> = {},
+  ) {
+    const run = this.requireRun(runId);
+    run.status = "failed";
+    run.completed_at = TIMESTAMP;
+    run.error_message = error.message;
+    run.error_details = error.details ?? null;
+    run.records_seen = counts.recordsSeen ?? run.records_seen;
+    run.records_accepted = counts.recordsAccepted ?? run.records_accepted;
+    run.records_rejected = counts.recordsRejected ?? run.records_rejected;
+    return run;
+  }
+
+  async completeCollectionRun(
+    runId: string,
+    counts: { recordsSeen: number; recordsAccepted: number; recordsRejected: number },
+    status?: Extract<RunStatus, "succeeded" | "partial">,
+    validationErrors: Json = [],
+  ) {
+    const run = this.requireRun(runId);
+    run.status = status ?? (counts.recordsRejected > 0 ? "partial" : "succeeded");
+    run.completed_at = TIMESTAMP;
+    run.records_seen = counts.recordsSeen;
+    run.records_accepted = counts.recordsAccepted;
+    run.records_rejected = counts.recordsRejected;
+    run.validation_errors = validationErrors;
+    return run;
+  }
+
+  async listModels(providerId: string) {
+    return this.models.filter((m) => m.provider_id === providerId);
+  }
+
+  async listModelAliases(providerId: string) {
+    return this.aliases.filter((a) => a.provider_id === providerId);
+  }
+
+
+  async upsertModel(input: {
+    providerId: string;
+    modelName: string;
+    displayName?: string | null;
+    metadata?: Json;
+    isActive?: boolean;
+  }) {
+    const existing = this.models.find((candidate) => candidate.model_name === input.modelName);
+    if (existing) return existing;
+    const row = model(`model-${this.nextModel++}`, input.providerId, input.modelName);
+    row.display_name = input.displayName ?? null;
+    row.metadata = input.metadata ?? {};
+    row.is_active = input.isActive ?? true;
+    this.models.push(row);
+    return row;
+  }
+
+  async upsertModelAlias(input: ModelAliasInput) {
+    const existing = this.aliases.find(
+      (candidate) =>
+        candidate.alias === input.alias && candidate.alias_type === input.aliasType,
+    );
+    if (existing) return existing;
+    const row: ModelAliasRow = {
+      id: `alias-${this.aliases.length + 1}`,
+      provider_id: input.providerId,
+      model_id: input.modelId,
+      source_id: input.sourceId ?? null,
+      alias: input.alias,
+      alias_type: input.aliasType,
+      first_seen_at: TIMESTAMP,
+      last_seen_at: TIMESTAMP,
+      created_at: TIMESTAMP,
+      updated_at: TIMESTAMP,
+    };
+    this.aliases.push(row);
+    return row;
+  }
+
+  async getComparableCapabilitySnapshots(): Promise<LatestCapabilitySnapshotRow[]> {
+    return [];
+  }
+
+  async saveCapabilitySnapshots(inputs: readonly CapabilitySnapshotInput[]) {
+    this.capabilitySnapshots.push(...inputs);
+    return inputs.map((input) => ({
+      id: `capability-${this.nextSnapshot++}`,
+      run_id: input.runId,
+      source_id: input.sourceId,
+      provider_id: input.providerId,
+      model_id: input.modelId,
+      api_model_id: input.apiModelId,
+      display_name: input.displayName ?? null,
+      model_family: input.modelFamily ?? null,
+      model_stage: input.modelStage ?? null,
+      context_window: input.contextWindow ?? null,
+      max_output_tokens: input.maxOutputTokens ?? null,
+      supports_vision: input.supportsVision ?? null,
+      supports_tool_calling: input.supportsToolCalling ?? null,
+      input_modalities: input.inputModalities ?? [],
+      output_modalities: input.outputModalities ?? [],
+      supported_features: input.supportedFeatures ?? [],
+      source_url: input.sourceUrl,
+      raw: input.raw ?? null,
+      extra: input.extra ?? {},
+      observed_at: input.observedAt ?? TIMESTAMP,
+      created_at: TIMESTAMP,
+      content_hash: "hash",
+    })) satisfies CapabilitySnapshotRow[];
+  }
+
+  async saveChangeEvents(inputs: readonly ChangeEventInput[]) {
+    this.changeEvents.push(...inputs);
+    return [...inputs];
+  }
+
+
+
+  private requireRun(id: string): CollectionRunRow {
+    const run = this.runs.find((candidate) => candidate.id === id);
+    if (!run) throw new Error(`missing run ${id}`);
+    return run;
+  }
+}
+
 
 export function collectorPayload(
   data: unknown[],

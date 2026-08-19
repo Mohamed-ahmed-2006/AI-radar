@@ -35,22 +35,47 @@ import {
 function canonicalLog(harness: {
   pricing: CanonicalWriteLog;
   lifecycle: CanonicalWriteLog;
+  catalog: CanonicalWriteLog;
 }): CanonicalWriteLog {
   return {
-    models: [...harness.pricing.models, ...harness.lifecycle.models],
-    pricingSnapshots: [...harness.pricing.pricingSnapshots, ...harness.lifecycle.pricingSnapshots],
+    models: [
+      ...harness.pricing.models,
+      ...harness.lifecycle.models,
+      ...harness.catalog.models,
+    ],
+    pricingSnapshots: [
+      ...harness.pricing.pricingSnapshots,
+      ...harness.lifecycle.pricingSnapshots,
+      ...(harness.catalog.pricingSnapshots ?? []),
+    ],
     lifecycleSnapshots: [
       ...harness.pricing.lifecycleSnapshots,
       ...harness.lifecycle.lifecycleSnapshots,
+      ...(harness.catalog.lifecycleSnapshots ?? []),
+    ],
+    capabilitySnapshots: [
+      ...(harness.pricing.capabilitySnapshots ?? []),
+      ...(harness.lifecycle.capabilitySnapshots ?? []),
+      ...harness.catalog.capabilitySnapshots,
     ],
     lifecycleProjections: [
       ...harness.pricing.lifecycleProjections,
       ...harness.lifecycle.lifecycleProjections,
+      ...(harness.catalog.lifecycleProjections ?? []),
     ],
-    changeEvents: [...harness.pricing.changeEvents, ...harness.lifecycle.changeEvents],
-    runs: [...harness.pricing.runs, ...harness.lifecycle.runs],
+    changeEvents: [
+      ...harness.pricing.changeEvents,
+      ...harness.lifecycle.changeEvents,
+      ...harness.catalog.changeEvents,
+    ],
+    runs: [
+      ...harness.pricing.runs,
+      ...harness.lifecycle.runs,
+      ...harness.catalog.runs,
+    ],
   };
 }
+
 
 for (const key of COLLECTION_SOURCE_KEYS) {
   test(`${key}: a malformed real-source payload is quarantined before canonical persistence`, async () => {
@@ -121,8 +146,11 @@ for (const key of COLLECTION_SOURCE_KEYS) {
     const log = canonicalLog(harness);
     assert.ok(log.models.length > 0, `${key}: canonical models were written`);
     const wroteIntelligence =
-      log.pricingSnapshots.length > 0 || log.lifecycleSnapshots.length > 0;
+      log.pricingSnapshots.length > 0 ||
+      log.lifecycleSnapshots.length > 0 ||
+      (log.capabilitySnapshots?.length ?? 0) > 0;
     assert.ok(wroteIntelligence, `${key}: canonical intelligence rows were written`);
+
     assert.equal(log.runs.at(-1)?.status, "succeeded");
   });
 }

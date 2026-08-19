@@ -9,10 +9,12 @@ import type { PostgrestError } from "@supabase/supabase-js";
 
 import type { SupabaseServerClient } from "./server";
 import type {
+  CapabilitySnapshotRow,
   ChangeEventRow,
   ChangeType,
   CollectionRunRow,
   Json,
+  LatestCapabilitySnapshotRow,
   LatestPricingSnapshotRow,
   LatestLifecycleSnapshotRow,
   LifecycleSnapshotRow,
@@ -27,6 +29,7 @@ import type {
   SourceKind,
   SourceRow,
 } from "./types";
+
 
 export class RepositoryError extends Error {
   readonly cause: PostgrestError;
@@ -547,6 +550,104 @@ export async function getLatestLifecycleSnapshots(
   if (options.sourceId) query = query.eq("source_id", options.sourceId);
   return unwrap("getLatestLifecycleSnapshots", await query);
 }
+
+// ---------------------------------------------------------------------------
+// capability snapshots
+// ---------------------------------------------------------------------------
+
+export interface CapabilitySnapshotInput {
+  runId: string;
+  sourceId: string;
+  providerId: string;
+  modelId: string;
+  apiModelId: string;
+  displayName?: string | null;
+  modelFamily?: string | null;
+  modelStage?: string | null;
+  contextWindow?: number | null;
+  maxOutputTokens?: number | null;
+  supportsVision?: boolean | null;
+  supportsToolCalling?: boolean | null;
+  inputModalities?: string[];
+  outputModalities?: string[];
+  supportedFeatures?: string[];
+  sourceUrl: string;
+  extra?: Json;
+  raw?: Json | null;
+  observedAt?: string;
+}
+
+export async function saveCapabilitySnapshots(
+  db: SupabaseServerClient,
+  inputs: readonly CapabilitySnapshotInput[],
+): Promise<CapabilitySnapshotRow[]> {
+  if (inputs.length === 0) return [];
+  return unwrap(
+    "saveCapabilitySnapshots",
+    await db.from("capability_snapshots").upsert(
+      inputs.map((input) => ({
+        run_id: input.runId,
+        source_id: input.sourceId,
+        provider_id: input.providerId,
+        model_id: input.modelId,
+        api_model_id: input.apiModelId,
+        display_name: input.displayName ?? null,
+        model_family: input.modelFamily ?? null,
+        model_stage: input.modelStage ?? null,
+        context_window: input.contextWindow ?? null,
+        max_output_tokens: input.maxOutputTokens ?? null,
+        supports_vision: input.supportsVision ?? null,
+        supports_tool_calling: input.supportsToolCalling ?? null,
+        input_modalities: input.inputModalities ?? [],
+        output_modalities: input.outputModalities ?? [],
+        supported_features: input.supportedFeatures ?? [],
+        source_url: input.sourceUrl,
+        extra: input.extra ?? {},
+        raw: input.raw ?? null,
+        ...(input.observedAt && { observed_at: input.observedAt }),
+      })),
+      { onConflict: "run_id,model_id,api_model_id" },
+    ).select(),
+  );
+}
+
+export async function getComparableCapabilitySnapshots(
+  db: SupabaseServerClient,
+  options: { providerSlug?: string; sourceId?: string } = {},
+): Promise<LatestCapabilitySnapshotRow[]> {
+  let query = db
+    .from("latest_comparable_capability_snapshots")
+    .select()
+    .order("api_model_id");
+  if (options.providerSlug) query = query.eq("provider_slug", options.providerSlug);
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
+  return unwrap("getComparableCapabilitySnapshots", await query);
+}
+
+export async function getLatestCapabilitySnapshots(
+  db: SupabaseServerClient,
+  options: { providerSlug?: string; sourceId?: string } = {},
+): Promise<LatestCapabilitySnapshotRow[]> {
+  let query = db.from("latest_capability_snapshots").select().order("api_model_id");
+  if (options.providerSlug) query = query.eq("provider_slug", options.providerSlug);
+  if (options.sourceId) query = query.eq("source_id", options.sourceId);
+  return unwrap("getLatestCapabilitySnapshots", await query);
+}
+
+export async function getCapabilityHistory(
+  db: SupabaseServerClient,
+  modelId: string,
+  options: { limit?: number } = {},
+): Promise<CapabilitySnapshotRow[]> {
+  const query = db
+    .from("capability_snapshots")
+    .select()
+    .eq("model_id", modelId)
+    .order("observed_at", { ascending: false })
+    .limit(options.limit ?? 100);
+  return unwrap("getCapabilityHistory", await query);
+}
+
 
 export async function savePricingSnapshot(
   db: SupabaseServerClient,
