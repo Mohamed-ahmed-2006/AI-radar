@@ -7,6 +7,7 @@ import { RadarMark } from "./RadarMark";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
+  { href: "/models", label: "Models" },
   { href: "/changes", label: "Changes" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/sources", label: "Sources" },
