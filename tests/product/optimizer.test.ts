@@ -138,7 +138,12 @@ test("compareEligibleHref only includes eligible canonical ids", () => {
 });
 
 test("setOptimizerAdapter replaces the installed seam without changing call shape", async () => {
-  const previous = getOptimizerAdapter();
+  let previous: OptimizerAdapter | null = null;
+  try {
+    previous = getOptimizerAdapter();
+  } catch {
+    previous = null;
+  }
   const stub: OptimizerAdapter = {
     id: "test-optimizer",
     label: "Test",
@@ -166,6 +171,6 @@ test("setOptimizerAdapter replaces the installed seam without changing call shap
     assert.equal(result.emptyReason, "Stub returned no models.");
     assert.equal(result.ranked.length, 0);
   } finally {
-    setOptimizerAdapter(previous);
+    if (previous) setOptimizerAdapter(previous);
   }
 });

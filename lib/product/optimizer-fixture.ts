@@ -477,5 +477,3 @@ export function createFixtureOptimizerAdapter(): OptimizerAdapter {
 export function installFixtureOptimizerAdapter(): void {
   registerDefaultOptimizerAdapter(createFixtureOptimizerAdapter);
 }
-
-installFixtureOptimizerAdapter();

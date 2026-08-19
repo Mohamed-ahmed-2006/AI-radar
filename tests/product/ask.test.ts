@@ -90,7 +90,12 @@ test("Ask helper hrefs point at existing product surfaces", () => {
 });
 
 test("setAskAdapter replaces the installed seam without changing call shape", async () => {
-  const previous = getAskAdapter();
+  let previous: AskAdapter | null = null;
+  try {
+    previous = getAskAdapter();
+  } catch {
+    previous = null;
+  }
   const stub: AskAdapter = {
     id: "test-ask",
     label: "Test",
@@ -111,6 +116,6 @@ test("setAskAdapter replaces the installed seam without changing call shape", as
     assert.equal(getAskAdapter().id, "test-ask");
     assert.equal(result.unsupportedReason, "Stub does not answer.");
   } finally {
-    setAskAdapter(previous);
+    if (previous) setAskAdapter(previous);
   }
 });

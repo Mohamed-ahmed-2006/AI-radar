@@ -432,5 +432,3 @@ export function createFixtureAskAdapter(): AskAdapter {
 export function installFixtureAskAdapter(): void {
   registerDefaultAskAdapter(createFixtureAskAdapter);
 }
-
-installFixtureAskAdapter();

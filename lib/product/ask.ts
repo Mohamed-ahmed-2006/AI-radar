@@ -125,7 +125,7 @@ export function getAskAdapter(): AskAdapter {
   if (installedAdapter) return installedAdapter;
   if (!defaultAdapterFactory) {
     throw new Error(
-      "No Ask AI Radar adapter is installed. Import the fixture adapter or call setAskAdapter().",
+      "No Ask AI Radar adapter is installed. Import the canonical adapter or call setAskAdapter().",
     );
   }
   installedAdapter = defaultAdapterFactory();

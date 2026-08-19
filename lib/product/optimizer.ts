@@ -166,7 +166,7 @@ export function getOptimizerAdapter(): OptimizerAdapter {
   if (installedAdapter) return installedAdapter;
   if (!defaultAdapterFactory) {
     throw new Error(
-      "No optimizer adapter is installed. Import the fixture adapter or call setOptimizerAdapter().",
+      "No optimizer adapter is installed. Import the canonical adapter or call setOptimizerAdapter().",
     );
   }
   installedAdapter = defaultAdapterFactory();
