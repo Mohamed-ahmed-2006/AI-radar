@@ -11,6 +11,12 @@
  */
 
 import type { AuthorityLevel, TemporalEvidence } from "../intelligence/contracts";
+import type {
+  ProvenanceRecord,
+  ProvenanceValidationState,
+} from "../sources/types";
+import type { SentinelStatus } from "../supabase/types";
+import { sentinelStatusLabel } from "../../components/radar/sentinel/utils";
 
 export type ProvenanceTrust = "official" | "verified" | "inferred" | "unverified";
 
@@ -254,4 +260,79 @@ export function provenanceRows(provenance: ProvenanceView): ProvenanceRow[] {
 /** False when nothing beyond the derived trust label is known. */
 export function hasProvenanceDetail(provenance: ProvenanceView): boolean {
   return provenanceRows(provenance).some((row) => row.id !== "trust");
+}
+
+/**
+ * Normalises a Source Detail & Provenance `ProvenanceRecord` into the shared
+ * shape, so `ProvenanceDisclosure` renders backend provenance through exactly
+ * the same rows, trust vocabulary and ordering as every other surface. This is
+ * the only place that knows the two models differ.
+ *
+ * Two facts are deliberately not carried across. That backend does not score
+ * confidence, so `confidence` stays null rather than inventing a number. And
+ * its `isAuthoritative` flag only distinguishes an authoritative source; a
+ * non-authoritative source that passed the Sentinel gate is a verified scrape,
+ * which is what `validated` means there, and anything else stays unverified.
+ */
+export function provenanceFromRecord(record: ProvenanceRecord): ProvenanceView {
+  const authority: AuthorityLevel | null = record.trust.isAuthoritative
+    ? "authoritative"
+    : record.trust.validationState === "validated"
+      ? "verified_scrape"
+      : null;
+
+  return {
+    sourceLabel: nullableString(record.source?.name),
+    sourceUrl: nullableString(record.source?.url),
+    sourceKind: nullableString(record.source?.category),
+    collectorId: nullableString(record.source?.collectorId),
+    observedAt: nullableString(record.observedAt),
+    authority,
+    confidence: null,
+    trust: provenanceTrustFromAuthority(authority),
+    validation: provenanceValidationFromState(
+      record.trust.validationState,
+      record.trust.sentinelStatus,
+    ),
+    runId: nullableString(record.run?.runId),
+    externalRunId: nullableString(record.run?.externalRunId),
+    snapshotId:
+      nullableString(record.snapshotId) ??
+      nullableString(record.transition?.currentSnapshotId),
+    previousSnapshotId: nullableString(record.transition?.previousSnapshotId),
+    isDemo: false,
+  };
+}
+
+const VALIDATION_STATUS_BY_STATE: Record<
+  ProvenanceValidationState,
+  ProvenanceValidationStatus
+> = {
+  validated: "passing",
+  quarantined: "failing",
+  provisional: "unknown",
+  unknown: "unknown",
+};
+
+const VALIDATION_LABEL_BY_STATE: Record<ProvenanceValidationState, string> = {
+  validated: "Validated",
+  quarantined: "Quarantined",
+  provisional: "Provisional",
+  unknown: "Not reported",
+};
+
+/**
+ * Prefers the source's live Sentinel status as the label, because that is the
+ * verbatim state of the producing system, and falls back to the per-value
+ * validation state when no status was reported.
+ */
+export function provenanceValidationFromState(
+  state: ProvenanceValidationState,
+  sentinelStatus: SentinelStatus | null,
+): ProvenanceValidation | null {
+  if (state === "unknown" && !sentinelStatus) return null;
+  return {
+    label: sentinelStatus ? sentinelStatusLabel(sentinelStatus) : VALIDATION_LABEL_BY_STATE[state],
+    status: VALIDATION_STATUS_BY_STATE[state],
+  };
 }

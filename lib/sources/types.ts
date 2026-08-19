@@ -19,7 +19,13 @@ import type {
 /** Domain-level classification of what a source is an authority on. */
 export type SourceCategory = "pricing" | "lifecycle" | "models" | "other";
 
-export type AuthorityDomain = "pricing" | "lifecycle" | "models";
+/** Mirrors the Sentinel contract vocabulary, which the catalog wave widened. */
+export type AuthorityDomain =
+  | "pricing"
+  | "lifecycle"
+  | "models"
+  | "catalog"
+  | "capabilities";
 
 /** Freshness verdict relative to the contracted staleness budget. */
 export type SourceFreshnessStatus = "fresh" | "aging" | "stale" | "unknown";

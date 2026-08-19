@@ -10,7 +10,12 @@
  */
 
 import { createSourceHealthContractFor } from "../sentinel/contracts";
-import type { PricingProviderSlug } from "../pipeline/providers";
+import {
+  CATALOG_PROVIDERS,
+  resolveCatalogProviderConfiguration,
+  type CatalogProviderSlug,
+  type PricingProviderSlug,
+} from "../pipeline/providers";
 import type { SourceKind } from "../supabase/types";
 import type { SourceCategory, SourceContractView } from "./types";
 
@@ -23,13 +28,36 @@ const PRICING_PROVIDER_SLUGS: readonly string[] = [
 
 const LIFECYCLE_PROVIDER_SLUGS: readonly string[] = ["anthropic", "gemini"];
 
-/** What the source is an authority on, from its kind and provider. */
+const CATALOG_PROVIDER_SLUGS: readonly string[] = ["openai", "anthropic", "gemini", "xai"];
+
+/**
+ * Lifecycle and catalog sources both arrive as kind `models`, and Anthropic and
+ * Gemini run one of each, so the kind alone cannot separate them. The collector
+ * identity can: each catalog source is collected by its provider's configured
+ * catalog collector. Falling back to the source URL keeps a source classified
+ * correctly when its collector id is not recorded.
+ */
+function isCatalogSource(providerSlug: string, collectorId?: string | null, sourceUrl?: string | null): boolean {
+  if (!CATALOG_PROVIDER_SLUGS.includes(providerSlug)) return false;
+  const configuration = resolveCatalogProviderConfiguration(
+    CATALOG_PROVIDERS[providerSlug as CatalogProviderSlug],
+  );
+  const collector = collectorId?.trim();
+  if (collector) return collector === configuration.collectorId.trim();
+  const url = sourceUrl?.trim();
+  return url ? url === configuration.sourceUrl.trim() : false;
+}
+
+/** What the source is an authority on, from its kind, provider and collector. */
 export function resolveSourceCategory(
   kind: SourceKind,
   providerSlug: string,
+  collectorId?: string | null,
+  sourceUrl?: string | null,
 ): SourceCategory {
   if (kind === "pricing") return "pricing";
   if (kind === "models") {
+    if (isCatalogSource(providerSlug, collectorId, sourceUrl)) return "models";
     return LIFECYCLE_PROVIDER_SLUGS.includes(providerSlug) ? "lifecycle" : "models";
   }
   return "other";
@@ -44,11 +72,18 @@ export function resolveSourceContractView(
   kind: SourceKind,
   providerSlug: string,
   sourceId: string,
+  collectorId?: string | null,
+  sourceUrl?: string | null,
 ): SourceContractView | null {
-  const category = resolveSourceCategory(kind, providerSlug);
+  const category = resolveSourceCategory(kind, providerSlug, collectorId, sourceUrl);
 
   const contract =
-    category === "pricing" && PRICING_PROVIDER_SLUGS.includes(providerSlug)
+    category === "models" && isCatalogSource(providerSlug, collectorId, sourceUrl)
+      ? createSourceHealthContractFor(
+          { domain: "catalog", providerSlug: providerSlug as CatalogProviderSlug },
+          sourceId,
+        )
+      : category === "pricing" && PRICING_PROVIDER_SLUGS.includes(providerSlug)
       ? createSourceHealthContractFor(
           { domain: "pricing", providerSlug: providerSlug as PricingProviderSlug },
           sourceId,

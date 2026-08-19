@@ -67,7 +67,12 @@ function buildSourceView(
   providerSlug: string,
 ): ProvenanceRecord["source"] {
   if (!source) return null;
-  const category = resolveSourceCategory(source.kind, providerSlug);
+  const category = resolveSourceCategory(
+    source.kind,
+    providerSlug,
+    source.collector_id,
+    source.source_url,
+  );
   return {
     id: source.id,
     name:
@@ -165,7 +170,13 @@ function assemble(
   const providerSlug = context.provider?.slug ?? "unknown";
   const sourceView = buildSourceView(context.source, providerSlug);
   const contract = context.source
-    ? resolveSourceContractView(context.source.kind, providerSlug, context.source.id)
+    ? resolveSourceContractView(
+        context.source.kind,
+        providerSlug,
+        context.source.id,
+        context.source.collector_id,
+        context.source.source_url,
+      )
     : null;
 
   return {

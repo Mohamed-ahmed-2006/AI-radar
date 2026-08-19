@@ -98,7 +98,12 @@ function defaultSourceName(
 function buildIdentity(source: SourceRow, provider: ProviderRow | null): SourceIdentity {
   const providerSlug = provider?.slug ?? "unknown";
   const providerName = provider?.name ?? providerSlug;
-  const category = resolveSourceCategory(source.kind, providerSlug);
+  const category = resolveSourceCategory(
+    source.kind,
+    providerSlug,
+    source.collector_id,
+    source.source_url,
+  );
 
   return {
     sourceId: source.id,
@@ -414,6 +419,8 @@ export async function getSourceCatalog(
       source.kind,
       identity.providerSlug,
       source.id,
+      source.collector_id,
+      source.source_url,
     );
     const runs = (runsBySource.get(source.id) ?? [])
       .slice()
@@ -489,6 +496,8 @@ export async function getSourceDetail(
     source.kind,
     identity.providerSlug,
     source.id,
+    source.collector_id,
+    source.source_url,
   );
 
   const isLifecycle = identity.category === "lifecycle";
