@@ -343,6 +343,12 @@ export async function startCollectionRun(
         status: "running",
         external_run_id: input.externalRunId ?? null,
         triggered_by: input.triggeredBy ?? "manual",
+        // Both ends of a run must come from one clock. `completed_at` is written
+        // by the application, so `started_at` is too: leaving it to the column
+        // default would compare the database clock against the application's and
+        // fail `collection_runs_completed_after_start` under any negative skew.
+        // `orchestration_runs` already supplies its own `started_at` this way.
+        started_at: new Date().toISOString(),
       })
       .select()
       .single(),
