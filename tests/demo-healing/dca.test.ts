@@ -118,6 +118,21 @@ test("dca: a refactor is POSTed to the collector's refactor_template path", asyn
   assert.deepEqual(calls[0]!.body, { prompt: "re-derive the selectors", custom_input: [] });
 });
 
+test("dca: a refactor binds to the failing input when one is supplied", async () => {
+  const { instance, calls } = client([() => json({ id: "ia-124" })]);
+
+  await instance.requestRefactor("c_demo_1", "the layout changed", [
+    { url: "https://radar.test/demo-source/broken" },
+  ]);
+
+  // Without this the repair is generated against the template's stored input,
+  // which is the layout that still works, so it never sees what broke.
+  assert.deepEqual(calls[0]!.body, {
+    prompt: "the layout changed",
+    custom_input: [{ url: "https://radar.test/demo-source/broken" }],
+  });
+});
+
 test("dca: an over-long prompt is truncated to the documented limit", async () => {
   const { instance, calls } = client([() => json({ id: "ia-1" })]);
 

@@ -167,15 +167,24 @@ export class DcaTemplateClient {
     }
   }
 
-  /** Starts an AI refactor of the collector's extraction template. */
+  /**
+   * Starts an AI refactor of the collector's extraction template.
+   *
+   * `customInput` binds the refactor to specific inputs. Without it Bright Data
+   * works from the input already stored on the template, which is the input the
+   * collector was built against — not necessarily the one that just failed. A
+   * repair generated and previewed against a page that still works cannot learn
+   * the layout that broke, so the failing input is passed in explicitly.
+   */
   public async requestRefactor(
     collectorId: string,
     prompt: string,
+    customInput: readonly Record<string, unknown>[] = [],
   ): Promise<{ jobId: string | null }> {
     const body = await this.request(
       "POST",
       `/dca/collectors/${encodeURIComponent(collectorId)}/${DCA_REFACTOR_TRIGGER_PATH}`,
-      { prompt: prompt.slice(0, DCA_PROMPT_MAX_LENGTH), custom_input: [] },
+      { prompt: prompt.slice(0, DCA_PROMPT_MAX_LENGTH), custom_input: customInput },
     );
     const id = (body as { id?: unknown }).id;
     return { jobId: typeof id === "string" ? id : null };

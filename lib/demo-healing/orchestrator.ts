@@ -603,6 +603,10 @@ export class DemoHealingOrchestrator {
       const requested = await this.healer.requestHeal({
         collectorId: this.configuration.collectorId,
         prompt,
+        // The armed layout is the input that just failed Sentinel; the repair
+        // has to be generated and previewed against it, not against whatever
+        // input the template still carries.
+        sourceUrl: this.configuration.layouts[state.armed_layout].url,
       });
       jobId = requested.jobId;
       await this.harness.patchState({ healingJobId: jobId });

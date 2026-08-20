@@ -119,6 +119,13 @@ test("lifecycle: healthy baseline → quarantine → heal → validate → appro
   assert.equal(healer.healRequests.length, 1);
   assert.equal(healer.healRequests[0]!.collectorId, "c_test_demo_collector");
   assert.ok(healer.healRequests[0]!.prompt.includes("quote_text"));
+  // The repair must be bound to the layout that actually failed. Bright Data
+  // otherwise previews the candidate against the template's stored input — the
+  // layout that still works — and the repair never sees what broke.
+  assert.equal(
+    healer.healRequests[0]!.sourceUrl,
+    "https://quotes.toscrape.com/tableful/",
+  );
   assert.equal(sentinel.incidents[0]!.status, "healing");
 
   // No approval has been sent yet — the candidate is still unjudged.

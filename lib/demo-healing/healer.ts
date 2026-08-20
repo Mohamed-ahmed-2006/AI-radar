@@ -18,6 +18,12 @@ import type { SentinelEvaluationResult } from "../sentinel/types";
 export interface DemoHealRequest {
   collectorId: string;
   prompt: string;
+  /**
+   * The URL that actually produced the failure. Bright Data otherwise previews
+   * the repair against the template's stored input, which is the layout the
+   * collector already worked on, so the candidate never sees what broke.
+   */
+  sourceUrl?: string;
 }
 
 export type DemoHealGateOutcome =
@@ -100,7 +106,12 @@ export class BrightDataDemoHealer implements DemoCollectorHealer {
     if (!prompt) {
       throw new BrightDataCollectorError("A non-empty repair prompt is required");
     }
-    return this.client.requestRefactor(collectorId, prompt);
+    const sourceUrl = request.sourceUrl?.trim();
+    return this.client.requestRefactor(
+      collectorId,
+      prompt,
+      sourceUrl ? [{ url: sourceUrl }] : [],
+    );
   }
 
   public async waitForGate(
