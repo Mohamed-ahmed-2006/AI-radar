@@ -45,6 +45,49 @@ function healingStageStatus(status: string): SentinelStageStatus {
   return HEALING_STAGE_STATUS[status] ?? "active";
 }
 
+/** How far through its lifecycle a healing-attempt row has got. */
+const HEALING_PROGRESS: Record<string, number> = {
+  initiated: 0,
+  in_progress: 1,
+  awaiting_approval: 2,
+  timed_out: 3,
+  failed: 3,
+  candidate_rejected: 4,
+  rejected: 4,
+  candidate_validated: 5,
+  approved: 6,
+};
+
+/**
+ * One timeline stage per healing attempt, not one per state row.
+ *
+ * An attempt writes a row for each state it passes through — initiated,
+ * awaiting_approval, approved — all under the same `attemptNumber`. Rendering
+ * them verbatim printed "Healing attempt 1" three times on a card that also
+ * said "Healed on first attempt".
+ */
+function collapseAttempts(
+  attempts: readonly ReadModelHealing[],
+): ReadModelHealing[] {
+  const byAttempt = new Map<string, ReadModelHealing>();
+  for (const attempt of attempts) {
+    const key = `${attempt.incidentId}|${attempt.attemptNumber}`;
+    const held = byAttempt.get(key);
+    const progress = HEALING_PROGRESS[attempt.status] ?? 0;
+    const heldProgress = held ? (HEALING_PROGRESS[held.status] ?? 0) : -1;
+    if (
+      !held ||
+      progress > heldProgress ||
+      (progress === heldProgress && attempt.startedAt > held.startedAt)
+    ) {
+      byAttempt.set(key, attempt);
+    }
+  }
+  return [...byAttempt.values()].sort(
+    (left, right) => left.attemptNumber - right.attemptNumber,
+  );
+}
+
 function humanise(value: string): string {
   const spaced = value.replaceAll("_", " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -193,9 +236,11 @@ export function buildSentinelViewFromReadModel(
         (candidate) => candidate.sourceId === source.sourceId,
       ),
     );
-    const attempts = model.recentHealingAttempts
-      .filter((attempt) => attempt.sourceId === source.sourceId)
-      .sort((left, right) => left.attemptNumber - right.attemptNumber);
+    const attempts = collapseAttempts(
+      model.recentHealingAttempts.filter(
+        (attempt) => attempt.sourceId === source.sourceId,
+      ),
+    );
     const latestAttempt = attempts.at(-1) ?? null;
 
     const lastKnownGood: SentinelSnapshotView | null =

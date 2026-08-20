@@ -41,9 +41,14 @@ export function SourceHealthCard({
       <header className="radar-source-card-header">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
+            {/* The Sentinel badge in this header already names the state, and
+                it names it in the Sentinel vocabulary — a recovered source
+                would otherwise be announced as "Healthy" here and "Recovered"
+                a few pixels away. */}
             <StatusDot
               status={source.health}
               pulse={source.status === "healthy"}
+              decorative
             />
             <h3
               id={`source-${source.sourceId}-name`}

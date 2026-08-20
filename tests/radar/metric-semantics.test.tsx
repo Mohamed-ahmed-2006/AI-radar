@@ -47,6 +47,16 @@ test("an unlabelled StatusDot still announces its state to assistive tech", () =
   assert.match(html, /Down|Unknown|Degraded|Healthy/);
 });
 
+test("a decorative StatusDot adds no state text of its own", () => {
+  // A recovered source would otherwise be announced as "Healthy" by the dot
+  // and "Recovered" by the Sentinel badge sitting beside it.
+  const html = renderToStaticMarkup(
+    createElement(StatusDot, { status: "healthy", decorative: true }),
+  );
+  assert.doesNotMatch(html, /sr-only/);
+  assert.doesNotMatch(html, /Healthy/);
+});
+
 test("the source-detail health summary names the current state exactly once", () => {
   const html = renderToStaticMarkup(
     createElement(SourceHealthSummary, {

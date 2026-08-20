@@ -290,3 +290,66 @@ test("loading, empty, and error states replace the grid instead of blanking", ()
   assert.match(errored, /Missing environment variable/);
   assert.doesNotMatch(errored, /Loading source health/);
 });
+
+test("the fleet timeline renders one stage per healing attempt, not one per state row", () => {
+  // Production writes a row for each state one attempt passes through, all
+  // sharing an attempt number. Rendering them verbatim printed
+  // "Healing attempt 1" three times on a card also reading
+  // "Healed on first attempt".
+  const model = readModel({
+    recentHealingAttempts: [
+      {
+        id: "heal-approved",
+        incidentId: "inc-1",
+        sourceId: "src-gemini",
+        collectorId: "c_gemini",
+        attemptNumber: 1,
+        prompt: "",
+        status: "approved",
+        candidatePassedValidation: true,
+        startedAt: "2026-08-18T09:07:00.000Z",
+        completedAt: "2026-08-18T09:08:00.000Z",
+      },
+      {
+        id: "heal-awaiting",
+        incidentId: "inc-1",
+        sourceId: "src-gemini",
+        collectorId: "c_gemini",
+        attemptNumber: 1,
+        prompt: "",
+        status: "awaiting_approval",
+        candidatePassedValidation: null,
+        startedAt: "2026-08-18T09:06:00.000Z",
+        completedAt: null,
+      },
+      {
+        id: "heal-initiated",
+        incidentId: "inc-1",
+        sourceId: "src-gemini",
+        collectorId: "c_gemini",
+        attemptNumber: 1,
+        prompt: "",
+        status: "initiated",
+        candidatePassedValidation: null,
+        startedAt: "2026-08-18T09:05:00.000Z",
+        completedAt: null,
+      },
+    ],
+  });
+
+  const view = buildSentinelViewFromReadModel(model, GENERATED_AT);
+  const gemini = view.sources.find((source) => source.sourceId === "src-gemini");
+  assert.ok(gemini);
+
+  const healingStages = gemini.timeline.filter((stage) =>
+    stage.label.startsWith("Healing attempt"),
+  );
+  assert.equal(healingStages.length, 1, "one attempt, one stage");
+  assert.equal(healingStages[0].label, "Healing attempt 1");
+  // The furthest-progressed row is the one that describes what happened.
+  assert.equal(healingStages[0].status, "done");
+  assert.equal(
+    healingStages[0].detail,
+    "Candidate validated against the source contract",
+  );
+});
