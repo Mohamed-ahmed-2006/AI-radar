@@ -108,10 +108,11 @@ export function HealingDemoPhaseHero({ model }: { model: HealingDemoReadModel })
       </p>
       <p className="radar-healing-story">{storyLine(model)}</p>
       <HistoryLine history={model.history} phase={model.phase} />
+      {/* The badge renders the state as readable text already; a screen-reader
+          copy of the same word only made the state appear twice. */}
       {model.sentinelStatus && (
         <p className="radar-healing-hero-badge">
           <SentinelStatusBadge status={model.sentinelStatus} size="lg" />
-          <span className="sr-only">Sentinel status {model.sentinelStatus.replaceAll("_", " ")}</span>
         </p>
       )}
     </section>
