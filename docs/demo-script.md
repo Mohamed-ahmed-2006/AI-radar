@@ -1,51 +1,65 @@
 # Judge demo script (~2–3 minutes)
 
+Production: [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+
 Closing line: **“Websites change. Your data contract shouldn't.”**
 
-Distinguish **live evidence** (this deployment's Supabase + Bright Data) from **rehearsal evidence** (tests, doubles, local recordings, or an unavailable healing page). If a panel is empty or says unavailable, say that out loud. Do not narrate fixture success.
+This walkthrough is the live production story. Evidence is official provider pages collected by **Bright Data Scraper Studio**, admitted by **Sentinel**, and served from trusted history — not fixtures, not model memory.
 
-Suggested questions (product copy):
+Suggested questions (on screen):
 
 - Temporal: *What changed in Claude this month?*
-- Decision: *What is the cheapest active model with 500K context, vision and tools?*
+- Decision: *What is the cheapest active model with at least 128K context and tool calling?*
 
 ---
 
-**0:00 — Problem (10s)**  
-AI infrastructure pages move every week. Prices, deprecations, and HTML all change. A broken scrape written as a price is worse than no scrape.
+**0:00 — Problem (10s)**
 
-**0:10 — Dashboard (20s)**  
-Open `/`. This is StackPulse + SourcePulse: live catalog, changes, stack decisions, collection integrity. Point at Bright Data in the footer. If the page says live data unavailable, stop claiming a live ecosystem — navigate anyway and show empty-truth.
+AI infrastructure pages rewrite themselves. Prices, catalogs, and HTML all move. A broken scrape written as a price is worse than no scrape.
 
-**0:30 — Explorer (15s)**  
-`/models`. Observed pricing, context, vision, tools, lifecycle, freshness. Unknown is Unknown. Open one model if time.
+**0:10 — Dashboard (15s)**
 
-**0:45 — Compare (10s)**  
-`/models/compare`. Side by side. This view does not rank.
+Open `/`. Live official web evidence, ten fleet sources, scheduler-backed freshness. Footer: Bright Data Scraper Studio. This is StackPulse (decisions) plus SourcePulse (collection integrity).
 
-**0:55 — Optimizer (20s)**  
-`/optimizer`. Submit a workload. Ranking is adapter arithmetic over published prices. Missing price → ineligible, not $0.
+**0:25 — Explorer (15s)**
 
-**1:15 — Ask AI Radar (25s)**  
-`/ask`.  
-1. Temporal question.  
-2. Model-selection / workload question.  
-Point at grounding + provenance. If no events, that is the answer.
+`/models`. Filter provider, price, context, vision, tools, active-only. Unknown stays Unknown — never “unsupported.”
 
-**1:40 — Provenance (10s)**  
-From a change, model, or Ask result, follow source URL / Source Detail. Collector, run, snapshot.
+**0:40 — Compare (10s)**
 
-**1:50 — Changes (10s)**  
+`/models/compare` with real canonical ids in the URL. Side by side. This view does not rank.
+
+**0:50 — Optimizer (15s)**
+
+`/optimizer`. Realistic tokens + 128K + tools. Ranking is live adapter math over published prices. Missing evidence is ineligible, not $0.
+
+**1:05 — Ask AI Radar (25s)**
+
+`/ask`.
+
+1. Temporal: *What changed in Claude this month?*
+2. Decision: cheapest active ≥128K with tool calling.
+
+Grounded from trusted observations. Point at interpreted constraints and provenance.
+
+**1:30 — Provenance (10s)**
+
+Follow a source URL / Source Detail. Collector, run, snapshot. Live official pages, not a dump.
+
+**1:40 — Changes (10s)**
+
 `/changes`. The temporal store Ask just used.
 
-**2:00 — Source Health (15s)**  
-`/source-health`. Sentinel fleet. Counts are live or unavailable — never fake zeros. Mention this is **not** the in-memory simulator.
+**1:50 — Source Health (15s)**
 
-**2:15 — Healing demo (25s)**  
-`/demo/healing`.  
-- **Unavailable** → say: the path is implemented; this deployment has not proven a live repair yet. Do not click through a success story.  
-- **Real Bright Data demo** → walk LKG → break → quarantine → Scraper Studio heal → preview → validate → approve → rerun. Recovery only after the gate passes. If `isLive` is not proven, call it a configured demo, not a completed production incident.
+`/source-health`. Live Sentinel fleet — not the in-memory simulator. Gemini catalog is **DEGRADED** on purpose: partial acceptance, not fake zeros. Recovered demo history is here: quarantine, last-known-good, Bright Data repair, preview, approval, recovery.
 
-**2:40 — Close (10s)**  
-Bright Data collects and heals. Sentinel admits. History decides.  
+**2:05 — Healing Demo (25s)**
+
+`/demo/healing`. Isolated Scraper Studio collector. Real path: break → Sentinel → quarantine → LKG held → heal → preview → validate → approve → rerun → **RECOVERED**. Zero bad canonical writes. After proof the page is clean and ready (healthy LKG); do not re-run an expensive cycle on stage.
+
+**2:30 — Close (10s)**
+
+Bright Data collects and heals. Sentinel admits. History decides.
+
 *Websites change. Your data contract shouldn't.*

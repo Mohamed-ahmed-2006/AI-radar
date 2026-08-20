@@ -2,6 +2,10 @@
 
 AI Radar / StackPulse, powered by SourcePulse. Bright Data Scraper Studio is the collection and self-healing plane. Answers come from trusted observations, not model memory.
 
+**Production:** [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+
+All ten configured fleet sources ingest live. The scheduler is operational. An isolated Bright Data healing proof completed through **RECOVERED**: last-known-good was preserved; the refused run wrote zero canonical rows.
+
 ## Potential Impact
 
 Teams choose models from pages that rewrite themselves. AI Radar turns those pages into an auditable history: prices, capabilities, and lifecycle events with provenance. A product team can ask what changed, compare options, and size a workload against **observed** numbers. When a provider layout breaks, last-known-good stays up and the bad payload never becomes a “price drop.”
@@ -24,7 +28,9 @@ Bright Data is not a logo. Collection **is** Scraper Studio: trigger, poll, pars
 
 ## Reliability & Self-Healing
 
-Unsafe payloads are quarantined; last-known-good remains the trusted current; fleet failure is isolated per source. Healing is request → preview → validate → approve (only if valid) → rerun → recover (only if the gate passes). The UI cannot mark a source healthy. The in-memory Sentinel simulator is a local recording switch and is forbidden in production. An unconfigured healing demo says unavailable rather than simulating success. **Live healing success is claimed only when a production run has earned recovered with live Bright Data evidence.**
+Unsafe payloads are quarantined; last-known-good remains the trusted current; fleet failure is isolated per source. Healing is request → preview → validate → approve (only if valid) → rerun → recover (only if the gate passes). The UI cannot mark a source healthy. The in-memory Sentinel simulator is a local recording switch and is forbidden in production. An unconfigured healing demo says unavailable rather than simulating success.
+
+Production has now earned that claim: a real Bright Data Scraper Studio repair on the isolated demo collector reached **RECOVERED**, with LKG preserved and zero canonical writes from the refused run. Source Health keeps the recovered timeline; `/demo/healing` is left clean and ready rather than restaged.
 
 ## Presentation
 

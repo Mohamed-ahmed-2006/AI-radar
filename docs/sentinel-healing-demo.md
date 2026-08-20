@@ -11,6 +11,13 @@ Scraper Studio refactor; and the recovery is a real re-run through that same
 gate. There is no code path that marks a source healthy without a run having
 earned it, and no "demo mode" that makes a payload pass.
 
+Production ([https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app))
+has completed this path through **RECOVERED**: Sentinel refused a zero-record
+payload, last-known-good stayed up, Bright Data repaired the isolated collector,
+the candidate passed preview/validation/approval, and a re-run was admitted.
+Source Health retains that recovered timeline. `/demo/healing` is left in a
+clean ready state (healthy LKG) so the expensive cycle is not restaged.
+
 ## What it is isolated from
 
 | Concern | How it is isolated |

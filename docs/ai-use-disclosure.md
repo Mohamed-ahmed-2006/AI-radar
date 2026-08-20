@@ -17,5 +17,5 @@ Bright Data Scraper Studio collectors extract published pages. Sentinel decides 
 ## Honesty bounds
 
 - Fixtures, the Sentinel in-memory simulator, and the temporal demo corpus are explicit opt-ins. Production leaves them unset.
-- This disclosure does not claim a live healing success. That requires a production collector run with `evidence.isLive` and a recovered phase earned through the gate.
+- Product answers at runtime still come from collected evidence, not from this disclosure. A live Bright Data healing proof on production has since earned **RECOVERED** (`evidence.isLive`, gate-admitted recovery, LKG preserved, zero canonical writes from the refused run).
 - Internal agent transcripts are not part of the submission.

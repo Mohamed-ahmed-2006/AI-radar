@@ -6,7 +6,9 @@ The changing AI web → **Bright Data Scraper Studio** → contracts → Sentine
 
 AI Radar is a live intelligence console for the AI model ecosystem. It does not scrape the public web with ad-hoc scripts. It collects through **Bright Data Scraper Studio**, admits only payloads that satisfy a contract, and answers questions from that trusted history — never from model memory.
 
-This README describes the product as implemented. It does not claim that a production healing run has succeeded until that run is proven on the deployed system.
+Production: [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+
+All ten configured fleet sources ingest live through Bright Data Scraper Studio. The hourly scheduler is operational. An isolated Bright Data healing proof completed through **RECOVERED**: last-known-good was preserved, and the refused run wrote zero canonical rows.
 
 ---
 
@@ -75,7 +77,7 @@ A fuller diagram lives in [`docs/architecture.md`](docs/architecture.md). Collec
 
 | Layer | Implementation |
 | --- | --- |
-| App | Next.js on Vercel |
+| App | Next.js on Vercel ([ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)) |
 | Reads | Supabase anon client + RLS |
 | Writes | Server-only service role during ingestion |
 | Collection | Vercel Cron → `/api/cron/collect` (hourly heartbeat; per-source cadence) |
@@ -140,7 +142,7 @@ Bounded repair: request a Scraper Studio refactor from what Sentinel observed �
 
 The in-memory Sentinel simulator (`SENTINEL_DEMO_MODE=1`) is **not** healing. It is a local recording aid and must be unset in production.
 
-The judge-facing page is `/demo/healing`. If Bright Data, the dedicated collector, or Supabase writes are missing, that page says **unavailable**. It does not show a successful recovery it did not earn.
+The judge-facing page is `/demo/healing`. Production has completed a live Bright Data recovery through **RECOVERED** (LKG preserved; refused run wrote zero canonical rows). Source Health keeps that recovered timeline. After proof the demo page is left clean and ready — healthy last-known-good, no open incident — rather than restaging an expensive cycle. If Bright Data, the dedicated collector, or Supabase writes are missing, the page says **unavailable**. It does not show a successful recovery it did not earn.
 
 ## StackPulse surfaces
 
@@ -242,7 +244,7 @@ Built for a Bright Data Scraper Studio / SourcePulse brief:
 
 - **Scraper Studio is the collection plane** — ten collectors, trigger/poll, contracts, run metadata.
 - **Reliability** — Sentinel, quarantine, last-known-good, isolated failure, bounded retries.
-- **Self-healing** — real refactor → preview → validate → approve → re-run; unavailable if not configured.
+- **Self-healing** — real refactor → preview → validate → approve → re-run; production earned **RECOVERED** on the isolated demo collector.
 - **Decision intelligence** — Explorer, Compare, Optimizer, Ask, Change Feed, all provenance-backed.
 - **Honest presentation** — fixtures and simulators are opt-in; production shows empty or unavailable rather than invented success.
 
