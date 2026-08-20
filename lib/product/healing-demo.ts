@@ -216,6 +216,181 @@ export interface HealingDemoHistoryView {
   lastKnownGoodAt: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Historical recovery proof
+// ---------------------------------------------------------------------------
+
+/**
+ * The replay of a recovery that already happened, read back from the rows it
+ * left behind.
+ *
+ * This is deliberately *not* the demo's current state. The phase above says
+ * where the demonstration is parked right now — often "not started" — while
+ * this says what the source has already been through and survived. A judge can
+ * read the proof on a clean stage without either claim contradicting the other,
+ * which is why the two live in separate fields rather than one merged status.
+ *
+ * Every field is derived from persisted evidence: collection runs, Sentinel
+ * incidents, quarantine payload references, healing attempts and canonical
+ * rows. Nothing here is asserted that the database does not already record —
+ * a fact with no row behind it is reported as unavailable rather than invented.
+ * There is no action, dispatch or write anywhere in this shape.
+ */
+export const HEALING_DEMO_RECOVERY_STAGE_IDS = [
+  "trusted_baseline",
+  "source_layout_changed",
+  "invalid_extraction",
+  "sentinel_detected",
+  "quarantined",
+  "last_known_good_preserved",
+  "bright_data_repair",
+  "candidate_validated",
+  "approved",
+  "recovery_rerun",
+  "recovered",
+] as const;
+
+export type HealingDemoRecoveryStageId =
+  (typeof HEALING_DEMO_RECOVERY_STAGE_IDS)[number];
+
+export const HEALING_DEMO_RECOVERY_STAGE_LABELS: Record<
+  HealingDemoRecoveryStageId,
+  string
+> = {
+  trusted_baseline: "Trusted baseline",
+  source_layout_changed: "Source layout changed",
+  invalid_extraction: "Invalid extraction",
+  sentinel_detected: "Sentinel detected the violation",
+  quarantined: "Payload quarantined",
+  last_known_good_preserved: "Last-known-good preserved",
+  bright_data_repair: "Bright Data repaired the collector",
+  candidate_validated: "Candidate validated through the same gate",
+  approved: "Repair approved",
+  recovery_rerun: "Recovery re-run",
+  recovered: "Source recovered",
+};
+
+/**
+ * Whether a stage is a recorded database observation or truthful context.
+ *
+ * `observed` means one or more rows stand behind the stage and its timestamp
+ * is theirs. `context` means the stage describes the demonstration's fixed,
+ * public setup — the two allowlisted layouts — which is true but was never
+ * written to a table as an event. Marking the difference is what stops the
+ * replay from quietly upgrading configuration into evidence.
+ */
+export type HealingDemoRecoveryStageKind = "observed" | "context";
+
+export interface HealingDemoRecoveryEvidenceItem {
+  label: string;
+  value: string;
+}
+
+export interface HealingDemoRecoveryStage {
+  id: HealingDemoRecoveryStageId;
+  /** Fixed position in `HEALING_DEMO_RECOVERY_STAGE_IDS`. Never re-sorted. */
+  order: number;
+  kind: HealingDemoRecoveryStageKind;
+  title: string;
+  /** Recorded time of the row behind the stage; `null` for context stages. */
+  at: string | null;
+  summary: string;
+  evidence: HealingDemoRecoveryEvidenceItem[];
+}
+
+export interface HealingDemoRecoverySourceView {
+  label: string;
+  healthyUrl: string | null;
+  brokenUrl: string | null;
+}
+
+export interface HealingDemoRecoveryCollectorView {
+  /**
+   * The dedicated demo collector. Public: the same identifier is already
+   * published for every source by the sources read model. Never a key.
+   */
+  ref: string | null;
+  /**
+   * True only when every healing attempt on the incident recorded the same
+   * collector, and that collector is the one the recovered source is
+   * registered against.
+   */
+  sameCollectorConfirmed: boolean;
+  sameCollectorEvidence: string | null;
+  refactorJobId: string | null;
+}
+
+export type HealingDemoRecoveryFinalState =
+  | "recovered"
+  | "approved_awaiting_rerun";
+
+export interface HealingDemoRecoverySummaryView {
+  baselineRecords: number | null;
+  failedRecords: number | null;
+  recoveredRecords: number | null;
+  lastKnownGoodPreserved: boolean;
+  lastKnownGoodEvidence: string | null;
+  /** Derived from the canonical row count of the refused run. Never asserted. */
+  zeroBadCanonicalWrites: boolean;
+  canonicalWritesFromInvalidRun: number | null;
+  reasonCodes: string[];
+  finalState: HealingDemoRecoveryFinalState;
+  incidentId: string | null;
+  incidentStatus: SentinelIncidentStatus | null;
+  baselineRunId: string | null;
+  invalidRunId: string | null;
+  recoveryRunId: string | null;
+  /** True when baseline, invalid and recovery are three different runs. */
+  distinctRunIds: boolean;
+}
+
+export interface HealingDemoRecoveryProof {
+  available: boolean;
+  unavailableReason: string | null;
+  /**
+   * Marks the payload as a replay of the past. It is a literal so no caller can
+   * mistake this block for the demo's live state.
+   */
+  isHistorical: true;
+  /** False when any dependency behind the recorded evidence was a double. */
+  isLiveEvidence: boolean;
+  note: string;
+  title: string | null;
+  recoveredAt: string | null;
+  source: HealingDemoRecoverySourceView | null;
+  collector: HealingDemoRecoveryCollectorView | null;
+  summary: HealingDemoRecoverySummaryView | null;
+  stages: HealingDemoRecoveryStage[];
+}
+
+export const HEALING_DEMO_RECOVERY_PROOF_NOTE =
+  "Historical evidence from a recovery that already completed. It is not the "
+  + "demonstration's current phase and no control on this page replays it.";
+
+export function unavailableHealingDemoRecoveryProof(
+  reason: string,
+): HealingDemoRecoveryProof {
+  return {
+    available: false,
+    unavailableReason: reason,
+    isHistorical: true,
+    isLiveEvidence: false,
+    note: HEALING_DEMO_RECOVERY_PROOF_NOTE,
+    title: null,
+    recoveredAt: null,
+    source: null,
+    collector: null,
+    summary: null,
+    stages: [],
+  };
+}
+
+export function healingDemoRecoveryStageOrder(
+  id: HealingDemoRecoveryStageId,
+): number {
+  return HEALING_DEMO_RECOVERY_STAGE_IDS.indexOf(id);
+}
+
 export interface HealingDemoLinks {
   sourceHealthHref: string;
   sourceDetailHref: string | null;
@@ -245,6 +420,11 @@ export interface HealingDemoBackendSnapshot {
   rerun: HealingDemoRerunView | null;
   recovery: HealingDemoRecoveryView | null;
   history: HealingDemoHistoryView | null;
+  /**
+   * Historical recovery evidence. Optional so a backend that has none simply
+   * omits it and the projector reports it unavailable — never fabricated.
+   */
+  recoveryProof?: HealingDemoRecoveryProof | null;
   timeline: HealingDemoTimelineStage[];
   allowedActions: HealingDemoAction[];
   pollAfterMs: number | null;
@@ -279,6 +459,8 @@ export interface HealingDemoReadModel {
   rerun: HealingDemoRerunView | null;
   recovery: HealingDemoRecoveryView | null;
   history: HealingDemoHistoryView | null;
+  /** Always present. `available: false` when no recovery is on record. */
+  recoveryProof: HealingDemoRecoveryProof;
   timeline: HealingDemoTimelineStage[];
   allowedActions: HealingDemoAction[];
   links: HealingDemoLinks;
@@ -442,6 +624,9 @@ export function unavailableHealingDemoReadModel(input?: {
     rerun: null,
     recovery: null,
     history: null,
+    recoveryProof: unavailableHealingDemoRecoveryProof(
+      "The healing demo backend is unavailable, so no persisted recovery evidence could be read.",
+    ),
     timeline: [],
     allowedActions: [],
     links: {
@@ -496,6 +681,13 @@ export function projectHealingDemoSnapshot(
     rerun: snapshot.rerun,
     recovery: snapshot.recovery,
     history: snapshot.history ?? null,
+    // Carried across untouched, or reported unavailable. The projector has no
+    // branch that can manufacture a stage the backend did not report.
+    recoveryProof:
+      snapshot.recoveryProof ??
+      unavailableHealingDemoRecoveryProof(
+        "This healing demo backend reports no persisted recovery evidence.",
+      ),
     timeline: snapshot.timeline,
     allowedActions,
     links: {

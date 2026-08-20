@@ -23,6 +23,9 @@ import type {
   SentinelHealingAttemptRow,
   SentinelIncidentRow,
 } from "../supabase/types";
+import type { HealingDemoRecoveryProof } from "../product/healing-demo";
+import { unavailableHealingDemoRecoveryProof } from "../product/healing-demo";
+import { buildDemoRecoveryProof } from "./recovery-proof";
 import type { DemoHarnessRepository } from "./repository";
 import {
   DEMO_PROVIDER_NAME,
@@ -161,6 +164,12 @@ export interface DemoHealingReadModel {
     recoveredAt: string | null;
   };
   history: DemoHealingHistory;
+  /**
+   * The completed recovery this source has already been through, replayed from
+   * its own rows. Independent of `phase`: a reset stage and a recovered history
+   * are both true at once, and neither is allowed to overwrite the other.
+   */
+  recoveryProof: HealingDemoRecoveryProof;
   timeline: DemoTimelineEntry[];
   evidence: {
     /** False when any Bright Data or Supabase dependency was a double. */
@@ -360,6 +369,30 @@ export async function getDemoHealingReadModel(
   const latestAttempt = attempts[0] ?? null;
   const events = await harness.listEvents(100);
 
+  // Read-only. The proof is assembled from the rows above plus a handful of
+  // extra SELECTs; nothing in this path can start a run or a repair.
+  const sourceCollectorId = state.source_id
+    ? await harness.getSourceCollectorId(state.source_id)
+    : null;
+  const recoveryProof = state.source_id
+    ? await buildDemoRecoveryProof({
+        runs,
+        incidents,
+        attempts,
+        configuration,
+        sourceCollectorId,
+        isLiveEvidence: state.is_live,
+        evidence: {
+          countCanonicalRecordsForRun: (runId) =>
+            harness.countCanonicalRecordsForRun(runId),
+          getQuarantinePayloadForIncident: (incidentId) =>
+            harness.getQuarantinePayloadForIncident(incidentId),
+        },
+      })
+    : unavailableHealingDemoRecoveryProof(
+        "The demo source has never been collected, so there is no recovery evidence.",
+      );
+
   const phase = state.phase;
 
   const model: DemoHealingReadModel = {
@@ -420,6 +453,7 @@ export async function getDemoHealingReadModel(
         phase === "recovered" && currentRunRow ? currentRunRow.completed_at : null,
     },
     history: buildDemoHealingHistory(incidents, attempts),
+    recoveryProof,
     timeline: events.map((event) => ({
       at: event.created_at,
       phase: event.phase,

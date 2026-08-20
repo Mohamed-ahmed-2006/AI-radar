@@ -454,6 +454,10 @@ export function toHealingDemoSnapshot(
     // Carried across verbatim. This is what the source has already done, which
     // stays true after a reset returns the current phase to its start.
     history: { ...model.history },
+    // Likewise historical. The projector does not read `phase` when passing it
+    // through, so a clean current session can never overwrite the replay and a
+    // past recovery can never be presented as the live state.
+    recoveryProof: model.recoveryProof,
     recovery: {
       recovered,
       at: model.recovery.recoveredAt,

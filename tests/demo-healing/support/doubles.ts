@@ -22,6 +22,7 @@ import type {
 } from "../../../lib/demo-healing/persistence";
 import type {
   DemoHarnessRepository,
+  DemoQuarantinePayloadReference,
   DemoStatePatch,
   RecordDemoEventInput,
 } from "../../../lib/demo-healing/repository";
@@ -85,6 +86,8 @@ export function testDemoConfiguration(
 export class FakeDemoPipelineRepository implements DemoPipelineRepository {
   public readonly quoteSnapshots: DemoQuoteSnapshotInput[] = [];
   public readonly runs: CollectionRunRow[] = [];
+  /** What the `sources` row records, as the real upsert would have stored it. */
+  public readonly collectorIdBySource = new Map<string, string | null>();
 
   public async upsertProvider(): Promise<ProviderRow> {
     return {
@@ -103,6 +106,7 @@ export class FakeDemoPipelineRepository implements DemoPipelineRepository {
     collectorId?: string | null;
     label?: string | null;
   }): Promise<SourceRow> {
+    this.collectorIdBySource.set(DEMO_SOURCE_ID, input.collectorId ?? null);
     return {
       id: DEMO_SOURCE_ID,
       provider_id: input.providerId,
@@ -344,6 +348,28 @@ export class InMemoryDemoHarnessRepository implements DemoHarnessRepository {
 
   public async countCanonicalRecordsForRun(runId: string): Promise<number> {
     return this.pipeline.snapshotsForRun(runId).length;
+  }
+
+  public async getQuarantinePayloadForIncident(
+    incidentId: string,
+  ): Promise<DemoQuarantinePayloadReference | null> {
+    const row = this.sentinel.quarantinePayloads.find(
+      (payload) => payload.incident_id === incidentId,
+    );
+    if (!row) return null;
+    // Deliberately narrow: the double returns exactly the columns the real
+    // query selects, so a test cannot pass by reading a payload production
+    // never fetches.
+    return {
+      id: row.id,
+      incidentId: row.incident_id,
+      runId: row.run_id,
+      createdAt: row.created_at,
+    };
+  }
+
+  public async getSourceCollectorId(sourceId: string): Promise<string | null> {
+    return this.pipeline.collectorIdBySource.get(sourceId) ?? null;
   }
 
   public async latestCanonicalRecords(

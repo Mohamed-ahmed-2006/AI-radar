@@ -57,6 +57,21 @@ export interface RecordDemoEventInput {
   detail?: Json;
 }
 
+/**
+ * A quarantine payload row, referenced rather than read.
+ *
+ * Only the identifiers and the timestamp are selected. The raw payload and the
+ * validation errors are deliberately not in this shape, so a quarantined
+ * payload can be *cited* as evidence by a public read model without any part
+ * of it being disclosed.
+ */
+export interface DemoQuarantinePayloadReference {
+  id: string;
+  incidentId: string;
+  runId: string | null;
+  createdAt: string;
+}
+
 export interface DemoHarnessRepository {
   /** Reads the phase marker, creating the initial row on first use. */
   getState(): Promise<SentinelDemoStateRow>;
@@ -75,6 +90,12 @@ export interface DemoHarnessRepository {
   countCanonicalRecords(sourceId: string): Promise<number>;
   countCanonicalRecordsForRun(runId: string): Promise<number>;
   latestCanonicalRecords(sourceId: string, limit?: number): Promise<DemoQuoteSnapshotRow[]>;
+  /** Reference-only. Never returns the isolated payload itself. */
+  getQuarantinePayloadForIncident(
+    incidentId: string,
+  ): Promise<DemoQuarantinePayloadReference | null>;
+  /** The collector the source row is registered against, as persisted. */
+  getSourceCollectorId(sourceId: string): Promise<string | null>;
 }
 
 const INITIAL_STATE: Omit<SentinelDemoStateRow, "created_at" | "updated_at"> = {
@@ -255,6 +276,44 @@ export class SupabaseDemoHarnessRepository implements DemoHarnessRepository {
       .eq("run_id", runId);
     if (error) throw new Error(`Failed to count demo canonical records: ${error.message}`);
     return count ?? 0;
+  }
+
+  public async getQuarantinePayloadForIncident(
+    incidentId: string,
+  ): Promise<DemoQuarantinePayloadReference | null> {
+    // The column list is the guarantee: `raw_payload` and `validation_errors`
+    // are never fetched, so they cannot leak into a payload built from this.
+    const { data, error } = await this.db
+      .from("sentinel_quarantine_payloads")
+      .select("id, incident_id, run_id, created_at")
+      .eq("incident_id", incidentId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to read quarantine payload: ${error.message}`);
+    if (!data) return null;
+    const row = data as unknown as {
+      id: string;
+      incident_id: string;
+      run_id: string | null;
+      created_at: string;
+    };
+    return {
+      id: row.id,
+      incidentId: row.incident_id,
+      runId: row.run_id,
+      createdAt: row.created_at,
+    };
+  }
+
+  public async getSourceCollectorId(sourceId: string): Promise<string | null> {
+    const { data, error } = await this.db
+      .from("sources")
+      .select("collector_id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to read demo source collector: ${error.message}`);
+    return (data as { collector_id: string | null } | null)?.collector_id ?? null;
   }
 
   public async latestCanonicalRecords(
