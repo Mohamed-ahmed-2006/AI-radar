@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   ASK_EXAMPLE_QUERIES,
+  ASK_GROUNDING_PRESETS,
   ASK_GROUNDING_STATEMENT,
   askHref,
   askIntentLabel,
@@ -12,6 +13,7 @@ import {
   getAskAdapter,
   setAskAdapter,
   sourceHref,
+  splitAskExclusionNotes,
   type AskAdapter,
 } from "../../lib/product/ask";
 import {
@@ -34,6 +36,23 @@ test("example queries cover both temporal and decision intents", () => {
   assert.ok(intents.has("decision"));
   assert.equal(askIntentLabel("temporal"), "Temporal");
   assert.equal(askIntentLabel("decision"), "Decision");
+});
+
+test("grounding presets are query buttons only and include fail-closed examples", () => {
+  const queries = ASK_GROUNDING_PRESETS.map((preset) => preset.query);
+  assert.ok(queries.includes("What does GPT-6 cost?"));
+  assert.ok(queries.includes("Does Claude Opus 5 support video input?"));
+  assert.equal(ASK_GROUNDING_PRESETS.length, 4);
+});
+
+test("exclusion notes split on recorded sentences without dropping text", () => {
+  const notes = splitAskExclusionNotes(
+    "o3 vision has not been observed. Grok pricing has never been collected.",
+  );
+  assert.deepEqual(notes, [
+    "o3 vision has not been observed.",
+    "Grok pricing has never been collected.",
+  ]);
 });
 
 test("fixture Ask adapter returns a temporal result with interpreted constraints", async () => {

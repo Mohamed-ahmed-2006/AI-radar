@@ -30,6 +30,7 @@ export * from "./ask";
 export * from "./ask-read-model";
 export * from "./ask-fixture";
 export * from "./healing-demo";
+export * from "./healing-demo-proof-view";
 export * from "./healing-demo-read-model";
 export * from "./healing-demo-fixture";
 

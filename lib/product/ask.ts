@@ -128,6 +128,33 @@ export const ASK_EXAMPLE_QUERIES = [
   },
 ] as const;
 
+export const ASK_GROUNDING_PRESETS = [
+  {
+    id: "gpt-6-cost",
+    query: "What does GPT-6 cost?",
+  },
+  {
+    id: "opus-video",
+    query: "Does Claude Opus 5 support video input?",
+  },
+  {
+    id: "cheap-128k-tools",
+    query: "What is the cheapest active model with at least 128K context and tool calling?",
+  },
+  {
+    id: "claude-month",
+    query: "What changed in Claude this month?",
+  },
+] as const;
+
+/** Split joined missing-evidence notes without changing Ask execution. */
+export function splitAskExclusionNotes(text: string): string[] {
+  return text
+    .split(/(?<=\.)\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 let installedAdapter: AskAdapter | null = null;
 let defaultAdapterFactory: (() => AskAdapter) | null = null;
 

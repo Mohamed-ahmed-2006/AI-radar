@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-import type { AskReadModel } from "../../../lib/product/ask";
+import {
+  splitAskExclusionNotes,
+  type AskReadModel,
+} from "../../../lib/product/ask";
 import { formatAbsoluteTime } from "../../radar/utils";
 import { EmptyState, EvidenceState } from "../../radar/ui/DataState";
 import { Panel } from "../../radar/ui/Panel";
@@ -9,8 +12,37 @@ import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
 import { AskGroundingBanner } from "./AskGroundingBanner";
 import { AskAnswerProse } from "./AskAnswerProse";
 
+const EVIDENCE_PREVIEW = 3;
+
 function intentClass(intent: AskReadModel["intent"]): string {
   return `radar-ask-intent radar-ask-intent-${intent}`;
+}
+
+function ExclusionDisclosure({ text }: { text: string }) {
+  const notes = splitAskExclusionNotes(text);
+  const count = notes.length;
+  const summary =
+    count > 1
+      ? `${count} models excluded because required evidence was unknown or unavailable.`
+      : "Required evidence was unknown or unavailable.";
+
+  return (
+    <details className="radar-ask-exclusions radar-panel">
+      <summary className="radar-panel-header cursor-pointer">
+        <div>
+          <h2 className="radar-panel-title">{summary}</h2>
+          <p className="radar-panel-subtitle">Inspect exclusions</p>
+        </div>
+      </summary>
+      <div className="radar-panel-body">
+        <ul aria-label="Unknown or unavailable evidence">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
 }
 
 export function AskResult({ result }: { result: AskReadModel }) {
@@ -23,6 +55,12 @@ export function AskResult({ result }: { result: AskReadModel }) {
     );
   }
 
+  const changeEvidence = result.evidence.filter((item) => item.kind === "change");
+  const otherEvidence = result.evidence.filter((item) => item.kind !== "change");
+  const previewChanges = changeEvidence.slice(0, EVIDENCE_PREVIEW);
+  const hiddenChanges = changeEvidence.slice(EVIDENCE_PREVIEW);
+  const leadCost = result.calculations[0] ?? null;
+
   return (
     <article className="radar-ask-result" aria-labelledby="ask-result-heading">
       <AskGroundingBanner statement={result.groundingStatement} />
@@ -33,6 +71,8 @@ export function AskResult({ result }: { result: AskReadModel }) {
         subtitle={`${result.intentLabel} query`}
         action={<FreshnessStatus freshness={result.freshness} />}
       >
+        <AskAnswerProse text={result.answer} intent={result.intent} />
+
         <p className="radar-ask-question">
           <span className="radar-subheading">Your question</span>
           <span id="ask-result-heading">{result.question}</span>
@@ -58,21 +98,18 @@ export function AskResult({ result }: { result: AskReadModel }) {
           </section>
         )}
 
-        <AskAnswerProse text={result.answer} intent={result.intent} />
+        {leadCost && (
+          <p className="radar-ask-cost">
+            <span className="radar-subheading">{leadCost.label}</span>
+            <span className="radar-ask-cost-result">{leadCost.result}</span>
+          </p>
+        )}
 
         {result.unsupportedReason && (
           <EvidenceState
             tone="unsupported"
             title="This question is unsupported"
             description={result.unsupportedReason}
-          />
-        )}
-
-        {result.missingData && (
-          <EvidenceState
-            tone="unknown"
-            title="Unknown or missing evidence"
-            description={result.missingData}
           />
         )}
 
@@ -91,6 +128,8 @@ export function AskResult({ result }: { result: AskReadModel }) {
             subject="this answer"
           />
         )}
+
+        {result.missingData && <ExclusionDisclosure text={result.missingData} />}
       </Panel>
 
       {result.calculations.length > 0 && (
@@ -123,75 +162,37 @@ export function AskResult({ result }: { result: AskReadModel }) {
       )}
 
       {result.evidence.length > 0 && (
-        <details className="radar-panel">
+        <details className="radar-panel" {...(changeEvidence.length > EVIDENCE_PREVIEW ? {} : { open: true })}>
           <summary className="radar-panel-header cursor-pointer">
             <div>
               <h2 className="radar-panel-title">Structured evidence</h2>
               <p className="radar-panel-subtitle">
-                {`${result.evidence.length} grounded ${result.evidence.length === 1 ? "row" : "rows"} · expand to inspect`}
+                {changeEvidence.length > 0
+                  ? `${changeEvidence.length} grounded event${changeEvidence.length === 1 ? "" : "s"} found.`
+                  : `${result.evidence.length} grounded ${result.evidence.length === 1 ? "row" : "rows"} · expand to inspect`}
               </p>
             </div>
           </summary>
           <div className="radar-panel-body">
           <ul className="radar-ask-evidence-list" aria-label="Grounded evidence">
-            {result.evidence.map((item) => (
-              <li key={item.id} className={`radar-ask-evidence radar-ask-evidence-${item.kind}`}>
-                <p className="radar-ask-evidence-kind">{item.kind}</p>
-                <h3 className="radar-ask-evidence-title">
-                  {item.href ? (
-                    <Link href={item.href} className="radar-explorer-model-link">
-                      {item.title}
-                    </Link>
-                  ) : (
-                    item.title
-                  )}
-                </h3>
-                <p className="radar-ask-evidence-summary">{item.summary}</p>
-                {item.observedAt && (
-                  <p className="radar-ask-observed">
-                    Observed{" "}
-                    <time dateTime={item.observedAt}>
-                      {formatAbsoluteTime(item.observedAt)}
-                    </time>
-                  </p>
-                )}
-                <div className="radar-optimizer-card-links">
-                  {item.modelCanonicalId && (
-                    <Link
-                      href={`/models/${encodeURIComponent(item.modelCanonicalId)}`}
-                      className="radar-inline-link"
-                    >
-                      Model detail
-                    </Link>
-                  )}
-                  {item.sourceId && (
-                    <Link
-                      href={`/sources/${encodeURIComponent(item.sourceId)}`}
-                      className="radar-inline-link"
-                    >
-                      Source
-                    </Link>
-                  )}
-                  {item.kind === "change" && (
-                    <Link href="/changes" className="radar-inline-link">
-                      Changes
-                    </Link>
-                  )}
-                  {item.href && item.kind === "note" && (
-                    <Link href={item.href} className="radar-inline-link">
-                      Open related view
-                    </Link>
-                  )}
-                </div>
-                {item.provenance && (
-                  <ProvenanceDisclosure
-                    provenance={item.provenance}
-                    subject={item.title}
-                  />
-                )}
-              </li>
+            {(changeEvidence.length > 0 ? previewChanges : result.evidence).map((item) => (
+              <AskEvidenceRow key={item.id} item={item} />
             ))}
+            {changeEvidence.length > 0 &&
+              otherEvidence.map((item) => <AskEvidenceRow key={item.id} item={item} />)}
           </ul>
+          {hiddenChanges.length > 0 && (
+            <details className="radar-ask-more-events">
+              <summary className="radar-inline-link cursor-pointer">
+                Show all {changeEvidence.length} events
+              </summary>
+              <ul className="radar-ask-evidence-list radar-ask-more-events-body" aria-label="All grounded events">
+                {hiddenChanges.map((item) => (
+                  <AskEvidenceRow key={item.id} item={item} />
+                ))}
+              </ul>
+            </details>
+          )}
           </div>
         </details>
       )}
@@ -215,5 +216,65 @@ export function AskResult({ result }: { result: AskReadModel }) {
         </Link>
       </nav>
     </article>
+  );
+}
+
+function AskEvidenceRow({ item }: { item: AskReadModel["evidence"][number] }) {
+  return (
+    <li className={`radar-ask-evidence radar-ask-evidence-${item.kind}`}>
+      <p className="radar-ask-evidence-kind">{item.kind}</p>
+      <h3 className="radar-ask-evidence-title">
+        {item.href ? (
+          <Link href={item.href} className="radar-explorer-model-link">
+            {item.title}
+          </Link>
+        ) : (
+          item.title
+        )}
+      </h3>
+      <p className="radar-ask-evidence-summary">{item.summary}</p>
+      {item.observedAt && (
+        <p className="radar-ask-observed">
+          Observed{" "}
+          <time dateTime={item.observedAt}>
+            {formatAbsoluteTime(item.observedAt)}
+          </time>
+        </p>
+      )}
+      <div className="radar-optimizer-card-links">
+        {item.modelCanonicalId && (
+          <Link
+            href={`/models/${encodeURIComponent(item.modelCanonicalId)}`}
+            className="radar-inline-link"
+          >
+            Model detail
+          </Link>
+        )}
+        {item.sourceId && (
+          <Link
+            href={`/sources/${encodeURIComponent(item.sourceId)}`}
+            className="radar-inline-link"
+          >
+            Source
+          </Link>
+        )}
+        {item.kind === "change" && (
+          <Link href="/changes" className="radar-inline-link">
+            Changes
+          </Link>
+        )}
+        {item.href && item.kind === "note" && (
+          <Link href={item.href} className="radar-inline-link">
+            Open related view
+          </Link>
+        )}
+      </div>
+      {item.provenance && (
+        <ProvenanceDisclosure
+          provenance={item.provenance}
+          subject={item.title}
+        />
+      )}
+    </li>
   );
 }

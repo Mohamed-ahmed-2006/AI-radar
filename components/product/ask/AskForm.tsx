@@ -1,6 +1,6 @@
 "use client";
 
-import { ASK_EXAMPLE_QUERIES } from "../../../lib/product/ask";
+import { ASK_EXAMPLE_QUERIES, ASK_GROUNDING_PRESETS } from "../../../lib/product/ask";
 
 interface AskFormProps {
   query: string;
@@ -49,6 +49,33 @@ export function AskForm({
         </button>
       </div>
     </form>
+  );
+}
+
+export function AskGroundingPresets({
+  onSelect,
+}: {
+  onSelect: (query: string) => void;
+}) {
+  return (
+    <section className="radar-ask-grounding-presets" aria-labelledby="ask-grounding-presets-heading">
+      <h2 id="ask-grounding-presets-heading" className="radar-ask-grounding-title">
+        Try the grounding
+      </h2>
+      <ul className="radar-ask-example-list" aria-label="Grounding preset questions">
+        {ASK_GROUNDING_PRESETS.map((preset) => (
+          <li key={preset.id}>
+            <button
+              type="button"
+              className="radar-ask-example"
+              onClick={() => onSelect(preset.query)}
+            >
+              {preset.query}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

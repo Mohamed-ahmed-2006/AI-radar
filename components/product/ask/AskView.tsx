@@ -9,7 +9,7 @@ import {
 } from "../../../lib/product/ask";
 import { DemoNotice } from "../common/DemoNotice";
 import { ErrorState } from "../../radar/ui/DataState";
-import { AskExamples, AskForm } from "./AskForm";
+import { AskExamples, AskForm, AskGroundingPresets } from "./AskForm";
 import { AskResult } from "./AskResult";
 
 type Status = "ready" | "loading" | "error";
@@ -85,6 +85,13 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
         onChange={setDraft}
         onSubmit={() => submit(draft)}
         busy={status === "loading"}
+      />
+
+      <AskGroundingPresets
+        onSelect={(query) => {
+          setDraft(query);
+          submit(query);
+        }}
       />
 
       <AskExamples

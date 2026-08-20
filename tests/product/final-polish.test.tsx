@@ -32,6 +32,9 @@ test("Dashboard command center exposes live-looking stats without inventing Sent
   );
 
   assert.match(html, /Intelligence Console/);
+  assert.match(html, /AI Radar turns unstable AI-provider websites into trusted, auditable/);
+  assert.match(html, /Bright Data Scraper Studio/);
+  assert.match(html, /Collect \+ repair/);
   // The two model counts answer different questions and are named for it.
   assert.match(html, /Models priced/);
   assert.match(html, /Model identities/);

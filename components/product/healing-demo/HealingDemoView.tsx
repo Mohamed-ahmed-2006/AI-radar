@@ -11,6 +11,8 @@ import {
   type HealingDemoAction,
   type HealingDemoReadModel,
 } from "../../../lib/product/healing-demo";
+import { isCleanHealingDemoSession } from "../../../lib/product/healing-demo-proof-view";
+import { CurrentSessionCard } from "./CurrentSessionCard";
 import { HealingBrightDataPanel } from "./HealingBrightDataPanel";
 import { HealingDemoControls } from "./HealingDemoControls";
 import { HealingDemoIdentityStrip } from "./HealingDemoIdentityStrip";
@@ -21,6 +23,7 @@ import { HealingIncidentPanel } from "./HealingIncidentPanel";
 import { HealingStateMachine } from "./HealingStateMachine";
 import { OperatorUnlock } from "./OperatorUnlock";
 import { HealingTrustComparison } from "./HealingTrustComparison";
+import { RecoveryProofReplay } from "./RecoveryProofReplay";
 
 interface HealingDemoViewProps {
   initial: HealingDemoReadModel;
@@ -138,8 +141,19 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
         {model.busy ? " · in progress" : ""}
       </div>
 
-      <HealingDemoPhaseHero model={model} />
-      <HealingStateMachine model={model} />
+      {model.recoveryProof.available && <CurrentSessionCard model={model} />}
+      {model.recoveryProof.available ? (
+        <RecoveryProofReplay
+          key={model.recoveryProof.recoveredAt ?? model.recoveryProof.title ?? "proof"}
+          proof={model.recoveryProof}
+        />
+      ) : null}
+      {(!model.recoveryProof.available || !isCleanHealingDemoSession(model)) && (
+        <>
+          <HealingDemoPhaseHero model={model} />
+          <HealingStateMachine model={model} />
+        </>
+      )}
       <HealingDemoIdentityStrip model={model} />
 
       <details

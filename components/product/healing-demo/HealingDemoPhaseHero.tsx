@@ -53,9 +53,17 @@ function storyLine(model: HealingDemoReadModel): string {
  * rows. Rendered only when there is a completed recovery on file, so a demo
  * that has genuinely never run still says nothing.
  */
-function HistoryLine({ history, phase }: { history: HealingDemoHistoryView | null; phase: HealingDemoReadModel["phase"] }) {
+function HistoryLine({
+  history,
+  phase,
+  hideHistorical,
+}: {
+  history: HealingDemoHistoryView | null;
+  phase: HealingDemoReadModel["phase"];
+  hideHistorical: boolean;
+}) {
   const ready = phase === "healthy";
-  const recovered = history?.hasCompletedRecovery === true;
+  const recovered = !hideHistorical && history?.hasCompletedRecovery === true;
   const facts = recovered && history
     ? [
         history.lastRecoveryAt ? formatAbsoluteTime(history.lastRecoveryAt) : null,
@@ -108,7 +116,11 @@ export function HealingDemoPhaseHero({ model }: { model: HealingDemoReadModel })
         {(model.phaseLabel ?? "Unavailable").toUpperCase()}
       </p>
       <p className="radar-healing-story">{storyLine(model)}</p>
-      <HistoryLine history={model.history} phase={model.phase} />
+      <HistoryLine
+        history={model.history}
+        phase={model.phase}
+        hideHistorical={model.recoveryProof.available}
+      />
       {/* The badge renders the state as readable text already; a screen-reader
           copy of the same word only made the state appear twice. */}
       {model.sentinelStatus && (

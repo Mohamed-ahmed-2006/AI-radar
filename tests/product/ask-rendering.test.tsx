@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AskExamples, AskForm } from "../../components/product/ask/AskForm";
+import { AskExamples, AskForm, AskGroundingPresets } from "../../components/product/ask/AskForm";
 import { AskGroundingBanner } from "../../components/product/ask/AskGroundingBanner";
 import { AskResult } from "../../components/product/ask/AskResult";
 import { ErrorState, LoadingState } from "../../components/radar/ui/DataState";
@@ -31,6 +31,16 @@ test("Ask examples visibly separate temporal and decision questions", () => {
   assert.match(html, /Cheapest active model with 500K context, vision and tools/);
 });
 
+test("Ask grounding presets are discoverable fail-closed questions", () => {
+  const html = renderToStaticMarkup(<AskGroundingPresets onSelect={() => undefined} />);
+
+  assert.match(html, /Try the grounding/i);
+  assert.match(html, /What does GPT-6 cost\?/);
+  assert.match(html, /Does Claude Opus 5 support video input\?/);
+  assert.match(html, /at least 128K context and tool calling/);
+  assert.match(html, /What changed in Claude this month\?/);
+});
+
 test("temporal Ask result shows the question, interpreted constraints, evidence and timestamps", async () => {
   const result = await createFixtureAskAdapter().ask("What changed in Claude this month?");
   const html = renderToStaticMarkup(<AskResult result={result} />);
@@ -42,6 +52,20 @@ test("temporal Ask result shows the question, interpreted constraints, evidence 
   assert.match(html, /<time datetime="2026-08-19T09:00:00\.000Z"/i);
   assert.match(html, /aria-label="Grounded evidence"/);
   assert.match(html, /Claude Sonnet 4\.5/);
+});
+
+test("Ask exclusions stay available behind disclosure and do not precede the answer", async () => {
+  const result = await createFixtureAskAdapter().ask(
+    "What is the cheapest active model with 500K context, vision and tools?",
+  );
+  const html = renderToStaticMarkup(<AskResult result={result} />);
+  const answerAt = html.indexOf("Gemini 2.5 Pro is the cheapest fit");
+  const exclusionAt = html.indexOf("Inspect exclusions");
+
+  assert.ok(answerAt >= 0);
+  assert.ok(exclusionAt > answerAt);
+  assert.match(html, /excluded because required evidence was unknown or unavailable|Inspect exclusions/);
+  assert.match(html, /o3 vision has not been observed/);
 });
 
 test("decision Ask result shows model-selection evidence, calculations and provenance", async () => {

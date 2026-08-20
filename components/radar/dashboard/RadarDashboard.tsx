@@ -1,5 +1,6 @@
 import type { RadarDashboardData } from "../types";
 import { EvidenceState } from "../ui/DataState";
+import { DashboardThesis } from "./DashboardThesis";
 import { DecisionActions } from "./DecisionActions";
 import { EcosystemStatus } from "./EcosystemStatus";
 import { PricingMatrix } from "./PricingMatrix";
@@ -33,6 +34,8 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
           )}
         </p>
       </div>
+
+      <DashboardThesis />
 
       {data.unavailableReason ? (
         <>

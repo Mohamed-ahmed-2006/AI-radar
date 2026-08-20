@@ -1,3 +1,4 @@
+export { CurrentSessionCard } from "./CurrentSessionCard";
 export { HealingBrightDataPanel } from "./HealingBrightDataPanel";
 export { HealingDemoControls } from "./HealingDemoControls";
 export { HealingDemoIdentityStrip } from "./HealingDemoIdentityStrip";
@@ -8,3 +9,5 @@ export { HealingDemoView } from "./HealingDemoView";
 export { HealingIncidentPanel } from "./HealingIncidentPanel";
 export { OperatorUnlock } from "./OperatorUnlock";
 export { HealingTrustComparison } from "./HealingTrustComparison";
+export { RecoveryLayoutCompare } from "./RecoveryLayoutCompare";
+export { RecoveryProofReplay } from "./RecoveryProofReplay";

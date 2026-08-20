@@ -12,6 +12,9 @@
 import type { SentinelSnapshotView } from "../../components/radar/sentinel/types";
 import {
   DEFAULT_HEALING_DEMO_IDENTITY,
+  HEALING_DEMO_RECOVERY_PROOF_NOTE,
+  HEALING_DEMO_RECOVERY_STAGE_IDS,
+  HEALING_DEMO_RECOVERY_STAGE_LABELS,
   HEALING_DEMO_TIMELINE_STEPS,
   projectHealingDemoSnapshot,
   type HealingDemoAction,
@@ -19,6 +22,9 @@ import {
   type HealingDemoBackendSnapshot,
   type HealingDemoPhase,
   type HealingDemoReadModel,
+  type HealingDemoRecoveryProof,
+  type HealingDemoRecoveryStage,
+  type HealingDemoRecoveryStageId,
   type HealingDemoTimelineStage,
 } from "./healing-demo";
 
@@ -485,4 +491,197 @@ export function createFixtureHealingDemoAdapter(
       return fixtureHealingDemoReadModel(phase);
     },
   };
+}
+
+/**
+ * UI-test double of Claude's historical proof shape. Never registered as the
+ * production adapter snapshot — attach it explicitly in rendering tests.
+ */
+export function fixtureHistoricalRecoveryProof(): HealingDemoRecoveryProof {
+  const stage = (
+    id: HealingDemoRecoveryStageId,
+    input: Omit<HealingDemoRecoveryStage, "id" | "order" | "title">,
+  ): HealingDemoRecoveryStage => ({
+    id,
+    order: HEALING_DEMO_RECOVERY_STAGE_IDS.indexOf(id),
+    title: HEALING_DEMO_RECOVERY_STAGE_LABELS[id],
+    ...input,
+  });
+
+  return {
+    available: true,
+    unavailableReason: null,
+    isHistorical: true,
+    isLiveEvidence: true,
+    note: HEALING_DEMO_RECOVERY_PROOF_NOTE,
+    title: "Verified recovery · Sentinel self-healing demo source",
+    recoveredAt: "2026-08-20T09:56:59.462Z",
+    source: {
+      label: "Sentinel self-healing demo source",
+      healthyUrl: "https://ai-radar-orpin.vercel.app/demo-source/healthy",
+      brokenUrl: "https://ai-radar-orpin.vercel.app/demo-source/broken",
+    },
+    collector: {
+      ref: FIXTURE_HEALING_DEMO_COLLECTOR_ID,
+      sameCollectorConfirmed: true,
+      sameCollectorEvidence:
+        "All 3 healing attempts recorded collector c_healing_demo_studio, which is the collector the recovered source is registered against.",
+      refactorJobId: "ia_test_refactor_job",
+    },
+    summary: {
+      baselineRecords: 10,
+      failedRecords: 0,
+      recoveredRecords: 10,
+      lastKnownGoodPreserved: true,
+      lastKnownGoodEvidence:
+        "Baseline run run-lkg-healthy held 10 records when the incident opened and still holds 10 canonical rows.",
+      zeroBadCanonicalWrites: true,
+      canonicalWritesFromInvalidRun: 0,
+      reasonCodes: ["ZERO_RECORDS"],
+      finalState: "recovered",
+      incidentId: "inc-healing-demo",
+      incidentStatus: "resolved",
+      baselineRunId: "run-lkg-healthy",
+      invalidRunId: "run-candidate-broken",
+      recoveryRunId: "run-candidate-healed",
+      distinctRunIds: true,
+    },
+    stages: [
+      stage("trusted_baseline", {
+        kind: "observed",
+        at: "2026-08-20T09:55:08.310Z",
+        summary:
+          "The collector ran against the layout its extraction template was built against and Sentinel accepted every record.",
+        evidence: [
+          { label: "Baseline run", value: "run-lkg-healthy" },
+          { label: "Records seen", value: "10" },
+          { label: "Records accepted", value: "10" },
+          { label: "Canonical rows written", value: "10" },
+        ],
+      }),
+      stage("source_layout_changed", {
+        kind: "context",
+        at: null,
+        summary:
+          "The demo source publishes the same records under two layouts: quote cards, and the same records re-rendered as a table.",
+        evidence: [
+          { label: "Healthy layout", value: "https://ai-radar-orpin.vercel.app/demo-source/healthy" },
+          { label: "Changed layout", value: "https://ai-radar-orpin.vercel.app/demo-source/broken" },
+        ],
+      }),
+      stage("invalid_extraction", {
+        kind: "observed",
+        at: "2026-08-20T09:55:20.371Z",
+        summary: "The same collector ran and returned an extraction the contract could not accept.",
+        evidence: [
+          { label: "Run", value: "run-candidate-broken" },
+          { label: "Run status", value: "failed" },
+          { label: "Records seen", value: "0" },
+          { label: "Records accepted", value: "0" },
+          { label: "Collector error", value: "Collector output contains zero records" },
+        ],
+      }),
+      stage("sentinel_detected", {
+        kind: "observed",
+        at: "2026-08-20T09:55:22.704Z",
+        summary: "Collector output contains zero records",
+        evidence: [
+          { label: "Incident", value: "inc-healing-demo" },
+          { label: "Severity", value: "critical" },
+          { label: "Reason codes", value: "ZERO_RECORDS" },
+          { label: "Records seen", value: "0" },
+          { label: "Records valid", value: "0" },
+          { label: "Expected records", value: "10" },
+        ],
+      }),
+      stage("quarantined", {
+        kind: "observed",
+        at: "2026-08-20T09:55:22.800Z",
+        summary:
+          "The refused payload was isolated against the incident so healing and review had the evidence, and no part of it reached a canonical table.",
+        evidence: [
+          { label: "Quarantine record", value: "q-healing-demo" },
+          { label: "Quarantined run", value: "run-candidate-broken" },
+          { label: "Canonical writes from this run", value: "0" },
+        ],
+      }),
+      stage("last_known_good_preserved", {
+        kind: "observed",
+        at: "2026-08-20T09:55:08.310Z",
+        summary:
+          "The previous trusted run stayed the newest accepted run throughout the incident, so the canonical store kept serving it.",
+        evidence: [
+          { label: "Last-known-good run", value: "run-lkg-healthy" },
+          { label: "Records at incident time", value: "10" },
+          { label: "Canonical rows today", value: "10" },
+        ],
+      }),
+      stage("bright_data_repair", {
+        kind: "observed",
+        at: "2026-08-20T09:55:21.560Z",
+        summary:
+          "Bright Data was asked to refactor the extraction on the same dedicated collector. No production collector was involved.",
+        evidence: [
+          { label: "Healing attempt", value: "attempt-preview" },
+          { label: "Attempt number", value: "1" },
+          { label: "Collector", value: FIXTURE_HEALING_DEMO_COLLECTOR_ID },
+          { label: "Refactor job", value: "ia_test_refactor_job" },
+        ],
+      }),
+      stage("candidate_validated", {
+        kind: "observed",
+        at: "2026-08-20T09:56:42.073Z",
+        summary:
+          "The repaired candidate was judged by the same contract that refused the original payload, and passed.",
+        evidence: [
+          { label: "Healing attempt", value: "attempt-approved" },
+          { label: "Preview records", value: "10" },
+          { label: "Contract verdict", value: "passed" },
+          { label: "Attempt status", value: "approved" },
+        ],
+      }),
+      stage("approved", {
+        kind: "observed",
+        at: "2026-08-20T09:56:42.238Z",
+        summary:
+          "The validated candidate was approved and saved to the collector, and the incident was resolved.",
+        evidence: [
+          { label: "Approved attempt", value: "attempt-approved" },
+          { label: "Attempt status", value: "approved" },
+          { label: "Incident status", value: "resolved" },
+          { label: "Resolved at", value: "2026-08-20T09:56:42.238Z" },
+        ],
+      }),
+      stage("recovery_rerun", {
+        kind: "observed",
+        at: "2026-08-20T09:56:59.462Z",
+        summary:
+          "The repaired collector ran again — a separate run from the one that failed — and went through the same gate.",
+        evidence: [
+          { label: "Recovery run", value: "run-candidate-healed" },
+          { label: "Run status", value: "succeeded" },
+          { label: "Records seen", value: "10" },
+          { label: "Records accepted", value: "10" },
+          { label: "Distinct from failed run", value: "run-candidate-broken" },
+        ],
+      }),
+      stage("recovered", {
+        kind: "observed",
+        at: "2026-08-20T09:56:59.462Z",
+        summary: "Sentinel accepted the run and the source returned to serving trusted data.",
+        evidence: [
+          { label: "Final incident status", value: "resolved" },
+          { label: "Canonical rows from the recovery run", value: "10" },
+          { label: "Recovered at", value: "2026-08-20T09:56:59.462Z" },
+        ],
+      }),
+    ],
+  };
+}
+
+export function fixtureHealingDemoReadModelWithProof(
+  phase: HealingDemoPhase = "healthy",
+): HealingDemoReadModel {
+  const model = fixtureHealingDemoReadModel(phase);
+  return { ...model, recoveryProof: fixtureHistoricalRecoveryProof() };
 }
