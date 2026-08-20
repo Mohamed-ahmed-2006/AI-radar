@@ -17,8 +17,10 @@ import { EvidenceBanner } from "./EvidenceBanner";
 import { ModelExplorerCards } from "./ModelExplorerCards";
 import { ModelExplorerFilters } from "./ModelExplorerFilters";
 import { ModelExplorerTable } from "./ModelExplorerTable";
+import { ModelQuickView } from "./ModelQuickView";
 
 type CatalogStatus = "ready" | "loading" | "error";
+type ViewMode = "table" | "cards";
 
 interface ModelExplorerViewProps {
   initialCatalog: ModelExplorerCatalog;
@@ -36,6 +38,9 @@ export function ModelExplorerView({
   const [selectedIds, setSelectedIds] = useState<string[]>(initialCompareIds);
   const [status, setStatus] = useState<CatalogStatus>("ready");
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [view, setView] = useState<ViewMode>("table");
+  const [inspectId, setInspectId] = useState<string | null>(null);
   const isFirstRender = useRef(true);
 
   const filterQuery = (() => {
@@ -89,6 +94,24 @@ export function ModelExplorerView({
     return map;
   }, [catalog.models]);
 
+  const visibleModels = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return catalog.models;
+    return catalog.models.filter((model) => {
+      const haystack = [
+        model.identity.displayName,
+        model.identity.providerName,
+        model.identity.apiModelId ?? "",
+        model.identity.canonicalId,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [catalog.models, search]);
+
+  const inspected = visibleModels.find((model) => model.identity.canonicalId === inspectId) ?? null;
+
   const onToggle = useCallback((canonicalId: string) => {
     setSelectedIds((current) => toggleCompareId(current, canonicalId));
   }, []);
@@ -104,10 +127,76 @@ export function ModelExplorerView({
         providerOptions={catalog.providerOptions}
         lifecycleOptions={catalog.lifecycleOptions}
         onChange={setFilters}
-        matching={catalog.totalMatching}
+        matching={search.trim() ? visibleModels.length : catalog.totalMatching}
         total={catalog.totalUnfiltered}
         busy={status === "loading"}
+        search={search}
+        onSearchChange={setSearch}
       />
+
+      <Panel
+        id="model-catalog"
+        title="Model catalog"
+        subtitle={`${visibleModels.length} model${visibleModels.length === 1 ? "" : "s"} · prices per 1M tokens`}
+        action={
+          <div className="radar-tablist radar-view-toggle" role="group" aria-label="Catalog layout">
+            <button
+              type="button"
+              className="radar-tab"
+              aria-pressed={view === "table"}
+              onClick={() => setView("table")}
+            >
+              Table
+            </button>
+            <button
+              type="button"
+              className="radar-tab"
+              aria-pressed={view === "cards"}
+              onClick={() => setView("cards")}
+            >
+              Cards
+            </button>
+          </div>
+        }
+      >
+        {status === "loading" ? (
+          <LoadingState title="Loading models…" />
+        ) : status === "error" ? (
+          <ErrorState
+            title="The model catalog could not be read"
+            description={error ?? undefined}
+          />
+        ) : view === "cards" ? (
+          <ModelExplorerCards
+            models={visibleModels}
+            selectedIds={selectedIds}
+            onToggle={onToggle}
+            compareLimitReached={compareLimitReached}
+            onInspect={setInspectId}
+          />
+        ) : (
+          <>
+            <div className="radar-explorer-desktop">
+              <ModelExplorerTable
+                models={visibleModels}
+                selectedIds={selectedIds}
+                onToggle={onToggle}
+                compareLimitReached={compareLimitReached}
+                onInspect={setInspectId}
+              />
+            </div>
+            <div className="radar-explorer-mobile">
+              <ModelExplorerCards
+                models={visibleModels}
+                selectedIds={selectedIds}
+                onToggle={onToggle}
+                compareLimitReached={compareLimitReached}
+                onInspect={setInspectId}
+              />
+            </div>
+          </>
+        )}
+      </Panel>
 
       <CompareBar
         selectedIds={selectedIds}
@@ -117,39 +206,7 @@ export function ModelExplorerView({
         onClear={() => setSelectedIds([])}
       />
 
-      <Panel
-        id="model-catalog"
-        title="Model catalog"
-        subtitle={`${catalog.totalMatching} model${catalog.totalMatching === 1 ? "" : "s"} · prices per 1M tokens`}
-      >
-        {status === "loading" ? (
-          <LoadingState title="Loading models…" />
-        ) : status === "error" ? (
-          <ErrorState
-            title="The model catalog could not be read"
-            description={error ?? undefined}
-          />
-        ) : (
-          <>
-            <div className="radar-explorer-desktop">
-              <ModelExplorerTable
-                models={catalog.models}
-                selectedIds={selectedIds}
-                onToggle={onToggle}
-                compareLimitReached={compareLimitReached}
-              />
-            </div>
-            <div className="radar-explorer-mobile">
-              <ModelExplorerCards
-                models={catalog.models}
-                selectedIds={selectedIds}
-                onToggle={onToggle}
-                compareLimitReached={compareLimitReached}
-              />
-            </div>
-          </>
-        )}
-      </Panel>
+      <ModelQuickView model={inspected} onClose={() => setInspectId(null)} />
     </div>
   );
 }

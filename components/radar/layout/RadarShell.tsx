@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RadarHeader } from "./RadarHeader";
+import { RadarChrome } from "./RadarChrome";
 
 interface RadarShellProps {
   children: ReactNode;
@@ -9,15 +9,16 @@ interface RadarShellProps {
 
 export function RadarShell({ children, isMock, footer }: RadarShellProps) {
   return (
-    <div className="radar-shell min-h-full flex flex-col">
+    <div className="radar-shell min-h-full">
       <a href="#radar-main" className="radar-skip-link">
         Skip to content
       </a>
-      <RadarHeader isMock={isMock} />
-      <main id="radar-main" className="radar-main flex-1" tabIndex={-1}>
-        {children}
-      </main>
-      {footer && <footer className="radar-footer">{footer}</footer>}
+      <RadarChrome isMock={isMock}>
+        <main id="radar-main" className="radar-main flex-1" tabIndex={-1}>
+          {children}
+        </main>
+        {footer && <footer className="radar-footer">{footer}</footer>}
+      </RadarChrome>
     </div>
   );
 }

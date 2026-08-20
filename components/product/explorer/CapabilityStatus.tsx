@@ -18,7 +18,7 @@ export function CapabilityStatus({
   const text = compact ? value.label : value.description;
 
   return (
-    <span className={`radar-capability radar-capability-${tone}`}>
+    <span className={`radar-capability radar-capability-${tone}${tone === "unknown" ? " radar-unknown-quiet" : ""}`}>
       <span className="radar-capability-mark" aria-hidden="true">
         {tone === "supported" ? "●" : tone === "unsupported" ? "○" : "–"}
       </span>

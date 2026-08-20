@@ -1,20 +1,31 @@
 @import "tailwindcss";
+@import "./console.css";
 
 :root {
-  --radar-bg: #0b0e14;
-  --radar-surface: #12161f;
-  --radar-surface-raised: #1a1f2b;
-  --radar-border: #252b38;
-  --radar-border-subtle: #1e2430;
-  --radar-text-primary: #e8eaed;
+  --radar-bg: #07080c;
+  --radar-surface: #101218;
+  --radar-surface-raised: #161920;
+  --radar-surface-overlay: #1b1f28;
+  --radar-border: #262b36;
+  --radar-border-subtle: #1c212b;
+  --radar-text-primary: #f1f3f5;
   --radar-text-secondary: #9aa3b2;
-  --radar-text-muted: #5c6578;
+  --radar-text-muted: #6a7384;
   --radar-signal: #3dd68c;
-  --radar-info: #5b9fd4;
+  --radar-accent: #3dd68c;
+  --radar-info: #6ba3d6;
   --radar-warn: #e5a84b;
   --radar-danger: #e85d5d;
   --radar-muted: #6b7385;
-  --radar-grid: rgba(61, 214, 140, 0.04);
+  --radar-grid: rgba(61, 214, 140, 0.035);
+  --radar-radius-sm: 4px;
+  --radar-radius: 8px;
+  --radar-radius-lg: 12px;
+  --radar-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
+  --radar-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --radar-duration: 180ms;
+  --radar-sidebar: 15.25rem;
+  --radar-topbar: 2.75rem;
 }
 
 @theme inline {
@@ -51,16 +62,11 @@ body {
 }
 
 /* ── Shell ─────────────────────────────────────────────── */
+/* Layout, sidebar and motion live in console.css so this file can keep
+   product-surface class contracts the tests already pin. */
 
 .radar-shell {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 214, 140, 0.06), transparent),
-    linear-gradient(var(--radar-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--radar-grid) 1px, transparent 1px),
-    var(--radar-bg);
-  background-size: 100% 100%, 24px 24px, 24px 24px, 100% 100%;
-  overflow-x: clip;
-  max-width: 100%;
+  /* Intentionally empty: console.css owns the application chrome. */
 }
 
 .radar-skip-link {
@@ -217,11 +223,7 @@ body {
 }
 
 .radar-main {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 1.25rem 1rem 2rem;
-  width: 100%;
-  overflow-x: clip;
+  max-width: 1600px;
 }
 
 .radar-footer {

@@ -146,10 +146,15 @@ export function OptimizerModelCard({
         </p>
       )}
 
-      <RequirementChecks
-        checks={result.requirementChecks}
-        subject={identity.displayName}
-      />
+      <details className="radar-provenance">
+        <summary className="radar-provenance-summary">
+          <span className="radar-provenance-summary-label">Decision detail</span>
+        </summary>
+        <RequirementChecks
+          checks={result.requirementChecks}
+          subject={identity.displayName}
+        />
+      </details>
 
       <div className="radar-optimizer-card-links">
         <Link href={modelDetailHref(identity.canonicalId)} className="radar-inline-link">

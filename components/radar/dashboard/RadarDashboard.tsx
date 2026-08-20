@@ -4,10 +4,12 @@ import { DecisionActions } from "./DecisionActions";
 import { EcosystemStatus } from "./EcosystemStatus";
 import { PricingMatrix } from "./PricingMatrix";
 import { ProviderHealthOverview } from "./ProviderHealthOverview";
+import { RadarPulse } from "./RadarPulse";
 import { RecentChangesFeed } from "./RecentChangesFeed";
 import { SourceFreshnessPanel } from "./SourceFreshnessPanel";
 import { SourceProvenance } from "./SourceProvenance";
 import { StackPulseCard } from "./StackPulseCard";
+import Link from "next/link";
 
 interface RadarDashboardProps {
   data: RadarDashboardData;
@@ -15,6 +17,8 @@ interface RadarDashboardProps {
 }
 
 export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
+  const latest = data.changes[0];
+
   return (
     <div className="radar-dashboard">
       <div className="radar-dashboard-intro">
@@ -40,17 +44,37 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
         />
       ) : (
         <>
-          <EcosystemStatus
-            data={data.ecosystem}
-            sentinel={data.sentinel}
-            loading={loading}
-          />
+          <div className="radar-command-hero radar-stagger">
+            <RadarPulse
+              modelCount={data.ecosystem.modelsTracked}
+              status={data.ecosystem.status}
+            />
+            <div className="flex min-w-0 flex-col gap-3">
+              <EcosystemStatus
+                data={data.ecosystem}
+                sentinel={data.sentinel}
+                loading={loading}
+              />
+              {latest && (
+                <p className="radar-ticker">
+                  <span className="radar-ticker-label">Latest change</span>
+                  <span className="radar-ticker-copy">
+                    {latest.provider}
+                    {latest.model ? ` · ${latest.model}` : ""} — {latest.summary}
+                  </span>
+                  <Link href="/changes" className="radar-inline-link shrink-0">
+                    Feed
+                  </Link>
+                </p>
+              )}
+            </div>
+          </div>
 
           <div className="radar-dashboard-grid">
             <div className="radar-dashboard-primary">
-              <RecentChangesFeed changes={data.changes} loading={loading} />
+              <RecentChangesFeed changes={data.changes} loading={loading} maxItems={5} />
             </div>
-            <div className="radar-dashboard-secondary space-y-4">
+            <div className="radar-dashboard-secondary space-y-3">
               <StackPulseCard changes={data.changes} />
               <ProviderHealthOverview providers={data.providers} loading={loading} />
               <SourceFreshnessPanel sources={data.sources} loading={loading} />
@@ -62,7 +86,17 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
             </div>
           </div>
 
-          <PricingMatrix models={data.models} loading={loading} />
+          <details className="radar-panel">
+            <summary className="radar-panel-header cursor-pointer">
+              <div>
+                <h2 className="radar-panel-title">Model pricing matrix</h2>
+                <p className="radar-panel-subtitle">Expand for per-million-token rates</p>
+              </div>
+            </summary>
+            <div className="radar-panel-body">
+              <PricingMatrix models={data.models} loading={loading} />
+            </div>
+          </details>
         </>
       )}
     </div>

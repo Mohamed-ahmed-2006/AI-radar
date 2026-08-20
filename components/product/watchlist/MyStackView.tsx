@@ -10,6 +10,7 @@ import {
   partitionWatchedChanges,
 } from "../../../lib/product/change-feed";
 import { watchlistLabel } from "../../../lib/product/watchlist";
+import Link from "next/link";
 import { EmptyState, ErrorState, LoadingState } from "../../radar/ui/DataState";
 import { Panel } from "../../radar/ui/Panel";
 import { formatAbsoluteTime } from "../../radar/utils";
@@ -97,7 +98,23 @@ export function MyStackView({ initialFeed, filters }: MyStackViewProps) {
           ) : entries.length === 0 ? (
             <EmptyState
               title="No models in your stack yet"
-              description="Open the change feed and add a model to start tracking pricing and lifecycle moves that affect it."
+              description="My Stack is a local watchlist for the models you depend on. Browse the catalog, add models, then compare or optimize them. Your stack stays in this browser only."
+              action={
+                <div className="radar-empty-actions">
+                  <Link href="/models" className="radar-compare-go">
+                    Browse models
+                  </Link>
+                  <Link href="/models" className="radar-secondary-button">
+                    Add models
+                  </Link>
+                  <Link href="/models/compare" className="radar-inline-link">
+                    Compare
+                  </Link>
+                  <Link href="/optimizer" className="radar-inline-link">
+                    Optimizer
+                  </Link>
+                </div>
+              }
             />
           ) : (
             <ul className="radar-stack-list" aria-label="Models in My Stack">

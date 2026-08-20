@@ -17,9 +17,22 @@ export function SourceDirectoryList({ entries }: { entries: readonly SourceDirec
   }
 
   return (
-    <ul className="radar-source-directory" aria-label="Tracked collection sources">
+    <div className="radar-table-scroll">
+    <table className="radar-table radar-source-table w-full" aria-label="Tracked collection sources">
+      <thead>
+        <tr>
+          <th scope="col" className="radar-table-head text-left">Source</th>
+          <th scope="col" className="radar-table-head text-left">Provider</th>
+          <th scope="col" className="radar-table-head text-left">Category</th>
+          <th scope="col" className="radar-table-head text-left">Health</th>
+          <th scope="col" className="radar-table-head text-right">Records</th>
+          <th scope="col" className="radar-table-head text-left">Latest run</th>
+        </tr>
+      </thead>
+      <tbody>
       {entries.map((entry) => (
-        <li key={entry.sourceId}>
+        <tr key={entry.sourceId} className="radar-table-row">
+          <td className="radar-table-cell">
           <Link
             href={`/sources/${encodeURIComponent(entry.sourceId)}`}
             className="radar-source-row"
@@ -30,18 +43,16 @@ export function SourceDirectoryList({ entries }: { entries: readonly SourceDirec
                 {entry.name}
               </span>
               <span className="radar-source-row-meta">
-                {entry.providerName}
-                <span aria-hidden="true"> · </span>
-                {entry.category}
                 {entry.collectorId && (
-                  <>
-                    <span aria-hidden="true"> · </span>
-                    <span className="font-mono">{entry.collectorId}</span>
-                  </>
+                  <span className="font-mono">{entry.collectorId}</span>
                 )}
               </span>
             </span>
-
+          </Link>
+          </td>
+          <td className="radar-table-cell">{entry.providerName}</td>
+          <td className="radar-table-cell">{entry.category}</td>
+          <td className="radar-table-cell">
             <span className="radar-source-row-side">
               <Badge
                 variant={
@@ -57,19 +68,26 @@ export function SourceDirectoryList({ entries }: { entries: readonly SourceDirec
                 {entry.statusLabel}
               </Badge>
               {entry.hasOpenIncident && <Badge variant="critical">Open incident</Badge>}
-              <span className="radar-source-row-time">
-                {entry.lastRunAt ? (
-                  <time dateTime={entry.lastRunAt} title={formatAbsoluteTime(entry.lastRunAt)}>
-                    {formatRelativeTime(entry.lastRunAt)}
-                  </time>
-                ) : (
-                  "never collected"
-                )}
-              </span>
             </span>
-          </Link>
-        </li>
+          </td>
+          <td className="radar-table-cell text-right tabular-nums">
+            {entry.recordCount ?? "—"}
+          </td>
+          <td className="radar-table-cell">
+            <span className="radar-source-row-time">
+              {entry.lastRunAt ? (
+                <time dateTime={entry.lastRunAt} title={formatAbsoluteTime(entry.lastRunAt)}>
+                  {formatRelativeTime(entry.lastRunAt)}
+                </time>
+              ) : (
+                "never collected"
+              )}
+            </span>
+          </td>
+        </tr>
       ))}
-    </ul>
+      </tbody>
+    </table>
+    </div>
   );
 }

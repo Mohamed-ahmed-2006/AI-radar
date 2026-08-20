@@ -62,7 +62,8 @@ export function OptimizerView({
   }, []);
 
   return (
-    <div className="radar-surface-stack">
+    <div className="radar-optimizer-split">
+      <div className="radar-optimizer-config radar-surface-stack">
       {result.isDemo && (
         <DemoNotice title="Demonstration optimizer ranking">
           Estimated monthly cost, eligibility and rank are supplied by a
@@ -79,7 +80,9 @@ export function OptimizerView({
         onSubmit={() => submit(draft)}
         busy={status === "loading"}
       />
+      </div>
 
+      <div className="radar-optimizer-results">
       {status === "loading" ? (
         <LoadingState title="Finding the best fit…" />
       ) : status === "error" ? (
@@ -90,6 +93,7 @@ export function OptimizerView({
       ) : (
         <OptimizerResults result={result} />
       )}
+      </div>
     </div>
   );
 }

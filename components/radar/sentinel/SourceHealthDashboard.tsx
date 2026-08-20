@@ -117,6 +117,33 @@ export function SourceHealthDashboard({
         <>
           <SentinelSummaryHeader summary={view.summary} />
 
+          <div className="radar-health-counts" aria-label="Fleet health">
+            <div className="radar-health-count">
+              <p className="radar-stat-label">Healthy</p>
+              <p className="radar-health-count-value radar-health-count-healthy">
+                {view.summary.statusCounts.healthy}
+              </p>
+            </div>
+            <div className="radar-health-count">
+              <p className="radar-stat-label">Recovered</p>
+              <p className="radar-health-count-value radar-health-count-recovered">
+                {view.summary.statusCounts.recovered}
+              </p>
+            </div>
+            <div className="radar-health-count">
+              <p className="radar-stat-label">Healing</p>
+              <p className="radar-health-count-value radar-health-count-healing">
+                {view.summary.statusCounts.healing}
+              </p>
+            </div>
+            <div className="radar-health-count">
+              <p className="radar-stat-label">Degraded</p>
+              <p className="radar-health-count-value radar-health-count-degraded">
+                {view.summary.statusCounts.degraded}
+              </p>
+            </div>
+          </div>
+
           {spotlight && <IncidentSpotlight source={spotlight} />}
 
           {/* Omitted when the spotlight is the whole fleet, rather than

@@ -108,6 +108,24 @@ export const ASK_EXAMPLE_QUERIES = [
     label: "Compare eligible Anthropic and OpenAI options",
     query: "Compare eligible Anthropic and OpenAI options.",
   },
+  {
+    id: "temporal-week",
+    intent: "temporal" as const,
+    label: "What changed this week?",
+    query: "What changed this week?",
+  },
+  {
+    id: "decision-128k-tools",
+    intent: "decision" as const,
+    label: "What's the cheapest active model with 128K context and tools?",
+    query: "What's the cheapest active model with 128K context and tools?",
+  },
+  {
+    id: "decision-sonnet-gemini",
+    intent: "decision" as const,
+    label: "Compare Claude Sonnet 5 and Gemini 2.5 Pro.",
+    query: "Compare Claude Sonnet 5 and Gemini 2.5 Pro.",
+  },
 ] as const;
 
 let installedAdapter: AskAdapter | null = null;

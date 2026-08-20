@@ -8,7 +8,7 @@ import {
   type AskReadModel,
 } from "../../../lib/product/ask";
 import { DemoNotice } from "../common/DemoNotice";
-import { ErrorState, LoadingState } from "../../radar/ui/DataState";
+import { ErrorState } from "../../radar/ui/DataState";
 import { AskExamples, AskForm } from "./AskForm";
 import { AskResult } from "./AskResult";
 
@@ -70,7 +70,8 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
   const showDemo = result?.isDemo === true;
 
   return (
-    <div className="radar-surface-stack">
+    <div className="radar-ask-split">
+      <div className="radar-ask-composer radar-surface-stack">
       {showDemo && (
         <DemoNotice title="Demonstration grounded answers">
           Example questions are answered from a replaceable fixture adapter.
@@ -92,9 +93,14 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
           submit(query);
         }}
       />
+      </div>
 
+      <div>
       {status === "loading" ? (
-        <LoadingState title="Reading trusted evidence…" />
+        <div className="radar-ask-reasoning" role="status" aria-live="polite" aria-busy="true">
+          <span className="radar-spinner" aria-hidden="true" />
+          Reading trusted evidence… assembling observed records, not a chain of thought.
+        </div>
       ) : status === "error" ? (
         <ErrorState
           title="Ask AI Radar could not be read"
@@ -103,6 +109,7 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
       ) : (
         <AskResult result={result ?? emptyAskReadModel()} />
       )}
+      </div>
     </div>
   );
 }

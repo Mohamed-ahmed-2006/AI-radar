@@ -14,6 +14,7 @@ interface ModelExplorerCardsProps {
   selectedIds: readonly string[];
   onToggle: (canonicalId: string) => void;
   compareLimitReached: boolean;
+  onInspect?: (canonicalId: string) => void;
 }
 
 function lifecycleVariant(
@@ -31,6 +32,7 @@ export function ModelExplorerCards({
   selectedIds,
   onToggle,
   compareLimitReached,
+  onInspect,
 }: ModelExplorerCardsProps) {
   if (models.length === 0) {
     return (
@@ -121,6 +123,16 @@ export function ModelExplorerCards({
                 </dd>
               </div>
             </dl>
+
+            {onInspect && (
+              <button
+                type="button"
+                className="radar-ghost-button mt-3"
+                onClick={() => onInspect(id)}
+              >
+                Quick view
+              </button>
+            )}
 
             <ProvenanceDisclosure
               provenance={model.provenance}

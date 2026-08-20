@@ -30,13 +30,15 @@ export function EmptyState({ title, description, icon, action }: DataStateProps)
 export function LoadingState({ title = "Loading data…" }: { title?: string }) {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-3 py-10 px-4"
+      className="flex flex-col gap-3 py-6 px-1"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="radar-spinner" aria-hidden="true" />
       <p className="text-xs text-radar-text-muted">{title}</p>
+      <div className="radar-skeleton h-9 w-full" />
+      <div className="radar-skeleton h-9 w-11/12" />
+      <div className="radar-skeleton h-9 w-10/12" />
     </div>
   );
 }

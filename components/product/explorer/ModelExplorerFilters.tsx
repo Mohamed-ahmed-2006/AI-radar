@@ -15,6 +15,8 @@ interface ModelExplorerFiltersProps {
   matching: number;
   total: number;
   busy?: boolean;
+  search?: string;
+  onSearchChange?: (value: string) => void;
 }
 
 function optionLabel(option: ExplorerFilterOption): string {
@@ -33,6 +35,8 @@ export function ModelExplorerFilters({
   matching,
   total,
   busy = false,
+  search = "",
+  onSearchChange,
 }: ModelExplorerFiltersProps) {
   const lifecycleChoices =
     lifecycleOptions.length > 0
@@ -45,6 +49,21 @@ export function ModelExplorerFilters({
 
   return (
     <div className="radar-filters" role="group" aria-label="Model explorer filters">
+      {onSearchChange && (
+        <div className="radar-filter">
+          <label className="radar-filter-label" htmlFor="explorer-filter-search">
+            Search
+          </label>
+          <input
+            id="explorer-filter-search"
+            className="radar-filter-control"
+            type="search"
+            placeholder="Name or id"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </div>
+      )}
       <div className="radar-filter">
         <label className="radar-filter-label" htmlFor="explorer-filter-provider">
           Provider
@@ -210,6 +229,32 @@ export function ModelExplorerFilters({
           ? "Loading models…"
           : `${matching} of ${total} model${total === 1 ? "" : "s"}`}
       </p>
+      {providerOptions.length > 0 && (
+        <div className="radar-filter-chips" role="group" aria-label="Provider chips">
+          <button
+            type="button"
+            className={`radar-chip ${filters.provider == null ? "radar-chip-active" : ""}`}
+            onClick={() => onChange({ ...filters, provider: null })}
+          >
+            All
+          </button>
+          {providerOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`radar-chip ${filters.provider === option.value ? "radar-chip-active" : ""}`}
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  provider: filters.provider === option.value ? null : option.value,
+                })
+              }
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

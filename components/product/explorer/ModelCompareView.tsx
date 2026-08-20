@@ -1,5 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { EmptyState } from "../../radar/ui/DataState";
 import { Panel } from "../../radar/ui/Panel";
@@ -20,6 +23,7 @@ export function ModelCompareView({
   comparison: ModelCompareReadModel;
 }) {
   const columns = comparison.columns;
+  const [differencesOnly, setDifferencesOnly] = useState(false);
 
   if (columns.length === 0) {
     return (
@@ -47,6 +51,19 @@ export function ModelCompareView({
         id="model-compare"
         title="Side-by-side"
         subtitle="Aligned observations. This view does not rank models or pick a winner."
+        action={
+          columns.length > 1 ? (
+            <label className="radar-filter-inline">
+              <input
+                type="checkbox"
+                className="radar-filter-checkbox"
+                checked={differencesOnly}
+                onChange={(event) => setDifferencesOnly(event.target.checked)}
+              />
+              <span className="radar-filter-label">Only show differences</span>
+            </label>
+          ) : null
+        }
       >
         <div className="radar-compare-table-wrap">
           <table className="radar-table radar-compare-table" aria-label="Model comparison">
@@ -94,6 +111,8 @@ export function ModelCompareView({
                     {c.inputPrice === null && <span className="sr-only">Not observed</span>}
                   </span>
                 ))}
+                keys={columns.map((c) => String(c.inputPrice))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Output price"
@@ -103,6 +122,8 @@ export function ModelCompareView({
                     {c.outputPrice === null && <span className="sr-only">Not observed</span>}
                   </span>
                 ))}
+                keys={columns.map((c) => String(c.outputPrice))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Context"
@@ -112,6 +133,8 @@ export function ModelCompareView({
                     {c.contextWindow === null && <span className="sr-only">Not observed</span>}
                   </span>
                 ))}
+                keys={columns.map((c) => String(c.contextWindow))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Max output"
@@ -121,36 +144,50 @@ export function ModelCompareView({
                     {c.maxOutputTokens === null && <span className="sr-only">Not observed</span>}
                   </span>
                 ))}
+                keys={columns.map((c) => String(c.maxOutputTokens))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Vision"
                 values={columns.map((c) => (
                   <CapabilityStatus key={c.identity.canonicalId} value={c.vision} compact />
                 ))}
+                keys={columns.map((c) => c.vision.label)}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Tools"
                 values={columns.map((c) => (
                   <CapabilityStatus key={c.identity.canonicalId} value={c.toolCalling} compact />
                 ))}
+                keys={columns.map((c) => c.toolCalling.label)}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Input modalities"
                 values={columns.map((c) => formatModalities(c.inputModalities))}
+                keys={columns.map((c) => formatModalities(c.inputModalities))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Output modalities"
                 values={columns.map((c) => formatModalities(c.outputModalities))}
+                keys={columns.map((c) => formatModalities(c.outputModalities))}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Lifecycle"
                 values={columns.map((c) => c.lifecycle.label)}
+                keys={columns.map((c) => c.lifecycle.label)}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Freshness"
                 values={columns.map((c) => (
                   <FreshnessStatus key={c.identity.canonicalId} freshness={c.freshness} />
                 ))}
+                keys={columns.map((c) => c.freshness.label)}
+                differencesOnly={differencesOnly}
               />
               <CompareDataRow
                 label="Pricing source"
@@ -210,17 +247,27 @@ function DomainProvenanceCell({
 function CompareDataRow({
   label,
   values,
+  keys,
+  differencesOnly = false,
 }: {
   label: string;
   values: ReactNode[];
+  keys?: string[];
+  differencesOnly?: boolean;
 }) {
+  const differs = keys ? new Set(keys).size > 1 : false;
+  if (differencesOnly && keys && !differs) return null;
+
   return (
-    <tr className="radar-table-row">
+    <tr className={`radar-table-row ${differs ? "radar-compare-diff" : ""}`}>
       <th scope="row" className="radar-table-cell radar-compare-field">
         {label}
       </th>
       {values.map((value, index) => (
-        <td key={`${label}-${index}`} className="radar-table-cell">
+        <td
+          key={`${label}-${index}`}
+          className={`radar-table-cell ${differs ? "" : "radar-compare-same"}`}
+        >
           {value}
         </td>
       ))}

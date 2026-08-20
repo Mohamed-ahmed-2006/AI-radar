@@ -19,10 +19,10 @@ export function EcosystemStatus({ data, sentinel, loading }: EcosystemStatusProp
   if (loading) {
     return (
       <section aria-label="Ecosystem status" className="radar-stat-grid radar-stat-grid-wide">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="radar-stat-card animate-pulse">
-            <div className="h-3 w-20 bg-radar-surface-raised rounded mb-2" />
-            <div className="h-6 w-12 bg-radar-surface-raised rounded" />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="radar-stat-card">
+            <div className="radar-skeleton mb-2 h-3 w-20" />
+            <div className="radar-skeleton h-5 w-12" />
           </div>
         ))}
       </section>

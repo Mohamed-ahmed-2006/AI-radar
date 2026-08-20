@@ -351,7 +351,15 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
         </div>
       </div>
 
-      <Panel id="model-changes" title="Recent changes">
+      <details className="radar-panel">
+        <summary className="radar-panel-header cursor-pointer">
+          <div>
+            <h2 className="radar-panel-title">History and evidence</h2>
+            <p className="radar-panel-subtitle">Recent changes and observed history</p>
+          </div>
+        </summary>
+        <div className="radar-panel-body radar-surface-stack">
+            <Panel id="model-changes" title="Recent changes">
         <Section state={detail.recentChanges}>
           {(changes) => (
             <ol className="radar-run-list" aria-label="Recent model changes">
@@ -526,6 +534,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
           )}
         </Section>
       </Panel>
+        </div>
+      </details>
     </div>
   );
 }

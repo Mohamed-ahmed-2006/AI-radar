@@ -53,28 +53,41 @@ function storyLine(model: HealingDemoReadModel): string {
  * rows. Rendered only when there is a completed recovery on file, so a demo
  * that has genuinely never run still says nothing.
  */
-function HistoryLine({ history }: { history: HealingDemoHistoryView }) {
-  if (!history.hasCompletedRecovery) return null;
+function HistoryLine({ history, phase }: { history: HealingDemoHistoryView | null; phase: HealingDemoReadModel["phase"] }) {
+  const ready = phase === "healthy";
+  const recovered = history?.hasCompletedRecovery === true;
+  const facts = recovered && history
+    ? [
+        history.lastRecoveryAt ? formatAbsoluteTime(history.lastRecoveryAt) : null,
+        history.lastKnownGoodCount !== null
+          ? `LKG preserved: ${history.lastKnownGoodCount} records`
+          : null,
+        history.approvedHealingAttempts > 0
+          ? `${history.approvedHealingAttempts} approved repair${
+              history.approvedHealingAttempts === 1 ? "" : "s"
+            }`
+          : null,
+      ].filter((fact): fact is string => fact !== null)
+    : [];
 
-  const facts = [
-    `Last live recovery: RECOVERED${
-      history.lastRecoveryAt ? ` · ${formatAbsoluteTime(history.lastRecoveryAt)}` : ""
-    }`,
-    history.lastKnownGoodCount !== null
-      ? `LKG preserved: ${history.lastKnownGoodCount} records`
-      : null,
-    history.approvedHealingAttempts > 0
-      ? `${history.approvedHealingAttempts} approved repair${
-          history.approvedHealingAttempts === 1 ? "" : "s"
-        }`
-      : null,
-  ].filter((fact): fact is string => fact !== null);
+  if (!ready && !recovered) return null;
 
   return (
-    <p className="radar-healing-history">
-      <span className="radar-healing-history-badge">Ready for demonstration</span>
-      <span className="radar-healing-history-facts">{facts.join(" · ")}</span>
-    </p>
+    <div className="radar-healing-ready">
+      {ready && (
+        <div className="radar-healing-ready-card">
+          <p className="radar-healing-kicker">Current reset state</p>
+          <p className="radar-healing-history-badge">Ready for demonstration</p>
+        </div>
+      )}
+      {recovered && history && (
+        <div className="radar-healing-ready-card radar-healing-ready-card-live">
+          <p className="radar-healing-kicker">Last live recovery</p>
+          <p className="radar-healing-history-badge">Recovered</p>
+          <p className="radar-healing-history-facts">{facts.join(" · ")}</p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -94,7 +107,7 @@ export function HealingDemoPhaseHero({ model }: { model: HealingDemoReadModel })
         {(model.phaseLabel ?? "Unavailable").toUpperCase()}
       </p>
       <p className="radar-healing-story">{storyLine(model)}</p>
-      {model.history && <HistoryLine history={model.history} />}
+      <HistoryLine history={model.history} phase={model.phase} />
       {model.sentinelStatus && (
         <p className="radar-healing-hero-badge">
           <SentinelStatusBadge status={model.sentinelStatus} size="lg" />

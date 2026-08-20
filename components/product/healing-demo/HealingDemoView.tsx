@@ -19,6 +19,7 @@ import { HealingDemoKindBanner } from "./HealingDemoKindBanner";
 import { HealingDemoLinks } from "./HealingDemoLinks";
 import { HealingDemoPhaseHero } from "./HealingDemoPhaseHero";
 import { HealingIncidentPanel } from "./HealingIncidentPanel";
+import { HealingStateMachine } from "./HealingStateMachine";
 import { OperatorUnlock } from "./OperatorUnlock";
 import { HealingTrustComparison } from "./HealingTrustComparison";
 
@@ -139,6 +140,7 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
       </div>
 
       <HealingDemoPhaseHero model={model} />
+      <HealingStateMachine model={model} />
       <HealingDemoIdentityStrip model={model} />
 
       <Panel

@@ -14,6 +14,7 @@ interface ModelExplorerTableProps {
   selectedIds: readonly string[];
   onToggle: (canonicalId: string) => void;
   compareLimitReached: boolean;
+  onInspect?: (canonicalId: string) => void;
 }
 
 function lifecycleVariant(
@@ -31,6 +32,7 @@ export function ModelExplorerTable({
   selectedIds,
   onToggle,
   compareLimitReached,
+  onInspect,
 }: ModelExplorerTableProps) {
   if (models.length === 0) {
     return (
@@ -76,6 +78,11 @@ export function ModelExplorerTable({
             <th scope="col" className="radar-table-head text-left">
               Freshness
             </th>
+            {onInspect && (
+              <th scope="col" className="radar-table-head text-left">
+                Inspect
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -151,6 +158,17 @@ export function ModelExplorerTable({
                 <td className="radar-table-cell">
                   <FreshnessStatus freshness={model.freshness} />
                 </td>
+                {onInspect && (
+                  <td className="radar-table-cell">
+                    <button
+                      type="button"
+                      className="radar-ghost-button"
+                      onClick={() => onInspect(id)}
+                    >
+                      Quick view
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
