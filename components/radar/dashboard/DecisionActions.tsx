@@ -56,23 +56,25 @@ export const COMMAND_CENTER_ACTIONS = [
 
 export function ProductTour() {
   return (
-    <nav className="radar-product-tour" aria-label="Product tour">
-      <p className="radar-product-tour-label">Judge path</p>
-      <ol className="radar-product-tour-list">
-        {PRODUCT_TOUR.map((step, index) => (
-          <li key={step.href} className="radar-product-tour-step">
-            {index > 0 && (
-              <span className="radar-product-tour-arrow" aria-hidden="true">
-                →
-              </span>
-            )}
-            <Link href={step.href} className="radar-product-tour-link">
-              {step.label}
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </nav>
+    <details className="radar-product-tour">
+      <summary className="radar-product-tour-summary">Judge path</summary>
+      <nav className="radar-product-tour-body" aria-label="Product tour">
+        <ol className="radar-product-tour-list">
+          {PRODUCT_TOUR.map((step, index) => (
+            <li key={step.href} className="radar-product-tour-step">
+              {index > 0 && (
+                <span className="radar-product-tour-arrow" aria-hidden="true">
+                  →
+                </span>
+              )}
+              <Link href={step.href} className="radar-product-tour-link">
+                {step.label}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </nav>
+    </details>
   );
 }
 

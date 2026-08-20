@@ -7,7 +7,7 @@ import { Panel } from "../../radar/ui/Panel";
 import { FreshnessStatus } from "../explorer/FreshnessStatus";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
 import { AskGroundingBanner } from "./AskGroundingBanner";
-import { GroundedProse } from "../ui/GroundedProse";
+import { AskAnswerProse } from "./AskAnswerProse";
 
 function intentClass(intent: AskReadModel["intent"]): string {
   return `radar-ask-intent radar-ask-intent-${intent}`;
@@ -58,7 +58,7 @@ export function AskResult({ result }: { result: AskReadModel }) {
           </section>
         )}
 
-        <GroundedProse text={result.answer} />
+        <AskAnswerProse text={result.answer} intent={result.intent} />
 
         {result.unsupportedReason && (
           <EvidenceState

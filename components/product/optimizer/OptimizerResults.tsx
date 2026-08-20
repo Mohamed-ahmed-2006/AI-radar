@@ -106,7 +106,29 @@ export function OptimizerResults({ result }: { result: OptimizerReadModel }) {
           }
         >
           <div className="radar-winner-spotlight">
-            <OptimizerModelCard result={winner} featured />
+            <p className="radar-optimizer-rank">Rank {winner.rank ?? 1}</p>
+            <h3 className="radar-winner-name">
+              <Link
+                href={modelDetailHref(winner.identity.canonicalId)}
+                className="radar-explorer-model-link"
+              >
+                {winner.identity.displayName}
+              </Link>
+            </h3>
+            <p className="radar-winner-cost">
+              {winner.estimatedMonthlyCostLabel}
+              {winner.estimatedMonthlyCost !== null ? " / month" : ""}
+            </p>
+            {winner.requirementChecks.some((check) => check.status === "pass") && (
+              <ul className="radar-winner-matches">
+                {winner.requirementChecks
+                  .filter((check) => check.status === "pass")
+                  .slice(0, 4)
+                  .map((check) => (
+                    <li key={check.id}>{check.label}</li>
+                  ))}
+              </ul>
+            )}
             <div className="radar-winner-actions">
               <button
                 type="button"

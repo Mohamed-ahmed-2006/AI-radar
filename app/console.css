@@ -786,7 +786,7 @@ html {
 }
 
 .radar-decision-card {
-  padding: 0.75rem 0.875rem;
+  padding: 0.45rem 0.75rem;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -795,18 +795,17 @@ html {
     background var(--radar-duration) var(--radar-ease);
 }
 
-.radar-decision-card:hover {
-  transform: translateY(-1px);
+.radar-decision-card .radar-subheading {
+  display: none;
 }
 
-@media (max-width: 1399px) {
-  .radar-command-chip-copy {
-    display: none;
-  }
+.radar-decision-card-title {
+  margin: 0;
+  font-size: 0.9375rem;
+}
 
-  .radar-command-chip {
-    min-height: 0;
-  }
+.radar-decision-card:hover {
+  transform: translateY(-1px);
 }
 
 .radar-command-chip:hover {
@@ -1390,15 +1389,74 @@ html {
 }
 
 .radar-command-center {
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .radar-decision-card-copy {
   display: none;
 }
 
-@media (min-width: 1366px) {
+@media (min-width: 1920px) {
   .radar-decision-card-copy {
     display: block;
   }
+
+  .radar-decision-card .radar-subheading {
+    display: block;
+  }
+
+  .radar-decision-card-title {
+    margin: 0.125rem 0 0.375rem;
+  }
+}
+
+.radar-winner-spotlight {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.radar-winner-name {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.radar-winner-cost {
+  margin: 0;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--radar-signal);
+}
+
+.radar-winner-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.radar-winner-matches li {
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--radar-border-subtle);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  color: var(--radar-text-secondary);
+}
+
+.radar-ask-answer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.radar-ask-more-events {
+  margin-top: 0.35rem;
+}
+
+.radar-ask-more-events-body {
+  margin-top: 0.5rem;
 }

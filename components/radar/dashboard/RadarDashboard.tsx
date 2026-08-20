@@ -34,14 +34,15 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
         </p>
       </div>
 
-      <DecisionActions />
-
       {data.unavailableReason ? (
-        <EvidenceState
-          tone="unavailable"
-          title="Live dashboard data is not available"
-          description={data.unavailableReason}
-        />
+        <>
+          <DecisionActions />
+          <EvidenceState
+            tone="unavailable"
+            title="Live dashboard data is not available"
+            description={data.unavailableReason}
+          />
+        </>
       ) : (
         <>
           <div className="radar-command-hero radar-stagger">
@@ -70,6 +71,8 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
               )}
             </div>
           </div>
+
+          <DecisionActions />
 
           <div className="radar-dashboard-grid">
             <div className="radar-dashboard-primary radar-surface-stack">
