@@ -1,4 +1,5 @@
 import type { RadarDashboardData } from "../types";
+import { EvidenceState } from "../ui/DataState";
 import { DecisionActions } from "./DecisionActions";
 import { EcosystemStatus } from "./EcosystemStatus";
 import { PricingMatrix } from "./PricingMatrix";
@@ -31,29 +32,39 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
 
       <DecisionActions />
 
-      <EcosystemStatus
-        data={data.ecosystem}
-        sentinel={data.sentinel}
-        loading={loading}
-      />
-
-      <div className="radar-dashboard-grid">
-        <div className="radar-dashboard-primary">
-          <RecentChangesFeed changes={data.changes} loading={loading} />
-        </div>
-        <div className="radar-dashboard-secondary space-y-4">
-          <StackPulseCard changes={data.changes} />
-          <ProviderHealthOverview providers={data.providers} loading={loading} />
-          <SourceFreshnessPanel sources={data.sources} loading={loading} />
-          <SourceProvenance
-            records={data.provenance}
+      {data.unavailableReason ? (
+        <EvidenceState
+          tone="unavailable"
+          title="Live dashboard data is not available"
+          description={data.unavailableReason}
+        />
+      ) : (
+        <>
+          <EcosystemStatus
+            data={data.ecosystem}
+            sentinel={data.sentinel}
             loading={loading}
-            isDemo={data.isMock}
           />
-        </div>
-      </div>
 
-      <PricingMatrix models={data.models} loading={loading} />
+          <div className="radar-dashboard-grid">
+            <div className="radar-dashboard-primary">
+              <RecentChangesFeed changes={data.changes} loading={loading} />
+            </div>
+            <div className="radar-dashboard-secondary space-y-4">
+              <StackPulseCard changes={data.changes} />
+              <ProviderHealthOverview providers={data.providers} loading={loading} />
+              <SourceFreshnessPanel sources={data.sources} loading={loading} />
+              <SourceProvenance
+                records={data.provenance}
+                loading={loading}
+                isDemo={data.isMock}
+              />
+            </div>
+          </div>
+
+          <PricingMatrix models={data.models} loading={loading} />
+        </>
+      )}
     </div>
   );
 }

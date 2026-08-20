@@ -45,6 +45,26 @@ test("Dashboard command center exposes live-looking stats without inventing Sent
   assert.doesNotMatch(html, /Quarantined/);
 });
 
+test("Unavailable dashboard keeps command center but does not render fixture catalog rows", () => {
+  const html = renderToStaticMarkup(
+    createElement(RadarDashboard, {
+      data: {
+        ...MOCK_RADAR_DATA,
+        isMock: false,
+        unavailableReason: "Live catalog is not configured.",
+        models: MOCK_RADAR_DATA.models,
+        changes: MOCK_RADAR_DATA.changes,
+      },
+    }),
+  );
+
+  assert.match(html, /Intelligence Console/);
+  assert.match(html, /Live dashboard data is not available/);
+  assert.match(html, /Ask AI Radar/);
+  assert.doesNotMatch(html, /gpt-5\.6-luna/);
+  assert.doesNotMatch(html, /Canonical models/);
+});
+
 test("Dashboard Sentinel glance uses recovered/degraded/quarantined counts only when available", () => {
   const html = renderToStaticMarkup(
     createElement(RadarDashboard, {

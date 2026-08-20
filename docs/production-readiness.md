@@ -218,6 +218,7 @@ default:
 | Optimizer fixture (`lib/product/optimizer-fixture.ts`) | same | Canonical adapter installed at import. |
 | Healing fixture (`lib/product/healing-demo-fixture.ts`) | `setHealingDemoAdapter()` — called only from tests | Canonical fail-closed adapter; unconfigured means **"unavailable"**, never a fixture and never the Sentinel simulation. |
 | Temporal evidence corpus (`lib/intelligence/demo-evidence.ts`) | `?demo=true` **and** `AI_RADAR_DEMO_EVIDENCE=1` | Live evidence, or an empty bundle. |
+| Dashboard catalog fixture (`components/radar/fixtures/mock-radar-data.ts`) | Tests and explicit `isMock` rendering only | Unconfigured or failed live reads report **unavailable/empty**. No silent fixture catalog. |
 
 Enforced by `tests/security/fixture-isolation.test.ts`.
 

@@ -112,6 +112,11 @@ export interface RadarDashboardData {
   /** True only when the explicit development/demo fixture is displayed. */
   isMock: boolean;
   fixtureVersion: string;
+  /**
+   * When set, live dashboard reads failed or were never configured.
+   * The UI must show this reason rather than substituting fixture catalog data.
+   */
+  unavailableReason?: string | null;
   ecosystem: EcosystemSummary;
   sentinel: SentinelFleetSnapshot;
   changes: ChangeEvent[];

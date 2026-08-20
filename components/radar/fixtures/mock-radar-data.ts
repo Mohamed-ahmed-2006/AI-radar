@@ -2,7 +2,8 @@
  * MOCK FIXTURE — replace with live API / Supabase data at integration.
  *
  * Represents verified OpenAI collector output (Bright Data Scraper Studio).
- * Import only from dashboard page or data-fetch layer; never hardcode in components.
+ * Test-only dashboard fixture. Production never falls back to this file:
+ * `loadRadarDashboardPageData` reports unavailable/empty instead.
  */
 
 import type { RadarDashboardData } from "../types";

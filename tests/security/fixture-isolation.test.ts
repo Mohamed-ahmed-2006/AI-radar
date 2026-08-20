@@ -16,6 +16,8 @@ import { CANONICAL_OPTIMIZER_ADAPTER_ID } from "../../lib/product/optimizer-read
 import { FIXTURE_OPTIMIZER_ADAPTER_ID } from "../../lib/product/optimizer-fixture";
 import { CANONICAL_HEALING_DEMO_ADAPTER_ID } from "../../lib/product/healing-demo-read-model";
 import { getAskAdapter, getOptimizerAdapter, getHealingDemoAdapter } from "../../lib/product";
+import { MOCK_RADAR_DATA } from "../../components/radar/fixtures/mock-radar-data";
+import { loadRadarDashboardPageData } from "../../lib/radar/page-data";
 import {
   isDemoEvidenceEnabled,
   resolveDemoEvidence,
@@ -101,6 +103,17 @@ test("without the opt-in, demo=true still yields no fabricated evidence", async 
     bundle.events.some((event) => event.isDemo),
     false,
   );
+});
+
+test("unconfigured dashboard reports unavailable instead of serving MOCK_RADAR_DATA", async () => {
+  const data = await loadRadarDashboardPageData({ configured: false });
+  assert.equal(data.isMock, false);
+  assert.ok(data.unavailableReason);
+  assert.equal(data.models.length, 0);
+  assert.equal(data.changes.length, 0);
+  assert.equal(data.sentinel.available, false);
+  assert.equal(data.sentinel.quarantined, null);
+  assert.notEqual(data.fixtureVersion, MOCK_RADAR_DATA.fixtureVersion);
 });
 
 test("Sentinel demo mode is off unless explicitly set to 1", () => {

@@ -1,0 +1,81 @@
+{
+  "description": "Sanitized Bright Data catalog/capabilities collector output. Shapes: RawOpenAiCatalogRecordSchema, RawAnthropicCatalogRecordSchema, RawGeminiCatalogRecordSchema, RawXaiCatalogRecordSchema. Unknown capabilities stay null — never false.",
+  "openai": [
+    {
+      "model_id": "gpt-4.1",
+      "display_name": "GPT-4.1",
+      "description": "Flagship general-purpose model.",
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "context_window_raw": "1,047,576",
+      "max_output_tokens_raw": 32768,
+      "supports_vision": true,
+      "supports_function_calling": true,
+      "supported_features": ["function_calling", "structured_outputs"],
+      "default_snapshot": "gpt-4.1-2025-04-14",
+      "source_url": "https://developers.openai.com/api/docs/models"
+    }
+  ],
+  "anthropic": [
+    {
+      "api_model_id": "claude-sonnet-4-0",
+      "display_name": "Claude Sonnet 4",
+      "model_family": "Claude 4",
+      "context_window_raw": 200000,
+      "max_output_tokens_raw": 64000,
+      "supports_vision": true,
+      "supports_tool_use": true,
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "source_url": "https://platform.claude.com/docs/en/about-claude/models/overview"
+    }
+  ],
+  "gemini": [
+    {
+      "model_id": "gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "model_group": "Gemini 2.5",
+      "input_modalities": ["text", "image", "audio", "video"],
+      "output_modalities": ["text"],
+      "context_window_raw": 1048576,
+      "max_output_tokens_raw": 65536,
+      "supports_vision": true,
+      "supports_function_calling": true,
+      "supported_features": ["function_calling", "code_execution"],
+      "source_url": "https://ai.google.dev/gemini-api/docs/models"
+    }
+  ],
+  "xai": [
+    {
+      "name": "grok-4",
+      "version": "4",
+      "input_modalities": ["text", "image"],
+      "output_modalities": ["text"],
+      "max_prompt_length": 256000,
+      "aliases": ["grok-4-latest"],
+      "features": {
+        "functionCalling": true,
+        "structuredOutputs": true,
+        "reasoning": true
+      },
+      "source_url": "https://docs.x.ai/developers/models"
+    }
+  ],
+  "unobserved_example": {
+    "note": "A missing boolean is stored as null after normalization (unknown), not as false (unsupported).",
+    "openai_partial": {
+      "model_id": "gpt-example-mini",
+      "display_name": "Example Mini",
+      "supports_vision": null,
+      "supports_function_calling": null,
+      "context_window_raw": null,
+      "source_url": "https://developers.openai.com/api/docs/models"
+    }
+  },
+  "run_metadata_example": {
+    "collectorId": "c_example_openai_catalog",
+    "runId": "j_example_catalog",
+    "status": "success",
+    "resultCount": 1
+  }
+}

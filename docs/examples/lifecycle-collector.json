@@ -1,0 +1,55 @@
+{
+  "description": "Sanitized Bright Data lifecycle collector output. Shapes: RawAnthropicLifecycleRecordSchema and RawGeminiLifecycleRecordSchema.",
+  "anthropic": [
+    {
+      "product_page_url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "api_model_name": "claude-3-5-sonnet-20241022",
+      "current_state": "Deprecated",
+      "deprecated_date": "August 13, 2025",
+      "tentative_retirement_date": "Not sooner than October 22, 2025",
+      "input": {
+        "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+      }
+    },
+    {
+      "product_page_url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+      "api_model_name": "claude-sonnet-4-0",
+      "current_state": "Active",
+      "deprecated_date": null,
+      "tentative_retirement_date": null
+    }
+  ],
+  "gemini": [
+    {
+      "model_id": "gemini-1.5-pro",
+      "model_group": "Gemini 1.5",
+      "model_stage": "stable",
+      "release_date_raw": "May 14, 2024",
+      "shutdown_not_before_date_raw": "September 24, 2025",
+      "recommended_replacement": "gemini-2.5-pro",
+      "product_page_url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "is_shutdown": false,
+      "input": {
+        "url": "https://ai.google.dev/gemini-api/docs/deprecations"
+      }
+    },
+    {
+      "model_id": "gemini-2.5-flash",
+      "model_group": "Gemini 2.5",
+      "model_stage": "stable",
+      "release_date_raw": "June 17, 2025",
+      "shutdown_not_before_date_raw": "No shutdown date announced",
+      "recommended_replacement": null,
+      "is_shutdown": false,
+      "input": {
+        "url": "https://ai.google.dev/gemini-api/docs/deprecations"
+      }
+    }
+  ],
+  "run_metadata_example": {
+    "collectorId": "c_example_anthropic_lifecycle",
+    "runId": "j_example_lifecycle",
+    "status": "success",
+    "resultCount": 2
+  }
+}

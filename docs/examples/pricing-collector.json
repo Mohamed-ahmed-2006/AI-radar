@@ -1,0 +1,65 @@
+{
+  "description": "Sanitized Bright Data pricing collector output. Shape: RawBrightDataPricingRecordSchema.",
+  "records": [
+    {
+      "provider": "OpenAI",
+      "model_name": "gpt-4.1",
+      "pricing_mode": "standard",
+      "context_tier": "default",
+      "input_price_per_1m_tokens": 2.0,
+      "cached_input_price_per_1m_tokens": 0.5,
+      "cache_write_price_per_1m_tokens": null,
+      "output_price_per_1m_tokens": 8.0,
+      "pricing_unit": "1M tokens",
+      "source_url": "https://developers.openai.com/api/docs/pricing",
+      "input": {
+        "url": "https://developers.openai.com/api/docs/pricing"
+      }
+    },
+    {
+      "provider": "Anthropic",
+      "model_name": "Claude Sonnet 4",
+      "pricing_mode": "standard",
+      "context_tier": "default",
+      "input_price_per_1m_tokens": 3.0,
+      "cached_input_price_per_1m_tokens": 0.3,
+      "cache_write_price_per_1m_tokens": 3.75,
+      "output_price_per_1m_tokens": 15.0,
+      "pricing_unit": "1M tokens",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "provider": "Google",
+      "model_name": "gemini-2.5-pro",
+      "pricing_mode": "standard",
+      "context_tier": "default",
+      "input_price_per_1m_tokens": 1.25,
+      "cached_input_price_per_1m_tokens": null,
+      "cache_write_price_per_1m_tokens": null,
+      "output_price_per_1m_tokens": 10.0,
+      "pricing_unit": "1M tokens",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    {
+      "provider": "xAI",
+      "model_name": "grok-4",
+      "pricing_mode": "standard",
+      "context_tier": "short",
+      "input_price_per_1m_tokens": 3.0,
+      "cached_input_price_per_1m_tokens": null,
+      "cache_write_price_per_1m_tokens": null,
+      "output_price_per_1m_tokens": 15.0,
+      "pricing_unit": "1M tokens",
+      "source_url": "https://docs.x.ai/developers/pricing"
+    }
+  ],
+  "run_metadata_example": {
+    "collectorId": "c_example_openai_pricing",
+    "runId": "j_example_dataset",
+    "startedAt": "2026-08-20T08:00:00.000Z",
+    "completedAt": "2026-08-20T08:00:12.000Z",
+    "durationMs": 12000,
+    "resultCount": 4,
+    "status": "success"
+  }
+}
