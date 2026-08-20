@@ -8,6 +8,7 @@ interface Fact {
   value: string;
   mono?: boolean;
   href?: string;
+  advanced?: boolean;
 }
 
 function identityFacts(identity: SourceIdentity): Fact[] {
@@ -21,6 +22,7 @@ function identityFacts(identity: SourceIdentity): Fact[] {
       label: "Bright Data Collector ID",
       value: identity.collectorId,
       mono: true,
+      advanced: true,
     });
   }
   if (identity.sourceUrl) {
@@ -31,7 +33,7 @@ function identityFacts(identity: SourceIdentity): Fact[] {
       href: identity.sourceUrl,
     });
   }
-  facts.push({ id: "source-id", label: "Source ID", value: identity.sourceId, mono: true });
+  facts.push({ id: "source-id", label: "Source ID", value: identity.sourceId, mono: true, advanced: true });
   return facts;
 }
 
@@ -54,7 +56,7 @@ export function SourceIdentityPanel({ identity }: { identity: SourceIdentity }) 
     >
       <dl className="radar-fact-grid">
         {facts.map((fact) => (
-          <div key={fact.id} className="radar-fact">
+          <div key={fact.id} className={`radar-fact ${fact.advanced ? "radar-advanced-id" : ""}`}>
             <dt className="radar-fact-label">{fact.label}</dt>
             <dd className={`radar-fact-value ${fact.mono ? "font-mono" : ""}`}>
               {fact.href ? (

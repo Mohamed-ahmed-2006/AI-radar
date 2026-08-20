@@ -7,6 +7,7 @@ import { DemoNotice } from "../common/DemoNotice";
 import { PageIntro } from "../common/PageIntro";
 import { ProvenanceDetails } from "../provenance/ProvenanceDetails";
 import { SourceDataPanel } from "./SourceDataPanel";
+import { SourceDetailLayout } from "./SourceDetailLayout";
 import { SourceHealthSummary } from "./SourceHealthSummary";
 import { SourceIdentityPanel } from "./SourceIdentityPanel";
 import { SourceIncidentPanel } from "./SourceIncidentPanel";
@@ -22,53 +23,65 @@ import { SourceRunHistoryPanel } from "./SourceRunHistoryPanel";
  */
 export function SourceDetail({ detail }: { detail: SourceDetailView }) {
   return (
-    <div className="radar-surface-stack">
-      <PageIntro
-        title={detail.identity.name}
-        description={`${detail.identity.providerName} · ${detail.identity.category} source. Collection integrity, freshness, provenance and the path from raw payload to trusted data.`}
-        action={
-          <span className="radar-page-intro-links">
-            <Link href="/source-health" className="radar-inline-link">
-              Source Health
-            </Link>
-            <Link href={HEALING_DEMO_HREF} className="radar-inline-link">
-              Real healing demo
-            </Link>
-          </span>
-        }
-      />
+    <SourceDetailLayout
+      hero={
+        <>
+          <PageIntro
+            title={detail.identity.name}
+            description={`${detail.identity.providerName} · ${detail.identity.category} source. Collection integrity, freshness, provenance and the path from raw payload to trusted data.`}
+            action={
+              <span className="radar-page-intro-links">
+                <Link href="/source-health" className="radar-inline-link">
+                  Source Health
+                </Link>
+                <Link href={HEALING_DEMO_HREF} className="radar-inline-link">
+                  Real healing demo
+                </Link>
+              </span>
+            }
+          />
 
-      {detail.isDemo && (
-        <DemoNotice title="This source page is showing the deterministic demo simulation.">
-          {detail.demoScenario
-            ? `Scenario: ${detail.demoScenario}. `
-            : ""}
-          No production collection run produced the state below.
-        </DemoNotice>
-      )}
+          {detail.isDemo && (
+            <DemoNotice title="This source page is showing the deterministic demo simulation.">
+              {detail.demoScenario
+                ? `Scenario: ${detail.demoScenario}. `
+                : ""}
+              No production collection run produced the state below.
+            </DemoNotice>
+          )}
 
-      <SourceHealthSummary
-        health={detail.health}
-        recovery={detail.recovery}
-        freshness={detail.freshness}
-      />
-
-      <div className="radar-source-detail-grid">
+          <SourceHealthSummary
+            health={detail.health}
+            recovery={detail.recovery}
+            freshness={detail.freshness}
+          />
+        </>
+      }
+      overview={
+        <SourceDataPanel
+          observedData={detail.observedData}
+          lastKnownGood={detail.lastKnownGood}
+        />
+      }
+      runs={<SourceRunHistoryPanel runHistory={detail.runHistory} />}
+      incidents={
+        <SourceIncidentPanel
+          incidents={detail.incidents}
+          healingTimeline={detail.healingTimeline}
+          sourceName={detail.identity.name}
+        />
+      }
+      healing={
+        <SourceIncidentPanel
+          incidents={detail.incidents}
+          healingTimeline={detail.healingTimeline}
+          sourceName={detail.identity.name}
+        />
+      }
+      evidence={
         <div className="radar-surface-stack">
           <SourceIdentityPanel identity={detail.identity} />
-          <SourceRunHistoryPanel runHistory={detail.runHistory} />
           <SourceNormalizationPanel normalization={detail.normalization} />
-        </div>
-        <div className="radar-surface-stack">
-          <SourceDataPanel
-            observedData={detail.observedData}
-            lastKnownGood={detail.lastKnownGood}
-          />
-          <SourceIncidentPanel
-            incidents={detail.incidents}
-            healingTimeline={detail.healingTimeline}
-            sourceName={detail.identity.name}
-          />
           <Panel
             id="source-provenance"
             title="Provenance"
@@ -77,7 +90,7 @@ export function SourceDetail({ detail }: { detail: SourceDetailView }) {
             <ProvenanceDetails provenance={detail.provenance} />
           </Panel>
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

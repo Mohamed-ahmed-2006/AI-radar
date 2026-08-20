@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { EvidenceState, LoadingState } from "../../radar/ui/DataState";
-import { Panel } from "../../radar/ui/Panel";
 import { RecoveryTimeline } from "../../radar/sentinel/RecoveryTimeline";
 import {
   HEALING_DEMO_UNAVAILABLE_TITLE,
@@ -143,17 +142,32 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
       <HealingStateMachine model={model} />
       <HealingDemoIdentityStrip model={model} />
 
-      <Panel
-        id="healing-timeline"
-        title="Recovery timeline"
-        subtitle="Healthy → break → detected → quarantined → healing → preview → approval → rerun → recovered"
+      <details
+        className="radar-panel"
+        {...(model.phase !== "healthy" || model.busy ? { open: true } : {})}
       >
+        <summary className="radar-panel-header cursor-pointer">
+          <div>
+            <h2 className="radar-panel-title">Inspect recovery</h2>
+            <p className="radar-panel-subtitle">
+              Genuine recovery timeline · Healthy → break → detected → quarantined → healing → preview → approval → rerun → recovered
+            </p>
+          </div>
+        </summary>
+        <div className="radar-panel-body" id="healing-timeline">
         <RecoveryTimeline
-          stages={timelineToSentinelStages(model.timeline)}
+          stages={
+            model.phase === "healthy" && !model.busy
+              ? timelineToSentinelStages(model.timeline).map((stage) =>
+                  stage.status === "active" ? { ...stage, status: "pending" } : stage,
+                )
+              : timelineToSentinelStages(model.timeline)
+          }
           wide
           label="SourcePulse recovery timeline"
         />
-      </Panel>
+        </div>
+      </details>
 
       <HealingTrustComparison model={model} />
 

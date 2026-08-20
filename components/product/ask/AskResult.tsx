@@ -94,11 +94,16 @@ export function AskResult({ result }: { result: AskReadModel }) {
       </Panel>
 
       {result.calculations.length > 0 && (
-        <Panel
-          id="ask-calculations"
-          title="Calculations"
-          subtitle="Supplied by the adapter. The UI does not calculate these figures."
-        >
+        <details className="radar-panel">
+          <summary className="radar-panel-header cursor-pointer">
+            <div>
+              <h2 className="radar-panel-title">Calculations</h2>
+              <p className="radar-panel-subtitle">
+                {result.calculations.length} adapter figure{result.calculations.length === 1 ? "" : "s"}. The UI does not calculate these figures.
+              </p>
+            </div>
+          </summary>
+          <div className="radar-panel-body">
           <ul className="radar-ask-calc-list" aria-label="Adapter calculations">
             {result.calculations.map((calculation) => (
               <li key={calculation.label} className="radar-ask-calc">
@@ -113,15 +118,21 @@ export function AskResult({ result }: { result: AskReadModel }) {
               </li>
             ))}
           </ul>
-        </Panel>
+          </div>
+        </details>
       )}
 
       {result.evidence.length > 0 && (
-        <Panel
-          id="ask-evidence"
-          title="Structured evidence"
-          subtitle="Each row traces back to an observed model, change or source"
-        >
+        <details className="radar-panel">
+          <summary className="radar-panel-header cursor-pointer">
+            <div>
+              <h2 className="radar-panel-title">Structured evidence</h2>
+              <p className="radar-panel-subtitle">
+                {`${result.evidence.length} grounded ${result.evidence.length === 1 ? "row" : "rows"} · expand to inspect`}
+              </p>
+            </div>
+          </summary>
+          <div className="radar-panel-body">
           <ul className="radar-ask-evidence-list" aria-label="Grounded evidence">
             {result.evidence.map((item) => (
               <li key={item.id} className={`radar-ask-evidence radar-ask-evidence-${item.kind}`}>
@@ -181,7 +192,8 @@ export function AskResult({ result }: { result: AskReadModel }) {
               </li>
             ))}
           </ul>
-        </Panel>
+          </div>
+        </details>
       )}
 
       <nav className="radar-workflow-links" aria-label="Continue from this answer">

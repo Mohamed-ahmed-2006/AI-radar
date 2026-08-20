@@ -541,6 +541,12 @@ body {
   min-width: 0.25rem;
 }
 
+.radar-sentinel-kpis {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .radar-sentinel-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

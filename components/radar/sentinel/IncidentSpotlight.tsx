@@ -22,13 +22,19 @@ function toneClass(source: SentinelSourceView): string {
 
 interface IncidentSpotlightProps {
   source: SentinelSourceView;
+  headingId?: string;
+  kicker?: string;
 }
 
 /**
  * Full-width incident narrative for the source that most needs explaining —
  * the anomaly, the quarantine, the healing attempt, and the outcome.
  */
-export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
+export function IncidentSpotlight({
+  source,
+  headingId = "spotlight-heading",
+  kicker,
+}: IncidentSpotlightProps) {
   const recovered = source.status === "recovered";
   const showComparison =
     source.lastKnownGood !== null || source.rejectedCandidate !== null;
@@ -36,15 +42,15 @@ export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
   return (
     <section
       className={`radar-spotlight ${toneClass(source)} ${recovered ? "radar-recovery-sweep" : ""}`}
-      aria-labelledby="spotlight-heading"
+      aria-labelledby={headingId}
     >
       <header className="radar-spotlight-header">
         <div className="min-w-0">
           <p className="text-[10px] uppercase tracking-[0.08em] text-radar-text-muted">
-            Incident spotlight
+            {kicker ?? (recovered ? "Recovery spotlight" : "Attention")}
           </p>
           <div className="mt-1 flex items-center gap-2.5 flex-wrap">
-            <h2 id="spotlight-heading" className="radar-spotlight-title">
+            <h2 id={headingId} className="radar-spotlight-title">
               <Link
                 href={`/sources/${encodeURIComponent(source.sourceId)}`}
                 className="radar-explorer-model-link"
@@ -56,12 +62,6 @@ export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
           </div>
           <p className="mt-1 text-[11px] text-radar-text-muted">
             {source.providerName} · {source.kind}
-            {source.collectorId && (
-              <>
-                {" · "}
-                <span className="font-mono">{source.collectorId}</span>
-              </>
-            )}
           </p>
         </div>
 
@@ -96,6 +96,9 @@ export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
       </header>
 
       <div className="radar-spotlight-body">
+        <details className="radar-spotlight-inspect">
+          <summary className="radar-inline-link cursor-pointer">Inspect incident</summary>
+          <div className="radar-spotlight-inspect-body">
         <RecoveryTimeline
           stages={source.timeline}
           wide
@@ -144,6 +147,8 @@ export function IncidentSpotlight({ source }: IncidentSpotlightProps) {
             )}
           </p>
         )}
+          </div>
+        </details>
       </div>
     </section>
   );

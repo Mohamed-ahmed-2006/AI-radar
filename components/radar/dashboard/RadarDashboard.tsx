@@ -72,26 +72,61 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
           </div>
 
           <div className="radar-dashboard-grid">
-            <div className="radar-dashboard-primary">
+            <div className="radar-dashboard-primary radar-surface-stack">
               <RecentChangesFeed changes={data.changes} loading={loading} maxItems={5} />
+              <p className="radar-dashboard-more">
+                <Link href="/models" className="radar-inline-link">
+                  Explore Models
+                </Link>
+                <span aria-hidden="true"> · </span>
+                <Link href="/models/compare" className="radar-inline-link">
+                  Compare
+                </Link>
+                <span aria-hidden="true"> · </span>
+                <Link href="/source-health" className="radar-inline-link">
+                  View fleet
+                </Link>
+              </p>
             </div>
             <div className="radar-dashboard-secondary space-y-3">
               <StackPulseCard changes={data.changes} />
               <ProviderHealthOverview providers={data.providers} loading={loading} />
-              <SourceFreshnessPanel sources={data.sources} loading={loading} />
-              <SourceProvenance
-                records={data.provenance}
-                loading={loading}
-                isDemo={data.isMock}
-              />
+              <details className="radar-panel">
+                <summary className="radar-panel-header cursor-pointer">
+                  <div>
+                    <h2 className="radar-panel-title">Source freshness</h2>
+                    <p className="radar-panel-subtitle">Cadence vs last success — expand for the fleet</p>
+                  </div>
+                </summary>
+                <div className="radar-panel-body">
+                  <SourceFreshnessPanel sources={data.sources} loading={loading} />
+                </div>
+              </details>
+              <details className="radar-panel">
+                <summary className="radar-panel-header cursor-pointer">
+                  <div>
+                    <h2 className="radar-panel-title">View evidence</h2>
+                    <p className="radar-panel-subtitle">Provenance for monitored sources</p>
+                  </div>
+                </summary>
+                <div className="radar-panel-body">
+                  <SourceProvenance
+                    records={data.provenance}
+                    loading={loading}
+                    isDemo={data.isMock}
+                  />
+                </div>
+              </details>
             </div>
           </div>
 
           <details className="radar-panel">
             <summary className="radar-panel-header cursor-pointer">
               <div>
-                <h2 className="radar-panel-title">Model pricing matrix</h2>
-                <p className="radar-panel-subtitle">Expand for per-million-token rates</p>
+                <h2 className="radar-panel-title">Pricing spotlight</h2>
+                <p className="radar-panel-subtitle">
+                  Compact catalog rates — full explorer for comparison
+                </p>
               </div>
             </summary>
             <div className="radar-panel-body">

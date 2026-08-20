@@ -15,8 +15,10 @@ const MACHINE = [
 function nodeStatus(
   id: (typeof MACHINE)[number]["id"],
   phase: HealingDemoReadModel["phase"],
+  busy: boolean,
 ): "pending" | "active" | "done" | "failed" {
   if (!phase) return "pending";
+  if (phase === "healthy" && !busy) return "pending";
   const order = [
     "healthy",
     "break",
@@ -51,7 +53,7 @@ export function HealingStateMachine({ model }: { model: HealingDemoReadModel }) 
   return (
     <ol className="radar-state-machine" aria-label="Healing state machine">
       {MACHINE.map((node) => {
-        const status = nodeStatus(node.id, model.phase);
+        const status = nodeStatus(node.id, model.phase, model.busy);
         return (
           <li
             key={node.id}

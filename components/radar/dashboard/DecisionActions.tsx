@@ -103,7 +103,7 @@ export function DecisionActions() {
       <ul className="radar-command-strip" aria-label="Product actions">
         {rest.map((action) => (
           <li key={action.href}>
-            <Link href={action.href} className="radar-command-chip">
+            <Link href={action.href} className="radar-command-chip" title={action.copy}>
               <span className="radar-command-chip-title">{action.title}</span>
               <span className="radar-command-chip-copy">{action.copy}</span>
             </Link>

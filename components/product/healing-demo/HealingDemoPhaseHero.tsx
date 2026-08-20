@@ -76,8 +76,9 @@ function HistoryLine({ history, phase }: { history: HealingDemoHistoryView | nul
     <div className="radar-healing-ready">
       {ready && (
         <div className="radar-healing-ready-card">
-          <p className="radar-healing-kicker">Current reset state</p>
+          <p className="radar-healing-kicker">Current demo session</p>
           <p className="radar-healing-history-badge">Ready for demonstration</p>
+          <p className="radar-healing-history-facts">Current session: Clean / not started</p>
         </div>
       )}
       {recovered && history && (

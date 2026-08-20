@@ -80,6 +80,21 @@ export function OptimizerView({
         onSubmit={() => submit(draft)}
         busy={status === "loading"}
       />
+      {result.appliedConstraints.length > 0 && (
+        <section aria-labelledby="optimizer-constraints-heading">
+          <h2 id="optimizer-constraints-heading" className="radar-subheading">
+            Applied constraints
+          </h2>
+          <dl className="radar-constraint-list">
+            {result.appliedConstraints.map((constraint) => (
+              <div key={constraint.id} className="radar-constraint">
+                <dt>{constraint.label}</dt>
+                <dd>{constraint.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
       </div>
 
       <div className="radar-optimizer-results">

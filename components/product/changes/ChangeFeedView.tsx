@@ -107,38 +107,71 @@ export function ChangeFeedView({
       )}
 
       <dl className="radar-stat-grid">
-        <StatCard label="Changes" value={feed.stats.totalEvents} hint="In this window" />
         <StatCard
-          label="Price cuts"
-          value={feed.stats.priceDecreases}
-          status={feed.stats.priceDecreases > 0 ? "positive" : "neutral"}
+          label="Changes"
+          value={feed.stats.totalEvents}
+          hint="In this window"
         />
         <StatCard
-          label="Price rises"
-          value={feed.stats.priceIncreases}
-          status={feed.stats.priceIncreases > 0 ? "warning" : "neutral"}
-        />
-        <StatCard label="Models added" value={feed.stats.modelsAdded} />
-        <StatCard
-          label="Deprecations"
-          value={feed.stats.deprecationsScheduled}
-          status={feed.stats.deprecationsScheduled > 0 ? "warning" : "neutral"}
+          label="Providers"
+          value={providerOptions.length}
+          hint="Observed in this feed"
         />
         <StatCard
-          label="Retirements"
-          value={feed.stats.retirementsScheduled}
-          status={feed.stats.retirementsScheduled > 0 ? "negative" : "neutral"}
+          label="Window"
+          value={
+            filters.range === "30d"
+              ? "30-day"
+              : filters.range === "7d"
+                ? "7-day"
+                : filters.range === "24h"
+                  ? "24-hour"
+                  : "Selected"
+          }
         />
       </dl>
 
+      <ul className="radar-intel-glance" aria-label="Window highlights">
+        <li>
+          {feed.stats.modelsAdded} catalog addition{feed.stats.modelsAdded === 1 ? "" : "s"}
+        </li>
+        <li>
+          {feed.stats.priceDecreases} price cut{feed.stats.priceDecreases === 1 ? "" : "s"},{" "}
+          {feed.stats.priceIncreases} price rise{feed.stats.priceIncreases === 1 ? "" : "s"}
+        </li>
+        <li>
+          {feed.stats.deprecationsScheduled} deprecation{feed.stats.deprecationsScheduled === 1 ? "" : "s"} scheduled
+        </li>
+        <li>
+          {providerOptions.length} provider{providerOptions.length === 1 ? "" : "s"} in this window
+        </li>
+      </ul>
+
       {feed.narrativeSummary && (
-        <Panel
-          id="change-summary"
-          title="What changed"
-          subtitle="Deterministic summary of the events below"
-        >
-          <GroundedProse text={feed.narrativeSummary} />
-        </Panel>
+        <details className="radar-panel">
+          <summary className="radar-panel-header cursor-pointer">
+            <div>
+              <h2 className="radar-panel-title">Intelligence summary</h2>
+              <p className="radar-panel-subtitle">
+                {feed.stats.totalEvents} changes
+                {providerOptions.length > 0 ? ` · ${providerOptions.length} providers` : ""}
+                {" · "}
+                {filters.range === "30d"
+                  ? "30-day window"
+                  : filters.range === "7d"
+                    ? "7-day window"
+                    : filters.range === "24h"
+                      ? "24-hour window"
+                      : "Selected window"}
+                {" · "}
+                View full analysis
+              </p>
+            </div>
+          </summary>
+          <div className="radar-panel-body">
+            <GroundedProse text={feed.narrativeSummary} />
+          </div>
+        </details>
       )}
 
       <ChangeFeedFilters

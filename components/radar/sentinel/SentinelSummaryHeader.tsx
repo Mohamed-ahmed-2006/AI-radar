@@ -139,7 +139,10 @@ export function SentinelSummaryHeader({ summary }: SentinelSummaryHeaderProps) {
         state of the fleet right now; everything in the second already
         happened. Mixing them is what let "Open incidents: 0" sit beside
         "1 healing attempt" as though they described the same moment.
+        Wrapped so the 2-column hero grid does not place History beside
+        the current-state cards.
       */}
+      <div className="radar-sentinel-kpis">
       <p className="radar-kpi-group-label">Current state</p>
       <dl className="radar-sentinel-stats">
         <StatCard label="Sources monitored" value={summary.totalSources} />
@@ -219,6 +222,7 @@ export function SentinelSummaryHeader({ summary }: SentinelSummaryHeaderProps) {
           }
         />
       </dl>
+      </div>
     </section>
   );
 }

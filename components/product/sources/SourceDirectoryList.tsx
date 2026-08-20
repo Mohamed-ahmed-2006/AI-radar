@@ -151,11 +151,6 @@ export function SourceDirectoryList({ entries }: { entries: readonly SourceDirec
                 <StatusDot status={entry.health} />
                 {entry.name}
               </span>
-              <span className="radar-source-row-meta">
-                {entry.collectorId && (
-                  <span className="font-mono">{entry.collectorId}</span>
-                )}
-              </span>
             </span>
           </Link>
           </td>

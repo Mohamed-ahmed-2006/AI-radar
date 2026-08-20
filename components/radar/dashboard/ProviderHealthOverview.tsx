@@ -72,7 +72,7 @@ export function ProviderHealthOverview({
                           : provider.acceptedRecords.toLocaleString("en-US")}
                       </dd>
                     </div>
-                    <div>
+                    <div className="radar-advanced-id">
                       <dt className="text-radar-text-muted inline">Collector </dt>
                       <dd className="inline font-mono text-radar-text-muted truncate">
                         {provider.collectorId}

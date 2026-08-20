@@ -47,6 +47,7 @@ export function ChangeFeedItemCard({
         <Badge variant="muted">{item.categoryLabel}</Badge>
         {watched && <Badge variant="success">In My Stack</Badge>}
         {item.isDemo && <Badge variant="warning">Demo</Badge>}
+        {item.provenance && <Badge variant="muted">Evidence</Badge>}
         <time
           dateTime={item.observedAt}
           title={formatAbsoluteTime(item.observedAt)}
@@ -68,6 +69,9 @@ export function ChangeFeedItemCard({
         {item.summary}
       </p>
 
+      <details className="radar-change-expand">
+        <summary className="radar-inline-link cursor-pointer">Event detail</summary>
+        <div className="radar-change-expand-body">
       <BeforeAfter
         before={item.before}
         after={item.after}
@@ -110,6 +114,8 @@ export function ChangeFeedItemCard({
         provenance={item.provenance}
         subject={`${item.providerName} ${item.modelLabel} ${item.changeTypeLabel.toLowerCase()}`}
       />
+        </div>
+      </details>
     </li>
   );
 }

@@ -4,7 +4,7 @@ import { EmptyState, ErrorState } from "../ui/DataState";
 import { Panel } from "../ui/Panel";
 import { IncidentSpotlight } from "./IncidentSpotlight";
 import { SentinelSummaryHeader } from "./SentinelSummaryHeader";
-import { SourceHealthCard } from "./SourceHealthCard";
+import { SourceHealthFleetTable } from "./SourceHealthFleetTable";
 import type { SentinelView } from "./types";
 import { sortSentinelSources } from "./utils";
 
@@ -117,48 +117,41 @@ export function SourceHealthDashboard({
         <>
           <SentinelSummaryHeader summary={view.summary} />
 
-          <div className="radar-health-counts" aria-label="Fleet health">
-            <div className="radar-health-count">
-              <p className="radar-stat-label">Healthy</p>
-              <p className="radar-health-count-value radar-health-count-healthy">
-                {view.summary.statusCounts.healthy}
+          {spotlight && (
+            <IncidentSpotlight
+              source={spotlight}
+              kicker={
+                spotlight.status === "recovered" ? "Recovery spotlight" : "Attention"
+              }
+            />
+          )}
+          {rest
+            .filter((source) => source.status === "recovered")
+            .slice(0, 1)
+            .map((source) => (
+              <p key={`recovery-${source.sourceId}`} className="radar-recovery-strip">
+                <span className="text-[10px] uppercase tracking-[0.08em] text-radar-text-muted">
+                  Recovery spotlight
+                </span>
+                <Link
+                  href={`/sources/${encodeURIComponent(source.sourceId)}`}
+                  className="radar-explorer-model-link"
+                >
+                  {source.name}
+                </Link>
+                <span className="text-radar-signal">Recovered</span>
               </p>
-            </div>
-            <div className="radar-health-count">
-              <p className="radar-stat-label">Recovered</p>
-              <p className="radar-health-count-value radar-health-count-recovered">
-                {view.summary.statusCounts.recovered}
-              </p>
-            </div>
-            <div className="radar-health-count">
-              <p className="radar-stat-label">Healing</p>
-              <p className="radar-health-count-value radar-health-count-healing">
-                {view.summary.statusCounts.healing}
-              </p>
-            </div>
-            <div className="radar-health-count">
-              <p className="radar-stat-label">Degraded</p>
-              <p className="radar-health-count-value radar-health-count-degraded">
-                {view.summary.statusCounts.degraded}
-              </p>
-            </div>
-          </div>
-
-          {spotlight && <IncidentSpotlight source={spotlight} />}
+            ))}
 
           {/* Omitted when the spotlight is the whole fleet, rather than
               rendering a panel with nothing in it. */}
-          {rest.length > 0 && (
+          {sources.length > 0 && (
             <Panel
               id="sources"
               title="Monitored sources"
               subtitle={`${view.summary.totalSources} source${view.summary.totalSources === 1 ? "" : "s"} across ${view.summary.providers} provider${view.summary.providers === 1 ? "" : "s"}`}
             >
-              <div className="radar-sentinel-grid">
-                {rest.map((source) => (
-                  <SourceHealthCard key={source.sourceId} source={source} />
-                ))}
-              </div>
+              <SourceHealthFleetTable sources={sources} />
             </Panel>
           )}
         </>

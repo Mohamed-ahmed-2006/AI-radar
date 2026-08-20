@@ -30,6 +30,22 @@ export function ModelCompareView({
       <EmptyState
         title="No models to compare"
         description="Select models in Explorer. Comparison uses canonical ids in the URL, so a valid set can be shared."
+        action={
+          <span className="radar-page-intro-links">
+            <Link href="/models" className="radar-compare-go">
+              Select models
+            </Link>
+            <Link
+              href={compareHref([
+                "anthropic:claude-fable-5",
+                "anthropic:claude-haiku-4-5-20251001",
+              ])}
+              className="radar-inline-link"
+            >
+              Try example comparison
+            </Link>
+          </span>
+        }
       />
     );
   }
