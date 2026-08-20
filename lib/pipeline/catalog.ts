@@ -327,6 +327,10 @@ export async function ingestCatalogProvider(
     }
   }
 
+  // Records rejected before identity expansion; counted separately because
+  // expansion changes how many records the run actually evaluated.
+  const adaptRejectedCount = rejectedRecords.length;
+
   // Normalize identity before anything canonical is written: expand family
   // pages that enumerate several API model ids, then resolve collisions by
   // provenance instead of arrival order.
@@ -449,7 +453,12 @@ export async function ingestCatalogProvider(
   }
 
   // Complete collection run
-  const recordsSeen = rawRecords.length;
+  // A family page can enumerate several API model ids, so identity expansion
+  // yields more records than the collector returned rows. Counting the raw rows
+  // here would report fewer records seen than were accepted and rejected, which
+  // violates `collection_runs_counts_balance` and loses the whole run. What the
+  // run actually evaluated is the expanded set plus whatever failed to adapt.
+  const recordsSeen = expandedRecords.length + adaptRejectedCount;
   const recordsAccepted = uniqueRecords.length;
   const recordsRejected = rejectedRecords.length;
   const status: Extract<RunStatus, "succeeded" | "partial"> =
