@@ -88,6 +88,31 @@ export interface DemoPhaseDescriptor {
   availableActions: DemoAction[];
 }
 
+/**
+ * What this demo source has actually done, independent of the phase it is
+ * currently parked in.
+ *
+ * Resetting the demonstration clears the phase marker and the event journal so
+ * the next run starts from a clean stage, but it deliberately does not delete
+ * the incidents, healing attempts and runs that recorded the previous recovery.
+ * Those rows are the proof. Without them the screen has to describe a feature
+ * that has genuinely completed a live recovery as though it had never run.
+ *
+ * Every field here is read from those tables. Nothing is asserted that the
+ * database does not already record.
+ */
+export interface DemoHealingHistory {
+  /** True once at least one incident on this source reached `resolved`. */
+  hasCompletedRecovery: boolean;
+  completedRecoveries: number;
+  lastRecoveryAt: string | null;
+  healingAttemptsRecorded: number;
+  approvedHealingAttempts: number;
+  /** Record count the last-known-good baseline held while quarantined. */
+  lastKnownGoodCount: number | null;
+  lastKnownGoodAt: string | null;
+}
+
 export interface DemoHealingReadModel {
   source: {
     sourceKey: typeof DEMO_SOURCE_KEY;
@@ -135,6 +160,7 @@ export interface DemoHealingReadModel {
     recoveredRunId: string | null;
     recoveredAt: string | null;
   };
+  history: DemoHealingHistory;
   timeline: DemoTimelineEntry[];
   evidence: {
     /** False when any Bright Data or Supabase dependency was a double. */
@@ -246,6 +272,35 @@ function toHealingSummary(row: SentinelHealingAttemptRow): DemoHealingSummary {
     startedAt: row.started_at,
     completedAt: row.completed_at,
     durationMs: durationMs(row.started_at, row.completed_at),
+  };
+}
+
+/**
+ * Assembles the durable record from the incident and healing-attempt rows the
+ * demonstration left behind. A reset clears the phase, not the evidence.
+ */
+export function buildDemoHealingHistory(
+  incidents: readonly SentinelIncidentRow[],
+  attempts: readonly SentinelHealingAttemptRow[],
+): DemoHealingHistory {
+  const resolved = incidents
+    .filter((incident) => incident.status === "resolved")
+    .sort((left, right) =>
+      (right.resolved_at ?? right.created_at).localeCompare(left.resolved_at ?? left.created_at),
+    );
+  const withBaseline = incidents
+    .filter((incident) => incident.last_known_good_count !== null)
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const newestBaseline = withBaseline[0] ?? null;
+
+  return {
+    hasCompletedRecovery: resolved.length > 0,
+    completedRecoveries: resolved.length,
+    lastRecoveryAt: resolved[0]?.resolved_at ?? null,
+    healingAttemptsRecorded: attempts.length,
+    approvedHealingAttempts: attempts.filter((attempt) => attempt.status === "approved").length,
+    lastKnownGoodCount: newestBaseline?.last_known_good_count ?? null,
+    lastKnownGoodAt: newestBaseline?.last_known_good_at ?? null,
   };
 }
 
@@ -364,6 +419,7 @@ export async function getDemoHealingReadModel(
       recoveredAt:
         phase === "recovered" && currentRunRow ? currentRunRow.completed_at : null,
     },
+    history: buildDemoHealingHistory(incidents, attempts),
     timeline: events.map((event) => ({
       at: event.created_at,
       phase: event.phase,

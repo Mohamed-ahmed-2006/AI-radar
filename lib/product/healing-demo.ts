@@ -198,6 +198,24 @@ export interface HealingDemoTimelineStage {
   status: SentinelStageStatus;
 }
 
+/**
+ * The demonstration's durable record, separate from the phase it is parked in.
+ *
+ * A reset returns the stage to its starting position; it does not erase the
+ * incidents and healing attempts already on file. This carries those facts so
+ * the page can say the feature has genuinely completed a live recovery while
+ * still reporting, truthfully, that the current phase is not started.
+ */
+export interface HealingDemoHistoryView {
+  hasCompletedRecovery: boolean;
+  completedRecoveries: number;
+  lastRecoveryAt: string | null;
+  healingAttemptsRecorded: number;
+  approvedHealingAttempts: number;
+  lastKnownGoodCount: number | null;
+  lastKnownGoodAt: string | null;
+}
+
 export interface HealingDemoLinks {
   sourceHealthHref: string;
   sourceDetailHref: string | null;
@@ -226,6 +244,7 @@ export interface HealingDemoBackendSnapshot {
   approval: HealingDemoApprovalView | null;
   rerun: HealingDemoRerunView | null;
   recovery: HealingDemoRecoveryView | null;
+  history: HealingDemoHistoryView | null;
   timeline: HealingDemoTimelineStage[];
   allowedActions: HealingDemoAction[];
   pollAfterMs: number | null;
@@ -259,6 +278,7 @@ export interface HealingDemoReadModel {
   approval: HealingDemoApprovalView | null;
   rerun: HealingDemoRerunView | null;
   recovery: HealingDemoRecoveryView | null;
+  history: HealingDemoHistoryView | null;
   timeline: HealingDemoTimelineStage[];
   allowedActions: HealingDemoAction[];
   links: HealingDemoLinks;
@@ -421,6 +441,7 @@ export function unavailableHealingDemoReadModel(input?: {
     approval: null,
     rerun: null,
     recovery: null,
+    history: null,
     timeline: [],
     allowedActions: [],
     links: {
@@ -474,6 +495,7 @@ export function projectHealingDemoSnapshot(
     approval,
     rerun: snapshot.rerun,
     recovery: snapshot.recovery,
+    history: snapshot.history ?? null,
     timeline: snapshot.timeline,
     allowedActions,
     links: {

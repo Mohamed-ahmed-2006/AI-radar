@@ -451,6 +451,9 @@ export function toHealingDemoSnapshot(
       at: model.recovery.recoveredAt,
       summary: null,
     },
+    // Carried across verbatim. This is what the source has already done, which
+    // stays true after a reset returns the current phase to its start.
+    history: { ...model.history },
     recovery: {
       recovered,
       at: model.recovery.recoveredAt,

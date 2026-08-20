@@ -36,6 +36,7 @@ import {
   type ModelExplorerFilters as CanonicalExplorerFilters,
   type ModelExplorerResult,
 } from "../explorer";
+import { activeSourceRows } from "../sources/active-fleet";
 import { getSourceHealth } from "../supabase/repository";
 import type { SourceHealthRow } from "../supabase/types";
 import { createSupabaseServerClient } from "../supabase/server";
@@ -323,22 +324,39 @@ function lifecycleOptions(facets: ModelExplorerResult["facets"]): ExplorerFilter
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function catalogDegraded(health: readonly SourceHealthRow[]): boolean {
-  return health.some(
-    (row) =>
-      (row.kind === "models" || row.kind === "pricing") &&
-      (row.last_run_status === "failed" || row.last_run_status === "partial"),
-  );
+/**
+ * Which providers currently have a degraded collection path.
+ *
+ * Degradation is evidence about a specific provider's pages. A partial Gemini
+ * catalog run says nothing about whether the Anthropic pricing and catalog
+ * observations are current, so it must not mark Anthropic models degraded —
+ * this returns the affected provider ids and nothing wider.
+ *
+ * Deactivated sources are excluded: a superseded source keeps its last failed
+ * run forever, and that run is history, not a live degradation.
+ */
+export function degradedProviderIds(
+  health: readonly SourceHealthRow[],
+): ReadonlySet<string> {
+  const degraded = new Set<string>();
+  for (const row of activeSourceRows(health)) {
+    if (row.kind !== "models" && row.kind !== "pricing") continue;
+    if (row.last_run_status === "failed" || row.last_run_status === "partial") {
+      degraded.add(row.provider_id);
+    }
+  }
+  return degraded;
 }
 
 function catalogEvidence(
   rows: readonly ModelExplorerRow[],
-  degraded: boolean,
 ): { quality: EvidenceQuality; note: string | null } {
-  if (degraded) {
+  // The banner reports the catalog on screen, so it is degraded only when a
+  // model on screen is — not when some unrelated provider is having a bad run.
+  if (rows.some((row) => row.freshness.quality === "degraded")) {
     return {
       quality: "degraded",
-      note: "One or more catalog or pricing sources last completed in a degraded or failed state. Values below are last-known observations.",
+      note: "One or more of the providers below last completed collection in a degraded or failed state. Their values are last-known observations.",
     };
   }
   if (rows.length === 0) {
@@ -462,9 +480,9 @@ export function createCanonicalExplorerAdapter(
 ): ModelExplorerAdapter {
   const clock = () => deps.now?.() ?? new Date();
 
-  async function degraded(): Promise<boolean> {
-    if (!deps.listSourceHealth) return false;
-    return catalogDegraded(await deps.listSourceHealth());
+  async function degradedProviders(): Promise<ReadonlySet<string>> {
+    if (!deps.listSourceHealth) return new Set<string>();
+    return degradedProviderIds(await deps.listSourceHealth());
   }
 
   return {
@@ -485,15 +503,15 @@ export function createCanonicalExplorerAdapter(
 
       // One read: the read model filters, counts and facets in a single pass,
       // so the screen never issues a second query to learn what it filtered out.
-      const [result, sourceDegraded] = await Promise.all([
+      const [result, degraded] = await Promise.all([
         deps.listExplorer(canonicalFiltersFromExplorer(filters)),
-        degraded(),
+        degradedProviders(),
       ]);
       const now = clock();
       const models = result.entries.map((entry) =>
-        projectExplorerRow(entry, now, sourceDegraded),
+        projectExplorerRow(entry, now, degraded.has(entry.provider.providerId)),
       );
-      const evidence = catalogEvidence(models, sourceDegraded);
+      const evidence = catalogEvidence(models);
 
       return {
         models,
@@ -511,9 +529,9 @@ export function createCanonicalExplorerAdapter(
     async getModelDetail(canonicalId: string): Promise<ModelDetailReadModel | null> {
       if (deps.configured === false) return null;
 
-      const [index, sourceDegraded] = await Promise.all([
+      const [index, degraded] = await Promise.all([
         deps.listExplorer(),
-        degraded(),
+        degradedProviders(),
       ]);
       const modelId = resolveCanonicalModelIds(index.entries).get(
         canonicalId.trim().toLowerCase(),
@@ -616,7 +634,7 @@ export function createCanonicalExplorerAdapter(
         freshness: freshnessFromObservation(
           entry.freshness.lastVerifiedAt,
           now,
-          sourceDegraded,
+          degraded.has(entry.provider.providerId),
         ),
         recentChanges:
           changes.length > 0
@@ -656,9 +674,9 @@ export function createCanonicalExplorerAdapter(
         return { columns: [], missingIds: [], generatedAt, isDemo: false };
       }
 
-      const [index, sourceDegraded] = await Promise.all([
+      const [index, degraded] = await Promise.all([
         deps.listExplorer(),
-        degraded(),
+        degradedProviders(),
       ]);
       const resolution = resolveCanonicalModelIds(index.entries);
 
@@ -689,7 +707,10 @@ export function createCanonicalExplorerAdapter(
           continue;
         }
         columns.push(
-          toCompareColumn(projectExplorerRow(entry, now, sourceDegraded), entry),
+          toCompareColumn(
+            projectExplorerRow(entry, now, degraded.has(entry.provider.providerId)),
+            entry,
+          ),
         );
       }
 

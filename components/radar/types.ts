@@ -1,5 +1,7 @@
 /** UI-facing types for the AI Radar dashboard. Replace fixture imports with API contracts at integration. */
 
+import type { AuthorityLevel } from "../../lib/intelligence/contracts";
+
 export type HealthStatus = "healthy" | "degraded" | "down" | "unknown";
 
 export type ChangeType =
@@ -77,6 +79,12 @@ export interface ProvenanceRecord {
   collector: string;
   datasetVersion: string;
   scrapedAt: string | null;
+  /**
+   * What the source is an authority on, as its registered Sentinel contract
+   * declares it. Null when no contract governs the source, which the trust
+   * vocabulary renders as Unverified rather than guessing.
+   */
+  authority: AuthorityLevel | null;
 }
 
 export interface EcosystemSummary {

@@ -30,6 +30,12 @@ import {
   type PricingProviderSlug,
 } from "../pipeline";
 import { createSourceHealthContractFor } from "../sentinel";
+import {
+  CADENCE_DEFAULTS,
+  cadenceEnvKey as envKey,
+  readCadenceNumber as readNumber,
+  resolveCadenceMinutes,
+} from "./cadence";
 import type {
   CollectionSourceDefinition,
   CollectionSourceKey,
@@ -42,12 +48,10 @@ import type {
  * environment, so cadence and budgets are configuration, not code edits.
  */
 export const ORCHESTRATION_DEFAULTS = {
-  /** Pricing pages move slowly; six hours keeps cost and drift both low. */
-  pricingCadenceMinutes: 360,
-  /** Deprecation pages move more slowly still. */
-  lifecycleCadenceMinutes: 720,
-  /** Catalog pages move slowly; 12 hours keeps cost and drift both low. */
-  catalogCadenceMinutes: 720,
+  /** Cadences are declared in `./cadence`, which read models share. */
+  pricingCadenceMinutes: CADENCE_DEFAULTS.pricing,
+  lifecycleCadenceMinutes: CADENCE_DEFAULTS.lifecycle,
+  catalogCadenceMinutes: CADENCE_DEFAULTS.catalog,
   /** Bright Data collector budget for one attempt. */
   timeoutMs: 120_000,
   maxAttempts: 3,
@@ -63,17 +67,6 @@ const FAILURE_ISOLATION: FailureIsolationPolicy = {
   quarantineBlocksPersistence: true,
   alertAfterConsecutiveFailures: ORCHESTRATION_DEFAULTS.alertAfterConsecutiveFailures,
 };
-
-function envKey(key: CollectionSourceKey, suffix: string): string {
-  return `AI_RADAR_SOURCE_${key.replace(/-/g, "_").toUpperCase()}_${suffix}`;
-}
-
-function readNumber(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw.trim() === "") return fallback;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 /**
  * A declared-but-empty environment variable must not override a committed
@@ -91,13 +84,6 @@ function readBoolean(name: string, fallback: boolean): boolean {
   if (["false", "0", "off", "no"].includes(raw)) return false;
   if (["true", "1", "on", "yes"].includes(raw)) return true;
   return fallback;
-}
-
-function resolveCadenceMinutes(key: CollectionSourceKey, fallback: number): number {
-  return readNumber(
-    envKey(key, "CADENCE_MINUTES"),
-    readNumber("AI_RADAR_COLLECTION_CADENCE_MINUTES", fallback),
-  );
 }
 
 function resolveTimeoutMs(key: CollectionSourceKey): number {

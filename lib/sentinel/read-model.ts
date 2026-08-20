@@ -2,6 +2,7 @@
  * Sentinel Dashboard Read-Model Assembler
  */
 
+import { activeSourceRows } from "../sources/active-fleet";
 import {
   createSentinelRepository,
   type SentinelRepository,
@@ -18,11 +19,25 @@ export async function getSentinelDashboardReadModel(
   repository?: SentinelRepository,
 ): Promise<SentinelDashboardReadModel> {
   const repo = repository ?? createSentinelRepository();
-  const [sourcesHealth, recentIncidents, recentHealing] = await Promise.all([
+  const [allSourcesHealth, recentIncidents, recentHealing] = await Promise.all([
     repo.getSentinelSourceHealth(),
     repo.listRecentIncidents(20),
     repo.listRecentHealingAttempts(20),
   ]);
+
+  // The fleet view is the fleet that is currently collected. A superseded
+  // source keeps its rows — and its incident — but it is not part of the fleet
+  // any more, so it cannot inflate the counts or leave an open incident on a
+  // board that describes what is running now.
+  const sourcesHealth = activeSourceRows(allSourcesHealth);
+  // Keyed on what is known to be deactivated rather than on what is known to be
+  // active: an incident whose source the health view did not return is still
+  // reported, so this cannot quietly swallow one.
+  const deactivatedSourceIds = new Set(
+    allSourcesHealth
+      .filter((source) => source.is_active !== true)
+      .map((source) => source.source_id),
+  );
 
   const now = Date.now();
 
@@ -65,6 +80,7 @@ export async function getSentinelDashboardReadModel(
   });
 
   const activeIncidents = recentIncidents
+    .filter((inc) => !deactivatedSourceIds.has(inc.source_id))
     .filter((inc) => inc.status === "open" || inc.status === "healing" || inc.status === "needs_review")
     .map((inc) => ({
       id: inc.id,
@@ -84,18 +100,20 @@ export async function getSentinelDashboardReadModel(
       createdAt: inc.created_at,
     }));
 
-  const recentHealingAttempts = recentHealing.map((h) => ({
-    id: h.id,
-    incidentId: h.incident_id,
-    sourceId: h.source_id,
-    collectorId: h.collector_id,
-    attemptNumber: h.attempt_number,
-    prompt: h.prompt,
-    status: h.status,
-    candidatePassedValidation: h.candidate_passed_validation,
-    startedAt: h.started_at,
-    completedAt: h.completed_at,
-  }));
+  const recentHealingAttempts = recentHealing
+    .filter((h) => !deactivatedSourceIds.has(h.source_id))
+    .map((h) => ({
+      id: h.id,
+      incidentId: h.incident_id,
+      sourceId: h.source_id,
+      collectorId: h.collector_id,
+      attemptNumber: h.attempt_number,
+      prompt: h.prompt,
+      status: h.status,
+      candidatePassedValidation: h.candidate_passed_validation,
+      startedAt: h.started_at,
+      completedAt: h.completed_at,
+    }));
 
   const summary = {
     totalSources: sources.length,

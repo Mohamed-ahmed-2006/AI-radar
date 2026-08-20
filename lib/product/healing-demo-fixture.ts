@@ -296,6 +296,8 @@ export function fixtureHealingDemoSnapshot(
     generatedAt,
     phase,
     sentinelStatus: sentinelStatusFor(phase),
+    // The fixture describes one staged phase, not a source with a past.
+    history: null,
     identity: ISOLATED_IDENTITY,
     brightData: {
       collectorId: FIXTURE_HEALING_DEMO_COLLECTOR_ID,

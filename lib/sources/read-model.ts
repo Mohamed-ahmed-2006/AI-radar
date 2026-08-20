@@ -21,6 +21,7 @@ import type {
   SentinelStatus,
   SourceRow,
 } from "../supabase/types";
+import { activeSourceRows } from "./active-fleet";
 import { resolveSourceCategory, resolveSourceContractView } from "./contract-view";
 import {
   createSourceReadPort,
@@ -49,6 +50,17 @@ import type {
 export interface SourceReadModelOptions {
   port?: SourceReadPort;
   now?: () => Date;
+}
+
+export interface SourceCatalogOptions extends SourceReadModelOptions {
+  /**
+   * Includes sources that have been deactivated. Off by default: the catalog
+   * describes the fleet that is collected now, and a superseded source would
+   * otherwise appear alongside the source that replaced it. Its history stays
+   * readable through `getSourceDetail`, which is addressed by id and does not
+   * filter.
+   */
+  includeInactive?: boolean;
 }
 
 export interface SourceDetailOptions extends SourceReadModelOptions {
@@ -392,17 +404,19 @@ function latestPerKey(
 // ---------------------------------------------------------------------------
 
 export async function getSourceCatalog(
-  options: SourceReadModelOptions = {},
+  options: SourceCatalogOptions = {},
 ): Promise<SourceCatalog> {
   const port = options.port ?? createSourceReadPort();
   const now = (options.now ?? (() => new Date()))();
 
-  const [sources, providers, sentinelRows, recentRuns] = await Promise.all([
+  const [allSources, providers, sentinelRows, recentRuns] = await Promise.all([
     port.listSources(),
     port.listProviders(),
     port.listSentinelHealth(),
     port.listRecentRuns(),
   ]);
+
+  const sources = options.includeInactive === true ? allSources : activeSourceRows(allSources);
 
   const providersById = new Map(providers.map((provider) => [provider.id, provider]));
   const sentinelBySource = new Map(sentinelRows.map((row) => [row.source_id, row]));

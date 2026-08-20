@@ -24,6 +24,7 @@ function FreshnessBar({
   expectedIntervalMinutes: number | null;
   status: SourceFreshness["status"];
 }) {
+  const scheduled = expectedIntervalMinutes !== null;
   const pct = stalenessPercent(stalenessMinutes, expectedIntervalMinutes);
   const barColor =
     status === "healthy"
@@ -34,18 +35,28 @@ function FreshnessBar({
           ? "bg-radar-muted"
           : "bg-radar-danger";
 
+  // A source that is not on the fleet schedule has no window to be a
+  // percentage of, so the meter reports no value rather than reporting zero.
   return (
-    <div className="mt-1.5" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+    <div
+      className="mt-1.5"
+      role="meter"
+      aria-valuenow={scheduled ? pct : undefined}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div className="h-1 w-full rounded-full bg-radar-surface-raised overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${barColor}`}
-          style={{ width: `${pct}%` }}
+          style={{ width: scheduled ? `${pct}%` : "100%" }}
         />
       </div>
       <span className="sr-only">
-        {status === "unknown"
-          ? "Freshness interval unknown"
-          : `${pct}% of expected refresh interval elapsed`}
+        {!scheduled
+          ? "Collected on demand, not on a fleet schedule"
+          : status === "unknown"
+            ? "Freshness interval unknown"
+            : `${pct}% of expected refresh interval elapsed`}
       </span>
     </div>
   );
@@ -108,9 +119,11 @@ export function SourceFreshnessPanel({
                 </div>
                 <div className="text-right shrink-0">
                   <span className="text-[10px] font-mono text-radar-text-muted tabular-nums">
-                    {source.stalenessMinutes === null || source.expectedIntervalMinutes === null
-                      ? "interval not configured"
-                      : `${source.stalenessMinutes}m / ${source.expectedIntervalMinutes}m`}
+                    {source.expectedIntervalMinutes !== null
+                      ? `${source.stalenessMinutes ?? "—"}m / ${source.expectedIntervalMinutes}m`
+                      : source.stalenessMinutes !== null
+                        ? `${source.stalenessMinutes}m · on demand`
+                        : "never collected"}
                   </span>
                 </div>
               </div>

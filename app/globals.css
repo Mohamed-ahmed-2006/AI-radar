@@ -2534,6 +2534,32 @@ body {
   margin: 0.25rem 0 0;
 }
 
+.radar-healing-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--radar-text-secondary);
+}
+
+.radar-healing-history-badge {
+  border: 1px solid var(--radar-signal);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--radar-signal);
+  text-transform: uppercase;
+  font-size: 0.65rem;
+}
+
+.radar-healing-history-facts {
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  color: var(--radar-text-muted);
+}
+
 .radar-healing-phase-healthy .radar-healing-phase {
   color: var(--radar-signal);
 }

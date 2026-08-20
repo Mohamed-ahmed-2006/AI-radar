@@ -1,5 +1,9 @@
 import { SentinelStatusBadge } from "../../radar/sentinel/SentinelStatusBadge";
-import type { HealingDemoReadModel } from "../../../lib/product/healing-demo";
+import type {
+  HealingDemoHistoryView,
+  HealingDemoReadModel,
+} from "../../../lib/product/healing-demo";
+import { formatAbsoluteTime } from "../../radar/utils";
 
 const PHASE_TONE: Record<string, string> = {
   healthy: "radar-healing-phase-healthy",
@@ -44,6 +48,36 @@ function storyLine(model: HealingDemoReadModel): string {
   }
 }
 
+/**
+ * What this source has already done, read from its own incident and healing
+ * rows. Rendered only when there is a completed recovery on file, so a demo
+ * that has genuinely never run still says nothing.
+ */
+function HistoryLine({ history }: { history: HealingDemoHistoryView }) {
+  if (!history.hasCompletedRecovery) return null;
+
+  const facts = [
+    `Last live recovery: RECOVERED${
+      history.lastRecoveryAt ? ` · ${formatAbsoluteTime(history.lastRecoveryAt)}` : ""
+    }`,
+    history.lastKnownGoodCount !== null
+      ? `LKG preserved: ${history.lastKnownGoodCount} records`
+      : null,
+    history.approvedHealingAttempts > 0
+      ? `${history.approvedHealingAttempts} approved repair${
+          history.approvedHealingAttempts === 1 ? "" : "s"
+        }`
+      : null,
+  ].filter((fact): fact is string => fact !== null);
+
+  return (
+    <p className="radar-healing-history">
+      <span className="radar-healing-history-badge">Ready for demonstration</span>
+      <span className="radar-healing-history-facts">{facts.join(" · ")}</span>
+    </p>
+  );
+}
+
 export function HealingDemoPhaseHero({ model }: { model: HealingDemoReadModel }) {
   const phaseClass = model.phase ? PHASE_TONE[model.phase] : "radar-healing-phase-idle";
   const recovered = model.phase === "recovered";
@@ -60,6 +94,7 @@ export function HealingDemoPhaseHero({ model }: { model: HealingDemoReadModel })
         {(model.phaseLabel ?? "Unavailable").toUpperCase()}
       </p>
       <p className="radar-healing-story">{storyLine(model)}</p>
+      {model.history && <HistoryLine history={model.history} />}
       {model.sentinelStatus && (
         <p className="radar-healing-hero-badge">
           <SentinelStatusBadge status={model.sentinelStatus} size="lg" />

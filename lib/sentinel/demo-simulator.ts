@@ -228,8 +228,11 @@ export class InMemorySentinelRepository implements SentinelRepository {
     this.baselines.set(sourceId, baseline);
   }
 
+  /** Set by tests that need the fleet view to report rows. */
+  public sourceHealth: SentinelSourceHealthRow[] = [];
+
   public async getSentinelSourceHealth(): Promise<SentinelSourceHealthRow[]> {
-    return [];
+    return [...this.sourceHealth];
   }
 
   public async listRecentIncidents(limit = 50): Promise<SentinelIncidentRow[]> {

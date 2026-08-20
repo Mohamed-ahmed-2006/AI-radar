@@ -52,6 +52,10 @@ export function SourceProvenance({
               collectorId: placeholder(record.collector),
               observedAt: record.scrapedAt,
               runId: placeholder(record.datasetVersion),
+              // Derived by the read model from the source's registered
+              // contract, so this panel uses the same trust vocabulary as
+              // Explorer and Optimizer instead of defaulting to Unverified.
+              authority: record.authority,
               isDemo,
             });
             return (

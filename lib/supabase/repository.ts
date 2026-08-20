@@ -83,6 +83,13 @@ export async function upsertProvider(
   );
 }
 
+/** Every registered provider, so a read model can name one without a snapshot. */
+export async function listProviders(
+  db: SupabaseServerClient,
+): Promise<ProviderRow[]> {
+  return unwrap("listProviders", await db.from("providers").select());
+}
+
 export interface SourceInput {
   providerId: string;
   sourceUrl: string;

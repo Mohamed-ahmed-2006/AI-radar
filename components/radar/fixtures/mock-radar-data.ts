@@ -222,6 +222,7 @@ export const MOCK_RADAR_DATA: RadarDashboardData = {
       collector: "bd-openai-pricing-v3",
       datasetVersion: "2026-08-17T10:42:00Z",
       scrapedAt: FIXTURE_TIMESTAMP,
+      authority: "verified_scrape",
     },
   ],
 };
