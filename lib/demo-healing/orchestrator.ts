@@ -749,6 +749,22 @@ export class DemoHealingOrchestrator {
       approvalState: passed ? "awaiting_decision" : "rejected",
     });
 
+    if (!passed) {
+      // Sentinel's refusal has to reach Bright Data too. The refactor job is
+      // parked at its approval gate; leaving it parked keeps the collector
+      // locked, so the next `request_heal` is rejected with 409 and the
+      // contract's remaining healing attempts can never be spent. Rejecting
+      // releases the collector with the template it already had.
+      //
+      // A vendor failure here must not swallow the verdict: the candidate is
+      // rejected either way, and the attempt below still records why.
+      try {
+        await this.healer.applyDecision(this.configuration.collectorId, false);
+      } catch {
+        // Reported through the refusal that follows.
+      }
+    }
+
     if (state.current_incident_id && !passed) {
       await this.sentinelRepository.recordHealingAttempt({
         incidentId: state.current_incident_id,
