@@ -17,6 +17,7 @@ import { ModelWatchControl } from "../watchlist/ModelWatchControl";
 import { CapabilityStatus } from "./CapabilityStatus";
 import { FreshnessStatus } from "./FreshnessStatus";
 import { formatModalities, formatObservedPrice, formatObservedTokens } from "./format";
+import { ModelDetailLayout } from "./ModelDetailLayout";
 
 function Section<T>({
   state,
@@ -84,22 +85,22 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
   const { identity } = detail;
 
   return (
-    <div className="radar-surface-stack">
-      <nav className="radar-workflow-links" aria-label="Model actions">
-        <ModelWatchControl identity={identity} />
-        <Link href={compareHref([identity.canonicalId])} className="radar-inline-link">
-          Compare
-        </Link>
-        <Link href="/optimizer" className="radar-inline-link">
-          Optimize Stack
-        </Link>
-        <Link href="/my-stack" className="radar-inline-link">
-          My Stack
-        </Link>
-      </nav>
+    <ModelDetailLayout
+      hero={
+        <>
+          <nav className="radar-workflow-links" aria-label="Model actions">
+            <ModelWatchControl identity={identity} />
+            <Link href={compareHref([identity.canonicalId])} className="radar-inline-link">
+              Compare
+            </Link>
+            <Link href="/optimizer" className="radar-inline-link">
+              Optimize Stack
+            </Link>
+            <Link href="/my-stack" className="radar-inline-link">
+              My Stack
+            </Link>
+          </nav>
 
-      <div className="radar-source-detail-grid">
-        <div className="radar-surface-stack">
           <Panel
             id="model-identity"
             title="Identity"
@@ -146,7 +147,46 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
               </Section>
             </div>
           </Panel>
-
+        </>
+      }
+      overview={
+        <div className="radar-source-detail-grid">
+          <Panel id="model-limits" title="Context and output limits">
+            <Section state={detail.limits}>
+              {(limits) => (
+                <dl className="radar-fact-grid">
+                  <Fact
+                    label="Context window"
+                    value={
+                      limits.contextWindow === null
+                        ? "Not observed"
+                        : formatObservedTokens(limits.contextWindow)
+                    }
+                    empty={limits.contextWindow === null}
+                    mono
+                  />
+                  <Fact
+                    label="Max output"
+                    value={
+                      limits.maxOutputTokens === null
+                        ? "Not observed"
+                        : formatObservedTokens(limits.maxOutputTokens)
+                    }
+                    empty={limits.maxOutputTokens === null}
+                    mono
+                  />
+                </dl>
+              )}
+            </Section>
+          </Panel>
+          <Panel id="model-freshness" title="Freshness">
+            <FreshnessStatus freshness={detail.freshness} />
+            <p className="text-xs text-radar-text-muted mt-2">{detail.freshness.description}</p>
+            <ProvenanceDisclosure provenance={detail.provenance} subject="freshness" />
+          </Panel>
+        </div>
+      }
+      pricing={
           <Panel id="model-pricing" title="Pricing" subtitle="USD per 1M tokens, as observed">
             <Section state={detail.pricing}>
               {(prices) => (
@@ -199,7 +239,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
               )}
             </Section>
           </Panel>
-
+      }
+      capabilities={
           <Panel id="model-capabilities" title="Capabilities" subtitle="Observed features, not assumed ones">
             <Section state={detail.capabilities}>
               {(capabilities) => (
@@ -241,38 +282,9 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
               )}
             </Section>
           </Panel>
-
-          <Panel id="model-limits" title="Context and output limits">
-            <Section state={detail.limits}>
-              {(limits) => (
-                <dl className="radar-fact-grid">
-                  <Fact
-                    label="Context window"
-                    value={
-                      limits.contextWindow === null
-                        ? "Not observed"
-                        : formatObservedTokens(limits.contextWindow)
-                    }
-                    empty={limits.contextWindow === null}
-                    mono
-                  />
-                  <Fact
-                    label="Max output"
-                    value={
-                      limits.maxOutputTokens === null
-                        ? "Not observed"
-                        : formatObservedTokens(limits.maxOutputTokens)
-                    }
-                    empty={limits.maxOutputTokens === null}
-                    mono
-                  />
-                </dl>
-              )}
-            </Section>
-          </Panel>
-        </div>
-
-        <div className="radar-surface-stack">
+      }
+      lifecycle={
+        <div className="radar-source-detail-grid">
           <Panel id="model-lifecycle" title="Lifecycle" subtitle="Projected state as observed">
             <Section state={detail.lifecycle}>
               {(lifecycle) => (
@@ -334,13 +346,10 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
               )}
             </Section>
           </Panel>
-
-          <Panel id="model-freshness" title="Freshness">
-            <FreshnessStatus freshness={detail.freshness} />
-            <p className="text-xs text-radar-text-muted mt-2">{detail.freshness.description}</p>
-            <ProvenanceDisclosure provenance={detail.provenance} subject="freshness" />
-          </Panel>
-
+        </div>
+      }
+      evidence={
+        <>
           <Panel
             id="model-provenance"
             title="Provenance"
@@ -348,8 +357,6 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
           >
             <ProvenanceDetails provenance={detail.provenance} />
           </Panel>
-        </div>
-      </div>
 
       <details className="radar-panel">
         <summary className="radar-panel-header cursor-pointer">
@@ -536,6 +543,8 @@ export function ModelDetailView({ detail }: { detail: ModelDetailReadModel }) {
       </Panel>
         </div>
       </details>
-    </div>
+        </>
+      }
+    />
   );
 }
