@@ -247,8 +247,18 @@ function buildHealthView(input: BuildHealthInput): SourceHealthView {
           .filter((value): value is string => value !== null)
           .sort()
           .at(-1) ?? null);
-  const healingAttempts =
-    input.healing?.length ?? latestIncidentSummary?.healingAttemptCount ?? 0;
+  // One logical healing attempt writes several `sentinel_healing_attempts`
+  // rows as it moves through initiated → awaiting_approval → approved, and all
+  // of them share an `attempt_number`. Counting rows would report three
+  // attempts where the incident's own counter says one, so distinct
+  // (incident, attempt number) pairs are counted instead.
+  const healingAttempts = input.healing
+    ? new Set(
+        input.healing.map(
+          (attempt) => `${attempt.incident_id}|${attempt.attempt_number}`,
+        ),
+      ).size
+    : (latestIncidentSummary?.healingAttemptCount ?? 0);
 
   const currentRecordCount =
     sentinel?.last_run_records_accepted ?? lastAttempt?.records_accepted ?? null;

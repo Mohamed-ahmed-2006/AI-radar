@@ -97,12 +97,38 @@ function recoveredDemoPort(): InMemorySourceReadPort {
         resolved_at: minutesAgo(21),
       }),
     ],
+    // One logical attempt, written as three rows as it progressed. Production
+    // looks exactly like this.
     healingAttempts: [
       healingAttempt({
-        id: "heal-1",
+        id: "heal-1-approved",
         source_id: DEMO_SOURCE.id,
         incident_id: "inc-demo",
         collector_id: DEMO_SOURCE.collector_id,
+        attempt_number: 1,
+        status: "approved",
+        started_at: minutesAgo(23),
+        completed_at: minutesAgo(21),
+      }),
+      healingAttempt({
+        id: "heal-1-awaiting",
+        source_id: DEMO_SOURCE.id,
+        incident_id: "inc-demo",
+        collector_id: DEMO_SOURCE.collector_id,
+        attempt_number: 1,
+        status: "awaiting_approval",
+        started_at: minutesAgo(25),
+        completed_at: null,
+      }),
+      healingAttempt({
+        id: "heal-1-initiated",
+        source_id: DEMO_SOURCE.id,
+        incident_id: "inc-demo",
+        collector_id: DEMO_SOURCE.collector_id,
+        attempt_number: 1,
+        status: "initiated",
+        started_at: minutesAgo(28),
+        completed_at: null,
       }),
     ],
     sentinelHealth: [
@@ -204,8 +230,31 @@ test("source detail reports one current-state label and recovery as history", as
 
   // The recovery evidence lives on its own object with its own timestamp.
   assert.equal(view.recovery.resolvedIncidents, 1);
+  // Three rows, one attempt. The incident's own counter says 1, and the
+  // recovery summary must not contradict it by counting state transitions.
   assert.equal(view.recovery.healingAttempts, 1);
   assert.equal(view.recovery.lastRecoveredAt, minutesAgo(21));
+});
+
+test("the healing timeline renders one stage per attempt, not one per state row", async () => {
+  const detail = await getSourceDetail(DEMO_SOURCE.id, {
+    port: recoveredDemoPort(),
+    now: () => NOW,
+  });
+  assert.ok(detail);
+  const view = buildSourceDetailFromReadModel(detail);
+
+  assert.equal(view.healingTimeline.available, true);
+  if (!view.healingTimeline.available) return;
+
+  const labels = view.healingTimeline.data.map((stage) => stage.label);
+  assert.deepEqual(labels, ["Healing attempt 1"], "no repeated attempt heading");
+  assert.equal(view.healingTimeline.data[0].status, "done");
+  assert.equal(
+    view.healingTimeline.data.length,
+    view.recovery.healingAttempts,
+    "the timeline and the recovery count describe the same attempts",
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -167,6 +167,46 @@ function toTimelineStage(attempt: SourceHealingAttemptView): SentinelTimelineSta
   };
 }
 
+/**
+ * One stage per healing attempt, not one per row.
+ *
+ * A single attempt writes a row for each state it passes through — initiated,
+ * awaiting_approval, approved — all sharing an `attemptNumber`. Rendering them
+ * verbatim repeated "Healing attempt 1" three times and disagreed with the
+ * incident's own attempt counter. The rows for one attempt are collapsed to
+ * the furthest-progressed one, which is the outcome that actually happened.
+ */
+const OUTCOME_PROGRESS: Record<SourceHealingAttemptView["outcome"], number> = {
+  in_progress: 0,
+  failed: 1,
+  needs_review: 2,
+  rejected: 3,
+  recovered: 4,
+};
+
+export function collapseHealingAttempts(
+  attempts: readonly SourceHealingAttemptView[],
+): SourceHealingAttemptView[] {
+  const byAttempt = new Map<string, SourceHealingAttemptView>();
+  for (const attempt of attempts) {
+    const key = `${attempt.incidentId}|${attempt.attemptNumber}`;
+    const held = byAttempt.get(key);
+    if (
+      !held ||
+      OUTCOME_PROGRESS[attempt.outcome] > OUTCOME_PROGRESS[held.outcome] ||
+      (OUTCOME_PROGRESS[attempt.outcome] === OUTCOME_PROGRESS[held.outcome] &&
+        attempt.startedAt > held.startedAt)
+    ) {
+      byAttempt.set(key, attempt);
+    }
+  }
+  return [...byAttempt.values()].sort((left, right) =>
+    left.startedAt === right.startedAt
+      ? left.attemptNumber - right.attemptNumber
+      : left.startedAt.localeCompare(right.startedAt),
+  );
+}
+
 function formatCount(value: number | null): string | null {
   if (value === null) return null;
   return `${value.toLocaleString("en-US")} record${value === 1 ? "" : "s"}`;
@@ -361,7 +401,9 @@ export function buildSourceDetailFromReadModel(
     runHistory: available(detail.runs.map(toRunRecord)),
     observedData,
     incidents: available(detail.incidents.map(toIncidentRecord)),
-    healingTimeline: available(detail.healing.map(toTimelineStage)),
+    healingTimeline: available(
+      collapseHealingAttempts(detail.healing).map(toTimelineStage),
+    ),
     normalization,
     provenance: provenanceFromSource({
       sourceLabel: identity.name,
