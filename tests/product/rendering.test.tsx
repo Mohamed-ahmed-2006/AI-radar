@@ -183,7 +183,9 @@ test("Source health states the status in words beside the indicator", () => {
         statusLabel: "Quarantined",
         health: "down",
         recordCount: 12,
+        openIncident: null,
       }}
+      recovery={{ resolvedIncidents: 0, healingAttempts: 0, lastRecoveredAt: null }}
       freshness={{
         lastRunAt: "2026-08-17T09:00:00.000Z",
         lastSuccessAt: null,
@@ -204,7 +206,14 @@ test("Source health states the status in words beside the indicator", () => {
 test("Source health reports a healthy source without inventing a missing figure", () => {
   const html = renderToStaticMarkup(
     <SourceHealthSummary
-      health={{ status: "healthy", statusLabel: "Healthy", health: "healthy", recordCount: null }}
+      health={{
+        status: "healthy",
+        statusLabel: "Healthy",
+        health: "healthy",
+        recordCount: null,
+        openIncident: null,
+      }}
+      recovery={{ resolvedIncidents: 0, healingAttempts: 0, lastRecoveredAt: null }}
       freshness={{
         lastRunAt: null,
         lastSuccessAt: null,

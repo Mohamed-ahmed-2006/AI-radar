@@ -30,10 +30,14 @@ export function StatusDot({
         className={`inline-block rounded-full ${sizeClass} ${statusColors[status]} ${pulse && status === "healthy" ? "animate-radar-pulse" : ""}`}
         aria-hidden="true"
       />
-      {label && (
+      {label ? (
+        // The visible label already reads the state out. Emitting the same
+        // words again as screen-reader-only text made the state appear twice
+        // in the accessibility tree and in any text extraction of the page.
         <span className="text-xs text-radar-text-secondary">{label}</span>
+      ) : (
+        <span className="sr-only">{ariaLabel}</span>
       )}
-      <span className="sr-only">{ariaLabel}</span>
     </span>
   );
 }

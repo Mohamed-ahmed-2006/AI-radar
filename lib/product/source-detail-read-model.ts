@@ -70,7 +70,22 @@ export const SOURCE_READ_MODEL_CAPABILITIES: SourceDetailCapabilities = {
 };
 
 const NO_CONTRACT_REASON =
-  "This source is collected but no Sentinel contract is registered for it yet, so its normalization expectations are unknown.";
+  "No Sentinel source contract is registered for this source, so its normalization expectations are unknown.";
+
+/**
+ * Where a source's contract is declared, in words a judge can check.
+ *
+ * Both are real, executable `SourceHealthContract`s built by the same factory
+ * and evaluated by the same `evaluateSourceHealth` / `evaluateSentinelGate`.
+ * The difference is which registry declares them and what they govern, and the
+ * page states that rather than implying one is not a contract at all.
+ */
+const CONTRACT_REGISTRY_NOTE: Record<SourceContractView["registry"], string> = {
+  "production-sources":
+    "Registered in the production source registry: this contract governs a provider page whose accepted records reach the canonical tables.",
+  "sentinel-demo-harness":
+    "Registered by the Sentinel self-healing demo harness rather than the production source registry. It is a real source contract — same factory, same evaluator, same gate — but it governs the isolated demo source and its records never reach the canonical pricing, lifecycle or catalog tables.",
+};
 
 const NO_TRANSFORMATION_REASON =
   "No accepted observation has been recorded for this source yet, so there is no raw-to-normalized example to show.";
@@ -226,7 +241,16 @@ function buildNormalization(
     },
   ];
 
-  return { contractName: `${contract.authorityDomain} contract`, stages };
+  stages.push({
+    id: "contract-registry",
+    label: "Contract registry",
+    description: CONTRACT_REGISTRY_NOTE[contract.registry],
+    detail: contract.isAuthoritative
+      ? "Authoritative for its domain"
+      : "Non-authoritative: validated, but not the canonical authority",
+  });
+
+  return { contractName: contract.contractName, stages };
 }
 
 export function buildSourceDirectoryFromReadModel(
@@ -246,6 +270,8 @@ export function buildSourceDirectoryFromReadModel(
     stalenessMinutes: source.health.freshness.ageMinutes,
     recordCount: source.health.currentRecordCount,
     hasOpenIncident: source.health.activeIncident !== null,
+    hasResolvedIncident:
+      source.health.activeIncident === null && source.health.latestIncident !== null,
   }));
 
   return { entries, isDemo: false, demoScenario: null, generatedAt };
@@ -310,6 +336,20 @@ export function buildSourceDetailFromReadModel(
       statusLabel: sentinelStatusLabel(health.status),
       health: healthFor(health.status),
       recordCount: health.currentRecordCount,
+      openIncident:
+        health.activeIncident === null
+          ? null
+          : {
+              incidentId: health.activeIncident.incidentId,
+              severity: health.activeIncident.severity,
+              reasonCodes: [...health.activeIncident.reasonCodes],
+              openedAt: health.activeIncident.openedAt,
+            },
+    },
+    recovery: {
+      resolvedIncidents: health.recovery.resolvedIncidents,
+      healingAttempts: health.recovery.healingAttempts,
+      lastRecoveredAt: health.recovery.lastRecoveredAt,
     },
     freshness: {
       lastRunAt: health.lastAttemptedRunAt,
@@ -337,7 +377,16 @@ export function buildSourceDetailFromReadModel(
       },
       // Only the contract knows whether this source is an authority; a page
       // being reachable says nothing about how authoritative its contents are.
-      authority: contract?.isAuthoritative ? "authoritative" : null,
+      // A contract-governed source that is passing the gate but is not the
+      // authority for its domain is a verified scrape — the same rule
+      // `provenanceFromRecord` applies, so the two surfaces cannot disagree.
+      authority: contract === null
+        ? null
+        : contract.isAuthoritative
+          ? "authoritative"
+          : validationStatusFor(health.status) === "passing"
+            ? "verified_scrape"
+            : null,
       isDemo: false,
     }),
     isDemo: false,

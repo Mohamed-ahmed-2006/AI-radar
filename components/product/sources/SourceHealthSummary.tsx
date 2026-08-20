@@ -1,10 +1,11 @@
 import { StatCard } from "../../radar/ui/StatCard";
+import { Badge } from "../../radar/ui/Badge";
 import { SentinelStatusBadge } from "../../radar/sentinel/SentinelStatusBadge";
-import { StatusDot } from "../../radar/ui/StatusDot";
 import { formatAbsoluteTime, formatRelativeTime } from "../../radar/utils";
 import type {
   SourceFreshnessState,
   SourceHealthState,
+  SourceRecoveryHistoryState,
 } from "../../../lib/product/source-detail";
 
 function staleness(minutes: number | null): string {
@@ -18,21 +19,73 @@ function staleness(minutes: number | null): string {
 /**
  * Current Sentinel state, freshness and volume for one source.
  *
- * Every state is spelled out in words next to the dot, so the health reading
- * never depends on being able to distinguish green from amber.
+ * The state is named exactly once. The badge already carries a coloured dot and
+ * the state in words, so pairing it with a labelled `StatusDot` restated the
+ * same verdict twice over — and the dot's screen-reader copy made it three
+ * times. Historical recovery is a separate line with its own heading, because
+ * "recovered at some point" and "recovered right now" are different claims.
  */
 export function SourceHealthSummary({
   health,
+  recovery,
   freshness,
 }: {
   health: SourceHealthState;
+  recovery: SourceRecoveryHistoryState;
   freshness: SourceFreshnessState;
 }) {
   return (
     <div className="radar-source-detail-health">
       <p className="radar-source-detail-state">
-        <StatusDot status={health.health} label={health.statusLabel} size="md" />
-        <SentinelStatusBadge status={health.status} />
+        <span className="radar-fact-label">Current health</span>
+        <SentinelStatusBadge status={health.status} size="lg" />
+        {health.openIncident !== null && (
+          <Badge variant="critical">Open incident</Badge>
+        )}
+      </p>
+
+      <p className="radar-source-detail-history">
+        {health.openIncident !== null ? (
+          <>
+            Open since{" "}
+            {health.openIncident.openedAt ? (
+              <time
+                dateTime={health.openIncident.openedAt}
+                title={formatAbsoluteTime(health.openIncident.openedAt)}
+              >
+                {formatRelativeTime(health.openIncident.openedAt)}
+              </time>
+            ) : (
+              "an unrecorded time"
+            )}
+            .
+          </>
+        ) : recovery.lastRecoveredAt !== null ? (
+          <>
+            No open incident. Last recovery{" "}
+            <time
+              dateTime={recovery.lastRecoveredAt}
+              title={formatAbsoluteTime(recovery.lastRecoveredAt)}
+            >
+              {formatRelativeTime(recovery.lastRecoveredAt)}
+            </time>
+            {recovery.healingAttempts > 0 && (
+              <>
+                {" "}
+                after {recovery.healingAttempts} healing attempt
+                {recovery.healingAttempts === 1 ? "" : "s"}
+              </>
+            )}
+            .
+          </>
+        ) : (recovery.resolvedIncidents ?? 0) > 0 ? (
+          <>
+            No open incident. {recovery.resolvedIncidents} resolved incident
+            {recovery.resolvedIncidents === 1 ? "" : "s"} on record.
+          </>
+        ) : (
+          <>No incident has ever been raised for this source.</>
+        )}
       </p>
 
       <dl className="radar-stat-grid">

@@ -37,6 +37,7 @@ import {
 import type {
   RunValidationStatus,
   SourceContractView,
+  SourceIncidentSummary,
   SourceDetail,
   SourceHealingAttemptView,
   SourceHealthView,
@@ -46,6 +47,7 @@ import type {
   SourceRunView,
   SourceSummary,
 } from "./types";
+import { isOpenIncidentStatus } from "./types";
 
 export interface SourceReadModelOptions {
   port?: SourceReadPort;
@@ -77,12 +79,21 @@ export interface SourceCatalog {
   summary: {
     totalSources: number;
     enabledSources: number;
+    /** Strictly the `healthy` Sentinel state. */
     healthy: number;
+    /** Strictly the `recovered` Sentinel state. */
+    recovered: number;
+    /** Sources currently serving trusted data: healthy + recovered. */
+    operational: number;
     degraded: number;
     quarantined: number;
     healing: number;
     needsReview: number;
     stale: number;
+    /** CURRENT: sources with an incident that is still open. */
+    openIncidents: number;
+    /** HISTORY: sources whose most recent incident is already resolved. */
+    recoveredIncidents: number;
   };
 }
 
@@ -149,6 +160,7 @@ interface BuildHealthInput {
   sentinel: SentinelSourceHealthRow | null;
   runs: readonly PublicCollectionRunRow[];
   incidents?: readonly SentinelIncidentRow[];
+  healing?: readonly PublicHealingAttemptRow[];
   contract: SourceContractView | null;
   now: Date;
 }
@@ -188,7 +200,13 @@ function buildHealthView(input: BuildHealthInput): SourceHealthView {
         ).toISOString()
       : null;
 
-  const activeIncident = sentinel?.active_incident_id
+  // `sentinel_source_health` exposes the *most recent* incident under the
+  // `active_incident_*` prefix regardless of whether it is still open. Reading
+  // that column as "there is an open incident" is what made a recovered source
+  // carry an Open-incident badge while the fleet board correctly reported zero.
+  // The incident is projected once and then split by status: current state on
+  // `activeIncident`, history on `latestIncident`.
+  const latestIncidentSummary: SourceIncidentSummary | null = sentinel?.active_incident_id
     ? {
         incidentId: sentinel.active_incident_id,
         status: sentinel.active_incident_status ?? "open",
@@ -196,8 +214,41 @@ function buildHealthView(input: BuildHealthInput): SourceHealthView {
         reasonCodes: sentinel.active_reason_codes ?? [],
         healingAttemptCount: sentinel.healing_attempt_count ?? 0,
         openedAt: latestIncident?.created_at ?? null,
+        resolvedAt: latestIncident?.resolved_at ?? null,
       }
+    : latestIncident
+      ? {
+          incidentId: latestIncident.id,
+          status: latestIncident.status,
+          severity: latestIncident.severity,
+          reasonCodes: latestIncident.reason_codes ?? [],
+          healingAttemptCount: latestIncident.healing_attempt_count,
+          openedAt: latestIncident.created_at,
+          resolvedAt: latestIncident.resolved_at,
+        }
+      : null;
+
+  const activeIncident = isOpenIncidentStatus(latestIncidentSummary?.status ?? null)
+    ? latestIncidentSummary
     : null;
+
+  const knownIncidents = input.incidents ?? null;
+  const resolvedIncidents =
+    knownIncidents === null
+      ? null
+      : knownIncidents.filter((incident) => !isOpenIncidentStatus(incident.status)).length;
+  const lastRecoveredAt =
+    knownIncidents === null
+      ? (latestIncidentSummary && !isOpenIncidentStatus(latestIncidentSummary.status)
+          ? latestIncidentSummary.resolvedAt
+          : null)
+      : (knownIncidents
+          .map((incident) => incident.resolved_at)
+          .filter((value): value is string => value !== null)
+          .sort()
+          .at(-1) ?? null);
+  const healingAttempts =
+    input.healing?.length ?? latestIncidentSummary?.healingAttemptCount ?? 0;
 
   const currentRecordCount =
     sentinel?.last_run_records_accepted ?? lastAttempt?.records_accepted ?? null;
@@ -231,6 +282,12 @@ function buildHealthView(input: BuildHealthInput): SourceHealthView {
     currentRecordCount,
     expectedRecordCount,
     activeIncident,
+    latestIncident: latestIncidentSummary,
+    recovery: {
+      resolvedIncidents,
+      healingAttempts,
+      lastRecoveredAt,
+    },
   };
 }
 
@@ -467,13 +524,27 @@ export async function getSourceCatalog(
     summary: {
       totalSources: summaries.length,
       enabledSources: summaries.filter((summary) => summary.identity.enabled).length,
-      healthy: countByStatus("healthy") + countByStatus("recovered"),
+      // `healthy` is strictly the healthy state. `recovered` is its own state —
+      // operationally serving, but not the same thing — and `operational` is
+      // the union, named so it can never be mistaken for either.
+      healthy: countByStatus("healthy"),
+      recovered: countByStatus("recovered"),
+      operational: countByStatus("healthy") + countByStatus("recovered"),
       degraded: countByStatus("degraded"),
       quarantined: countByStatus("quarantined"),
       healing: countByStatus("healing"),
       needsReview: countByStatus("needs_review"),
       stale: summaries.filter((summary) => summary.health.freshness.status === "stale")
         .length,
+      // CURRENT: sources holding an incident that is still open.
+      openIncidents: summaries.filter((summary) => summary.health.activeIncident !== null)
+        .length,
+      // HISTORY: sources that have recovered from an incident at least once.
+      recoveredIncidents: summaries.filter(
+        (summary) =>
+          summary.health.activeIncident === null &&
+          summary.health.latestIncident !== null,
+      ).length,
     },
   };
 }
@@ -576,6 +647,7 @@ export async function getSourceDetail(
       sentinel: sentinelRows.find((row) => row.source_id === sourceId) ?? null,
       runs,
       incidents,
+      healing,
       contract,
       now,
     }),

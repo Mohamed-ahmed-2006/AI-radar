@@ -84,6 +84,7 @@ export function pickSpotlightSourceId(
 export function summarizeSentinelSources(
   sources: readonly SentinelSourceView[],
   openIncidents: number,
+  resolvedIncidents = 0,
 ): SentinelSummaryView {
   const countOf = (status: SentinelStatus) =>
     sources.filter((source) => source.status === status).length;
@@ -101,12 +102,18 @@ export function summarizeSentinelSources(
 
   return {
     totalSources: sources.length,
-    healthySources: statusCounts.healthy + statusCounts.recovered,
+    // Strictly healthy. `recovered` is reported on its own line: it is
+    // operational, but a source that had to be repaired is not the same
+    // reading as one that never broke.
+    healthySources: statusCounts.healthy,
+    recoveredSources: statusCounts.recovered,
+    operationalSources: statusCounts.healthy + statusCounts.recovered,
     degradedSources: statusCounts.degraded,
     quarantinedSources: statusCounts.quarantined,
     healingSources: statusCounts.healing,
     needsReviewSources: statusCounts.needs_review,
     openIncidents,
+    resolvedIncidents,
     statusCounts,
     providers: new Set(sources.map((source) => source.providerName)).size,
     recordsProtected:

@@ -35,6 +35,7 @@ function readModel(
       lastKnownGoodCount: 24,
       lastKnownGoodAt: "2026-08-18T09:30:00.000Z",
       activeIncident: null,
+      latestIncident: null,
       stalenessMinutes: 10,
     },
     {
@@ -53,11 +54,21 @@ function readModel(
       currentRecordCount: 0,
       lastKnownGoodCount: 11,
       lastKnownGoodAt: "2026-08-18T04:00:00.000Z",
+      latestIncident: {
+        id: "inc-1",
+        status: "healing",
+        severity: "critical",
+        reasonCodes: ["ALL_PRICES_NULL"],
+        healingAttemptCount: 1,
+        createdAt: "2026-08-18T09:01:00.000Z",
+        resolvedAt: null,
+      },
       activeIncident: {
         id: "inc-1",
         status: "healing",
         severity: "critical",
         reasonCodes: ["ALL_PRICES_NULL"],
+        resolvedAt: null,
         healingAttemptCount: 1,
         createdAt: "2026-08-18T09:01:00.000Z",
       },
@@ -101,11 +112,14 @@ function readModel(
     summary: {
       totalSources: 2,
       healthySources: 1,
+      recoveredSources: 0,
+      operationalSources: 1,
       degradedSources: 0,
       quarantinedSources: 1,
       healingSources: 0,
       needsReviewSources: 0,
       openIncidents: 1,
+      resolvedIncidents: 0,
     },
     ...overrides,
   };
@@ -254,9 +268,10 @@ test("loading, empty, and error states replace the grid instead of blanking", ()
 
   const emptyView = buildSentinelViewFromReadModel(
     { sources: [], activeIncidents: [], recentHealingAttempts: [], summary: {
-      totalSources: 0, healthySources: 0, degradedSources: 0,
+      totalSources: 0, healthySources: 0, recoveredSources: 0,
+      operationalSources: 0, degradedSources: 0,
       quarantinedSources: 0, healingSources: 0, needsReviewSources: 0,
-      openIncidents: 0,
+      openIncidents: 0, resolvedIncidents: 0,
     } },
     GENERATED_AT,
   );

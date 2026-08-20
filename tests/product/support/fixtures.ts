@@ -94,10 +94,13 @@ export function sentinelView(
     summary: {
       totalSources: sources.length,
       healthySources: sources.length,
+      recoveredSources: 0,
+      operationalSources: sources.length,
       degradedSources: 0,
       quarantinedSources: 0,
       healingSources: 0,
       needsReviewSources: 0,
+      resolvedIncidents: 0,
       openIncidents: 0,
       statusCounts: {
         healthy: sources.length,

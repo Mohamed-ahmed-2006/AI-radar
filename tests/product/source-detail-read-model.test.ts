@@ -65,7 +65,14 @@ test("normalization explains the contract and the raw to normalized step", async
   if (!detail.normalization.available) return;
 
   const ids = detail.normalization.data.stages.map((stage) => stage.id);
-  assert.deepEqual(ids, ["collect", "validate", "normalize", "gate", "persist"]);
+  assert.deepEqual(ids, [
+    "collect",
+    "validate",
+    "normalize",
+    "gate",
+    "persist",
+    "contract-registry",
+  ]);
 
   const collect = detail.normalization.data.stages[0];
   assert.match(collect.description, new RegExp(PRICING_SOURCE.collector_id!));

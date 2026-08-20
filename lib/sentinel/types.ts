@@ -223,6 +223,7 @@ export interface SentinelDashboardReadModel {
     currentRecordCount: number;
     lastKnownGoodCount: number | null;
     lastKnownGoodAt: string | null;
+    /** CURRENT: an incident still open against this source. */
     activeIncident: {
       id: string;
       status: SentinelIncidentStatus;
@@ -230,6 +231,21 @@ export interface SentinelDashboardReadModel {
       reasonCodes: SentinelReasonCode[];
       healingAttemptCount: number;
       createdAt: string;
+      resolvedAt: string | null;
+    } | null;
+    /**
+     * HISTORY: the most recent incident whatever its state. A recovered source
+     * has a `latestIncident` and no `activeIncident`; the two must never be
+     * collapsed, or resolved history renders as a live problem.
+     */
+    latestIncident: {
+      id: string;
+      status: SentinelIncidentStatus;
+      severity: SentinelSeverity;
+      reasonCodes: SentinelReasonCode[];
+      healingAttemptCount: number;
+      createdAt: string;
+      resolvedAt: string | null;
     } | null;
     stalenessMinutes: number | null;
   }[];
@@ -262,11 +278,22 @@ export interface SentinelDashboardReadModel {
   }[];
   summary: {
     totalSources: number;
+    /**
+     * Strictly the `healthy` state. `recovered` is a distinct operational
+     * state and is counted separately — folding it in here is what produced
+     * "Healthy 10 of 11" next to a fleet bar reading "9 Healthy, 1 Recovered".
+     */
     healthySources: number;
+    recoveredSources: number;
+    /** Sources currently serving trusted data: healthy + recovered. */
+    operationalSources: number;
     degradedSources: number;
     quarantinedSources: number;
     healingSources: number;
     needsReviewSources: number;
+    /** CURRENT: incidents that are still open on the active fleet. */
     openIncidents: number;
+    /** HISTORY: incidents on the active fleet that have been closed out. */
+    resolvedIncidents: number;
   };
 }

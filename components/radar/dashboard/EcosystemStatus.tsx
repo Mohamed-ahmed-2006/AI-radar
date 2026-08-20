@@ -53,7 +53,16 @@ export function EcosystemStatus({ data, sentinel, loading }: EcosystemStatusProp
           }
           status={statusMap[data.status]}
         />
-        <StatCard label="Canonical models" value={data.modelsTracked} />
+        <StatCard
+          label="Models priced"
+          value={data.pricedModels}
+          hint="canonical pricing on record"
+        />
+        <StatCard
+          label="Model identities"
+          value={data.modelIdentities}
+          hint="observed and tracked"
+        />
         <StatCard label="Providers" value={data.providersTracked} />
         <StatCard
           label="Monitored sources"

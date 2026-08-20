@@ -46,7 +46,8 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
         <>
           <div className="radar-command-hero radar-stagger">
             <RadarPulse
-              modelCount={data.ecosystem.modelsTracked}
+              pricedModels={data.ecosystem.pricedModels}
+              modelIdentities={data.ecosystem.modelIdentities}
               status={data.ecosystem.status}
             />
             <div className="flex min-w-0 flex-col gap-3">

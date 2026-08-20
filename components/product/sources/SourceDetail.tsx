@@ -47,7 +47,11 @@ export function SourceDetail({ detail }: { detail: SourceDetailView }) {
         </DemoNotice>
       )}
 
-      <SourceHealthSummary health={detail.health} freshness={detail.freshness} />
+      <SourceHealthSummary
+        health={detail.health}
+        recovery={detail.recovery}
+        freshness={detail.freshness}
+      />
 
       <div className="radar-source-detail-grid">
         <div className="radar-surface-stack">

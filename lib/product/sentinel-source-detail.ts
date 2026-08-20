@@ -12,6 +12,7 @@
 import type { SentinelView } from "../../components/radar/sentinel/types";
 import { sentinelStatusLabel } from "../../components/radar/sentinel/utils";
 import type { SentinelStatus } from "../../components/radar/sentinel/types";
+import { isOpenIncidentStatus } from "../sources/types";
 import { provenanceFromSource, type ProvenanceValidationStatus } from "./provenance";
 import {
   available,
@@ -147,10 +148,9 @@ export function buildSourceDirectoryFromSentinel(view: SentinelView): SourceDire
     lastRunAt: source.lastRunAt,
     stalenessMinutes: source.stalenessMinutes,
     recordCount: source.currentRecordCount,
-    hasOpenIncident:
-      source.incident !== null &&
-      source.incident.status !== "resolved" &&
-      source.incident.status !== "dismissed",
+    hasOpenIncident: isOpenIncidentStatus(source.incident?.status ?? null),
+    hasResolvedIncident:
+      source.incident !== null && !isOpenIncidentStatus(source.incident.status),
   }));
 
   return {
@@ -209,6 +209,24 @@ export function buildSourceDetailFromSentinel(
       statusLabel: sentinelStatusLabel(source.status),
       health: source.health,
       recordCount: source.currentRecordCount,
+      openIncident: isOpenIncidentStatus(source.incident?.status ?? null)
+        ? {
+            incidentId: source.incident!.id,
+            severity: source.incident!.severity,
+            reasonCodes: [...source.incident!.reasonCodes],
+            openedAt: source.incident!.createdAt,
+          }
+        : null,
+    },
+    recovery: {
+      // The Sentinel fleet view carries one incident per source, so a resolved
+      // one counts as exactly one closed-out incident and no more is claimed.
+      resolvedIncidents:
+        source.incident !== null && !isOpenIncidentStatus(source.incident.status) ? 1 : 0,
+      healingAttempts: source.healing.attempts,
+      // This adapter's fleet projection does not carry a resolution timestamp,
+      // so it stays null rather than borrowing the last run's.
+      lastRecoveredAt: null,
     },
     freshness: {
       lastRunAt: source.lastRunAt,

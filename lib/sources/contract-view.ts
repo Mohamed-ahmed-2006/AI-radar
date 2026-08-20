@@ -9,6 +9,8 @@
  * when it breaks. This module derives exactly that and nothing else.
  */
 
+import { createDemoSourceHealthContract } from "../demo-healing/contract";
+import { isDemoProviderSlug } from "./active-fleet";
 import { createSourceHealthContractFor } from "../sentinel/contracts";
 import {
   CATALOG_PROVIDERS,
@@ -17,7 +19,11 @@ import {
   type PricingProviderSlug,
 } from "../pipeline/providers";
 import type { SourceKind } from "../supabase/types";
-import type { SourceCategory, SourceContractView } from "./types";
+import type {
+  SourceCategory,
+  SourceContractRegistry,
+  SourceContractView,
+} from "./types";
 
 const PRICING_PROVIDER_SLUGS: readonly string[] = [
   "openai",
@@ -67,6 +73,12 @@ export function resolveSourceCategory(
  * Resolves the public contract view for a source, or null when no contract is
  * registered for that provider/kind pair. A null contract is meaningful: it
  * says the source is collected but not yet governed by Sentinel expectations.
+ *
+ * The self-healing demo source is governed too. Its contract is declared by the
+ * demo harness rather than by the production source registry, and it is built
+ * with the same `createSourceHealthContract` factory and evaluated by the same
+ * gate. Resolving it here is what lets the source page state that distinction
+ * instead of claiming — falsely — that no contract exists.
  */
 export function resolveSourceContractView(
   kind: SourceKind,
@@ -77,8 +89,14 @@ export function resolveSourceContractView(
 ): SourceContractView | null {
   const category = resolveSourceCategory(kind, providerSlug, collectorId, sourceUrl);
 
-  const contract =
-    category === "models" && isCatalogSource(providerSlug, collectorId, sourceUrl)
+  const isDemo = isDemoProviderSlug(providerSlug);
+  const registry: SourceContractRegistry = isDemo
+    ? "sentinel-demo-harness"
+    : "production-sources";
+
+  const contract = isDemo
+    ? createDemoSourceHealthContract(sourceId)
+    : category === "models" && isCatalogSource(providerSlug, collectorId, sourceUrl)
       ? createSourceHealthContractFor(
           { domain: "catalog", providerSlug: providerSlug as CatalogProviderSlug },
           sourceId,
@@ -104,6 +122,10 @@ export function resolveSourceContractView(
     category,
     authorityDomain: contract.authorityDomain,
     isAuthoritative: contract.isAuthoritative,
+    registry,
+    contractName: isDemo
+      ? "Sentinel self-healing demo source contract"
+      : `${providerSlug} ${contract.authorityDomain} source contract`,
     requiredFields: [...contract.requiredFields],
     expectedEnumDomains: Object.fromEntries(
       Object.entries(contract.expectedEnumDomains ?? {}).map(([field, values]) => [

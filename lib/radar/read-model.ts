@@ -14,6 +14,7 @@ import {
 } from "../sources/contract-view";
 import {
   createSupabaseServerClient,
+  listModels,
   getLatestCapabilitySnapshots,
   getLatestPricingSnapshots,
   getLatestLifecycleSnapshots,
@@ -26,6 +27,7 @@ import type {
   LatestCapabilitySnapshotRow,
   LatestLifecycleSnapshotRow,
   LatestPricingSnapshotRow,
+  ModelRow,
   ProviderRow,
   SourceHealthRow,
 } from "../supabase/types";
@@ -63,6 +65,11 @@ function eventSeverity(type: string): DashboardChangeEvent["severity"] {
 /** Everything the dashboard contract is assembled from. */
 export interface RadarDashboardInput {
   providers: readonly ProviderRow[];
+  /**
+   * Every canonical model identity on record. Distinct from `snapshots`, which
+   * only covers the models that currently carry a price.
+   */
+  models: readonly ModelRow[];
   snapshots: readonly LatestPricingSnapshotRow[];
   lifecycle: readonly LatestLifecycleSnapshotRow[];
   capabilities: readonly LatestCapabilitySnapshotRow[];
@@ -87,6 +94,7 @@ export function buildRadarDashboardData(
 ): RadarDashboardData {
   const {
     providers: providerRows,
+    models: modelRows,
     snapshots,
     lifecycle,
     capabilities,
@@ -179,16 +187,23 @@ export function buildRadarDashboardData(
       .filter((value): value is string => value !== null)
       .sort()
       .at(-1) ?? null;
+    // Per-run error rate and request latency are not collected anywhere in the
+    // pipeline, so they are not reported. Every field below is read from a row
+    // that a collection run actually wrote.
+    const accepted = sources
+      .map((source) => source.records_accepted)
+      .filter((value): value is number => typeof value === "number");
     return {
       id: providerId,
       name: providerNameFor(providerId),
       status: aggregateStatus(statuses),
-      modelsTracked: [...modelsByKey.values()].filter((model) => model.id &&
+      pricedModels: [...modelsByKey.values()].filter((model) => model.id &&
         snapshots.some((snapshot) => snapshot.model_id === model.id && snapshot.provider_id === providerId)).length,
+      sourcesMonitored: sources.length,
+      acceptedRecords:
+        accepted.length === 0 ? null : accepted.reduce((total, value) => total + value, 0),
       lastCollectionAt,
       collectorId: sources.map((source) => source.collector_id).filter(Boolean).join(", ") || "—",
-      errorRate24h: null,
-      latencyP95Ms: null,
     };
   });
 
@@ -288,7 +303,12 @@ export function buildRadarDashboardData(
       status: aggregateStatus(
         ecosystemSources.map((source) => sourceStatus(source.last_run_status)),
       ),
-      modelsTracked: modelsByKey.size,
+      // Two different questions, answered separately and named for what they
+      // are: how many models carry a canonical price right now, and how many
+      // model identities are on record at all. The Model Explorer lists the
+      // latter, which is why its total is larger.
+      pricedModels: modelsByKey.size,
+      modelIdentities: modelRows.length,
       providersTracked: providers.length,
       sourcesMonitored: sources.length,
       changesLast24h: recentEvents24h.length,
@@ -328,6 +348,7 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
   const [
     providers,
+    models,
     snapshots,
     lifecycle,
     capabilities,
@@ -338,6 +359,7 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
     lifecycleEvents7d,
   ] = await Promise.all([
     listProviders(db),
+    listModels(db),
     getLatestPricingSnapshots(db),
     getLatestLifecycleSnapshots(db),
     getLatestCapabilitySnapshots(db),
@@ -359,6 +381,7 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
   return buildRadarDashboardData(
     {
       providers,
+      models,
       snapshots,
       lifecycle,
       capabilities,

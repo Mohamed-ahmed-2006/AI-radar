@@ -162,19 +162,23 @@ function toIncidentView(
     };
   }
   // The per-source projection carries less detail; record counts are unknown
-  // from it, so they stay null rather than being guessed.
-  if (!source.activeIncident) return null;
+  // from it, so they stay null rather than being guessed. `latestIncident` is
+  // used deliberately: a recovered source has no active incident but its
+  // resolved one is the evidence of what it recovered from. Callers read
+  // `incident.status` to tell the two apart.
+  const fallback = source.activeIncident ?? source.latestIncident;
+  if (!fallback) return null;
   return {
-    id: source.activeIncident.id,
-    status: source.activeIncident.status,
-    severity: source.activeIncident.severity,
-    reasonCodes: source.activeIncident.reasonCodes,
+    id: fallback.id,
+    status: fallback.status,
+    severity: fallback.severity,
+    reasonCodes: fallback.reasonCodes,
     summary: null,
     recordsSeen: null,
     recordsValid: null,
     recordsInvalid: null,
-    healingAttemptCount: source.activeIncident.healingAttemptCount,
-    createdAt: source.activeIncident.createdAt,
+    healingAttemptCount: fallback.healingAttemptCount,
+    createdAt: fallback.createdAt,
   };
 }
 
@@ -248,7 +252,11 @@ export function buildSentinelViewFromReadModel(
     generatedAt,
     sources,
     spotlightSourceId: pickSpotlightSourceId(sources),
-    summary: summarizeSentinelSources(sources, model.activeIncidents.length),
+    summary: summarizeSentinelSources(
+      sources,
+      model.summary.openIncidents,
+      model.summary.resolvedIncidents,
+    ),
   };
 }
 
@@ -336,6 +344,10 @@ export function buildSentinelViewFromDemo(
     generatedAt,
     sources: [source],
     spotlightSourceId: sourceId,
-    summary: summarizeSentinelSources([source], incident && incident.status !== "resolved" ? 1 : 0),
+    summary: summarizeSentinelSources(
+      [source],
+      incident && incident.status !== "resolved" ? 1 : 0,
+      incident && incident.status === "resolved" ? 1 : 0,
+    ),
   };
 }

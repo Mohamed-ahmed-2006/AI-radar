@@ -52,11 +52,18 @@ export interface ProviderHealth {
   id: string;
   name: string;
   status: HealthStatus;
-  modelsTracked: number;
+  /**
+   * Models from this provider that currently carry a canonical price. Not the
+   * provider's whole catalog — see `EcosystemSummary` for the two counts and
+   * why they differ.
+   */
+  pricedModels: number;
+  /** Sources registered for this provider in the collection fleet. */
+  sourcesMonitored: number;
+  /** Records accepted by this provider's most recent runs. */
+  acceptedRecords: number | null;
   lastCollectionAt: string | null;
   collectorId: string;
-  errorRate24h: number | null;
-  latencyP95Ms: number | null;
   notes?: string;
 }
 
@@ -89,7 +96,18 @@ export interface ProvenanceRecord {
 
 export interface EcosystemSummary {
   status: HealthStatus;
-  modelsTracked: number;
+  /**
+   * Distinct provider+model pairs that currently carry a canonical price.
+   *
+   * This is deliberately NOT the number of models AI Radar knows about. A
+   * model observed on a catalog or lifecycle page but not yet on a pricing
+   * page is a tracked identity with no canonical price, so it is counted by
+   * `modelIdentities` and not here. The Model Explorer lists identities, which
+   * is why its total is the larger of the two.
+   */
+  pricedModels: number;
+  /** Every canonical model identity on record, priced or not. */
+  modelIdentities: number;
   providersTracked: number;
   sourcesMonitored: number;
   changesLast24h: number;

@@ -18,7 +18,8 @@ export function unavailableRadarDashboardData(
     unavailableReason: reason,
     ecosystem: {
       status: "unknown",
-      modelsTracked: 0,
+      pricedModels: 0,
+      modelIdentities: 0,
       providersTracked: 0,
       sourcesMonitored: 0,
       changesLast24h: 0,

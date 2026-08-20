@@ -130,6 +130,7 @@ function dashboard(sourceHealth: readonly SourceHealthRow[]) {
   return buildRadarDashboardData(
     {
       providers: [ANTHROPIC, GEMINI, DEMO_PROVIDER],
+      models: [],
       snapshots: [],
       lifecycle: [],
       capabilities: [],
@@ -233,8 +234,10 @@ test("Provenance: trust comes from the source contract, not from the page loadin
   assert.equal(by(ANTHROPIC_PRICING.source_id)?.authority, "verified_scrape");
   // The catalog page is the provider's own published inventory.
   assert.equal(by(ANTHROPIC_CATALOG_SOURCE.source_id)?.authority, "authoritative");
-  // The demo sandbox has no registered contract, so it stays unverified.
-  assert.equal(by(DEMO_CURRENT.source_id)?.authority, null);
+  // The demo sandbox is governed by the demo harness contract, which is a real
+  // Sentinel contract but explicitly non-authoritative: it is validated, and it
+  // is never the authority for anything in the canonical tables.
+  assert.equal(by(DEMO_CURRENT.source_id)?.authority, "verified_scrape");
 });
 
 test("Sentinel fleet: a deactivated source leaves the counts and its incident closes off the board", async () => {

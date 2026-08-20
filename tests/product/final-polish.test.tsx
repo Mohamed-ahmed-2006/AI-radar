@@ -32,7 +32,10 @@ test("Dashboard command center exposes live-looking stats without inventing Sent
   );
 
   assert.match(html, /Intelligence Console/);
-  assert.match(html, /Canonical models/);
+  // The two model counts answer different questions and are named for it.
+  assert.match(html, /Models priced/);
+  assert.match(html, /Model identities/);
+  assert.doesNotMatch(html, /Canonical models/);
   assert.match(html, /Monitored sources/);
   assert.match(html, /Lifecycle \(7d\)/);
   assert.match(html, /Source health counts are not available/);

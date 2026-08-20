@@ -85,9 +85,19 @@ function SourceInspector({
           </dd>
         </div>
         <div className="radar-fact">
-          <dt className="radar-fact-label">Incidents</dt>
+          <dt className="radar-fact-label">Open incidents</dt>
           <dd className="radar-fact-value">
-            {entry.hasOpenIncident ? "Open incident" : "None open"}
+            {entry.hasOpenIncident ? "1 open" : "None open"}
+          </dd>
+        </div>
+        <div className="radar-fact">
+          <dt className="radar-fact-label">Incident history</dt>
+          <dd className="radar-fact-value">
+            {entry.hasResolvedIncident
+              ? "Previous incident resolved"
+              : entry.hasOpenIncident
+                ? "See open incident"
+                : "No incidents on record"}
           </dd>
         </div>
       </dl>
@@ -156,7 +166,16 @@ export function SourceDirectoryList({ entries }: { entries: readonly SourceDirec
               <Badge variant={healthVariant(entry.health)}>
                 {entry.statusLabel}
               </Badge>
-              {entry.hasOpenIncident && <Badge variant="critical">Open incident</Badge>}
+              {entry.hasOpenIncident ? (
+                <Badge variant="critical">Open incident</Badge>
+              ) : (
+                entry.hasResolvedIncident && (
+                  // History, not a live problem: a resolved incident is
+                  // evidence the source recovered, so it is styled as a muted
+                  // footnote rather than an alert.
+                  <Badge variant="muted">Past incident resolved</Badge>
+                )
+              )}
             </span>
           </td>
           <td className="radar-table-cell text-right tabular-nums">

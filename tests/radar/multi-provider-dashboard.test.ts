@@ -12,7 +12,8 @@ test("dashboard renders live pricing intelligence from multiple providers", () =
     isMock: false, fixtureVersion: "live-supabase",
     ecosystem: {
       status: "healthy",
-      modelsTracked: 2,
+      pricedModels: 2,
+      modelIdentities: 2,
       providersTracked: 2,
       sourcesMonitored: 0,
       changesLast24h: 0,
@@ -39,8 +40,8 @@ test("dashboard renders live pricing intelligence from multiple providers", () =
       { id: "xai-model", provider: "xAI", name: "grok-4.6", slug: "grok-4.6", status: "active", contextWindow: null, lastVerifiedAt: "2026-08-17T10:00:00Z", rates: [{ tier: "short", inputPerMillion: 2, outputPerMillion: 6 }] },
     ],
     providers: [
-      { id: "anthropic", name: "Anthropic", status: "healthy", modelsTracked: 1, lastCollectionAt: null, collectorId: "collector-a", errorRate24h: null, latencyP95Ms: null },
-      { id: "xai", name: "xAI", status: "healthy", modelsTracked: 1, lastCollectionAt: null, collectorId: "collector-x", errorRate24h: null, latencyP95Ms: null },
+      { id: "anthropic", name: "Anthropic", status: "healthy", pricedModels: 1, sourcesMonitored: 1, acceptedRecords: 1, lastCollectionAt: null, collectorId: "collector-a" },
+      { id: "xai", name: "xAI", status: "healthy", pricedModels: 1, sourcesMonitored: 1, acceptedRecords: 1, lastCollectionAt: null, collectorId: "collector-x" },
     ],
     sources: [], provenance: [],
   };

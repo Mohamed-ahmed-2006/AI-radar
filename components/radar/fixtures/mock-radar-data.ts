@@ -16,7 +16,8 @@ export const MOCK_RADAR_DATA: RadarDashboardData = {
 
   ecosystem: {
     status: "healthy",
-    modelsTracked: 3,
+    pricedModels: 3,
+    modelIdentities: 4,
     providersTracked: 1,
     sourcesMonitored: 2,
     changesLast24h: 4,
@@ -180,11 +181,11 @@ export const MOCK_RADAR_DATA: RadarDashboardData = {
       id: "prov-openai",
       name: "OpenAI",
       status: "healthy",
-      modelsTracked: 3,
+      pricedModels: 3,
+      sourcesMonitored: 2,
+      acceptedRecords: 3,
       lastCollectionAt: FIXTURE_TIMESTAMP,
       collectorId: "bd-openai-pricing-v3",
-      errorRate24h: 0,
-      latencyP95Ms: 1240,
     },
   ],
 
@@ -233,7 +234,8 @@ export const MOCK_RADAR_DATA_EMPTY: RadarDashboardData = {
   fixtureVersion: "empty",
   ecosystem: {
     status: "unknown",
-    modelsTracked: 0,
+    pricedModels: 0,
+    modelIdentities: 0,
     providersTracked: 0,
     sourcesMonitored: 0,
     changesLast24h: 0,

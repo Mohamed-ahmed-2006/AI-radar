@@ -1,10 +1,19 @@
 import type { EcosystemSummary } from "../types";
 
+/**
+ * The hero read-out names both model counts.
+ *
+ * Showing only the priced total next to an Explorer listing a larger number
+ * reads as though the product cannot count its own models. They are two
+ * different questions, so both are stated.
+ */
 export function RadarPulse({
-  modelCount,
+  pricedModels,
+  modelIdentities,
   status,
 }: {
-  modelCount: number;
+  pricedModels: number;
+  modelIdentities: number;
   status: EcosystemSummary["status"];
 }) {
   return (
@@ -20,8 +29,13 @@ export function RadarPulse({
         <p className="radar-pulse-value capitalize">{status}</p>
       </div>
       <p className="radar-pulse-meta">
-        <span className="tabular-nums font-semibold text-radar-text-primary">{modelCount}</span>
-        <span>canonical models under observation</span>
+        <span className="tabular-nums font-semibold text-radar-text-primary">
+          {pricedModels}
+        </span>
+        <span>models with canonical pricing</span>
+        <span className="text-radar-text-muted">
+          of {modelIdentities} tracked identities
+        </span>
       </p>
     </div>
   );

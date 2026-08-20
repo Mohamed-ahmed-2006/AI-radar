@@ -3,6 +3,7 @@
  */
 
 import { activeSourceRows } from "../sources/active-fleet";
+import { isOpenIncidentStatus } from "../sources/types";
 import {
   createSentinelRepository,
   type SentinelRepository,
@@ -47,15 +48,25 @@ export async function getSentinelDashboardReadModel(
       ? Math.max(0, Math.floor((now - Date.parse(lastRunAt)) / 60_000))
       : null;
 
-    const activeIncident = s.active_incident_id
+    // The health view publishes the *latest* incident under the
+    // `active_incident_*` prefix whether or not it is still open, so the two
+    // horizons are separated here rather than at each call site.
+    const incidentRow = recentIncidents.find(
+      (candidate) => candidate.id === s.active_incident_id,
+    );
+    const latestIncident = s.active_incident_id
       ? {
           id: s.active_incident_id,
           status: s.active_incident_status as SentinelIncidentStatus,
           severity: (s.active_incident_severity ?? "warning") as SentinelSeverity,
           reasonCodes: (s.active_reason_codes ?? []) as SentinelReasonCode[],
           healingAttemptCount: s.healing_attempt_count ?? 0,
-          createdAt: s.last_run_started_at ?? new Date().toISOString(),
+          createdAt: incidentRow?.created_at ?? s.last_run_started_at ?? new Date().toISOString(),
+          resolvedAt: incidentRow?.resolved_at ?? null,
         }
+      : null;
+    const activeIncident = isOpenIncidentStatus(latestIncident?.status ?? null)
+      ? latestIncident
       : null;
 
     return {
@@ -75,13 +86,14 @@ export async function getSentinelDashboardReadModel(
       lastKnownGoodCount: s.last_known_good_count ?? null,
       lastKnownGoodAt: s.last_known_good_at ?? null,
       activeIncident,
+      latestIncident,
       stalenessMinutes,
     };
   });
 
   const activeIncidents = recentIncidents
     .filter((inc) => !deactivatedSourceIds.has(inc.source_id))
-    .filter((inc) => inc.status === "open" || inc.status === "healing" || inc.status === "needs_review")
+    .filter((inc) => isOpenIncidentStatus(inc.status))
     .map((inc) => ({
       id: inc.id,
       sourceId: inc.source_id,
@@ -115,14 +127,25 @@ export async function getSentinelDashboardReadModel(
       completedAt: h.completed_at,
     }));
 
+  const healthySources = sources.filter((s) => s.status === "healthy").length;
+  const recoveredSources = sources.filter((s) => s.status === "recovered").length;
+
+  // HISTORY, counted over the same active fleet the CURRENT numbers describe.
+  const resolvedIncidents = recentIncidents.filter(
+    (inc) => !deactivatedSourceIds.has(inc.source_id) && !isOpenIncidentStatus(inc.status),
+  ).length;
+
   const summary = {
     totalSources: sources.length,
-    healthySources: sources.filter((s) => s.status === "healthy" || s.status === "recovered").length,
+    healthySources,
+    recoveredSources,
+    operationalSources: healthySources + recoveredSources,
     degradedSources: sources.filter((s) => s.status === "degraded").length,
     quarantinedSources: sources.filter((s) => s.status === "quarantined").length,
     healingSources: sources.filter((s) => s.status === "healing").length,
     needsReviewSources: sources.filter((s) => s.status === "needs_review").length,
     openIncidents: activeIncidents.length,
+    resolvedIncidents,
   };
 
   return {

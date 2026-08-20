@@ -134,28 +134,54 @@ export function SentinelSummaryHeader({ summary }: SentinelSummaryHeaderProps) {
         </div>
       </div>
 
+      {/*
+        Two horizons, labelled as such. Everything in the first group is the
+        state of the fleet right now; everything in the second already
+        happened. Mixing them is what let "Open incidents: 0" sit beside
+        "1 healing attempt" as though they described the same moment.
+      */}
+      <p className="radar-kpi-group-label">Current state</p>
       <dl className="radar-sentinel-stats">
         <StatCard label="Sources monitored" value={summary.totalSources} />
         <StatCard label="Providers" value={summary.providers} />
         <StatCard
-          label="Healthy"
-          value={summary.healthySources}
+          label="Operational"
+          value={summary.operationalSources}
           status={
-            summary.healthySources === summary.totalSources
+            summary.operationalSources === summary.totalSources
               ? "positive"
               : "neutral"
           }
           hint={
-            summary.totalSources > 0 ? `of ${summary.totalSources}` : undefined
+            summary.totalSources > 0
+              ? `of ${summary.totalSources} · serving trusted data`
+              : undefined
           }
+        />
+        <StatCard
+          label="Healthy"
+          value={summary.healthySources}
+          status="neutral"
+          hint="never broke"
+        />
+        <StatCard
+          label="Recovered"
+          value={summary.recoveredSources}
+          status={summary.recoveredSources > 0 ? "positive" : "neutral"}
+          hint="repaired and re-validated"
+        />
+        <StatCard
+          label="Degraded"
+          value={summary.degradedSources}
+          status={summary.degradedSources > 0 ? "warning" : "neutral"}
         />
         <StatCard
           label="Quarantined"
           value={summary.quarantinedSources}
           status={summary.quarantinedSources > 0 ? "negative" : "neutral"}
           hint={
-            summary.degradedSources > 0
-              ? `${summary.degradedSources} degraded`
+            summary.needsReviewSources > 0
+              ? `${summary.needsReviewSources} need review`
               : undefined
           }
         />
@@ -163,11 +189,21 @@ export function SentinelSummaryHeader({ summary }: SentinelSummaryHeaderProps) {
           label="Open incidents"
           value={summary.openIncidents}
           status={summary.openIncidents > 0 ? "warning" : "neutral"}
-          hint={
-            summary.healingAttempts > 0
-              ? `${summary.healingAttempts} healing attempt${summary.healingAttempts === 1 ? "" : "s"}`
-              : undefined
-          }
+          hint={summary.openIncidents === 0 ? "none active" : "active now"}
+        />
+      </dl>
+
+      <p className="radar-kpi-group-label">History</p>
+      <dl className="radar-sentinel-stats">
+        <StatCard
+          label="Resolved incidents"
+          value={summary.resolvedIncidents}
+          hint="closed out"
+        />
+        <StatCard
+          label="Healing attempts"
+          value={summary.healingAttempts}
+          hint="recorded to date"
         />
         <StatCard
           label="Records protected"

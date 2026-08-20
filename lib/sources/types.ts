@@ -59,13 +59,61 @@ export interface SourceFreshness {
   staleAfter: string | null;
 }
 
-export interface SourceActiveIncidentSummary {
+/**
+ * One incident, projected for a health view.
+ *
+ * The same shape carries both the *current* incident and the *latest* one,
+ * which may already be resolved. The two are exposed on separate fields
+ * precisely so a reader can never mistake history for a live problem.
+ */
+export interface SourceIncidentSummary {
   incidentId: string;
   status: SentinelIncidentStatus;
   severity: "info" | "warning" | "critical";
   reasonCodes: SentinelReasonCode[];
   healingAttemptCount: number;
   openedAt: string | null;
+  /** Set only once the incident has been closed out. */
+  resolvedAt: string | null;
+}
+
+/** @deprecated Kept as an alias so existing imports keep compiling. */
+export type SourceActiveIncidentSummary = SourceIncidentSummary;
+
+/**
+ * An incident is *current* — still holding the source back — only in these
+ * states. `resolved` is history, and history must never render as an open
+ * incident. This is the single definition every read model derives from.
+ */
+export const OPEN_INCIDENT_STATUSES: readonly SentinelIncidentStatus[] = [
+  "open",
+  "healing",
+  "needs_review",
+];
+
+export function isOpenIncidentStatus(
+  status: SentinelIncidentStatus | null | undefined,
+): boolean {
+  return status !== null && status !== undefined
+    ? OPEN_INCIDENT_STATUSES.includes(status)
+    : false;
+}
+
+/**
+ * What has already happened to this source and been closed out.
+ *
+ * Deliberately separate from `activeIncident`: a recovery count and a healing
+ * attempt count describe the past, and putting them next to a current-state
+ * field is what made the fleet board read as though a resolved incident were
+ * still open.
+ */
+export interface SourceRecoveryHistory {
+  /** Incidents observed for this source that are no longer open. */
+  resolvedIncidents: number | null;
+  /** Healing attempts ever recorded against this source. */
+  healingAttempts: number;
+  /** When the most recent incident was resolved, when that is known. */
+  lastRecoveredAt: string | null;
 }
 
 export interface SourceHealthView {
@@ -82,13 +130,40 @@ export interface SourceHealthView {
   lastKnownGoodCount: number | null;
   currentRecordCount: number | null;
   expectedRecordCount: number | null;
-  activeIncident: SourceActiveIncidentSummary | null;
+  /**
+   * CURRENT: an incident still open against this source, or null. Never
+   * populated from a resolved incident.
+   */
+  activeIncident: SourceIncidentSummary | null;
+  /**
+   * HISTORY: the most recent incident whatever its state, so a recovered
+   * source can still show the evidence of what it recovered from.
+   */
+  latestIncident: SourceIncidentSummary | null;
+  /** HISTORY: recovery and healing totals. */
+  recovery: SourceRecoveryHistory;
 }
+
+/**
+ * Which registry a source's Sentinel contract was declared in.
+ *
+ * Both registries produce a real, executable `SourceHealthContract` evaluated
+ * by the same `evaluateSourceHealth` and enforced by the same
+ * `evaluateSentinelGate`. The distinction is *provenance*, not rigour: a
+ * production contract governs a provider page that feeds the canonical tables,
+ * while the demo harness contract governs the isolated self-healing demo
+ * source. A judge is entitled to know which one they are looking at.
+ */
+export type SourceContractRegistry = "production-sources" | "sentinel-demo-harness";
 
 export interface SourceContractView {
   category: SourceCategory;
   authorityDomain: AuthorityDomain;
   isAuthoritative: boolean;
+  /** Where this contract is declared. */
+  registry: SourceContractRegistry;
+  /** Human-readable name for the contract, for judge-facing copy. */
+  contractName: string;
   /** Semantic fields every accepted record must carry. */
   requiredFields: string[];
   /** Allowed value domains for enum-like fields. */

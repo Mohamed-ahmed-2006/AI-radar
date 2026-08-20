@@ -61,6 +61,29 @@ export interface SourceHealthState {
   /** Mapped onto the app-wide dot vocabulary so status reads consistently. */
   health: HealthStatus;
   recordCount: number | null;
+  /**
+   * CURRENT: an incident still open against this source, or null. A resolved
+   * incident never appears here — it belongs to `recovery`.
+   */
+  openIncident: {
+    incidentId: string;
+    severity: "info" | "warning" | "critical";
+    reasonCodes: string[];
+    openedAt: string | null;
+  } | null;
+}
+
+/**
+ * HISTORY: what has already happened and been closed out.
+ *
+ * Held apart from `SourceHealthState` on purpose. A recovery count is evidence
+ * about the past; putting it in the current-state object is what let a
+ * repaired source read as though it were still broken.
+ */
+export interface SourceRecoveryHistoryState {
+  resolvedIncidents: number | null;
+  healingAttempts: number;
+  lastRecoveredAt: string | null;
 }
 
 export interface SourceFreshnessState {
@@ -141,6 +164,8 @@ export interface SourceDetailCapabilities {
 export interface SourceDetailView {
   identity: SourceIdentity;
   health: SourceHealthState;
+  /** HISTORY: recoveries and healing attempts, kept out of `health`. */
+  recovery: SourceRecoveryHistoryState;
   freshness: SourceFreshnessState;
   lastKnownGood: SectionState<SourceSnapshotRef>;
   runHistory: SectionState<SourceRunRecord[]>;
@@ -168,7 +193,10 @@ export interface SourceDirectoryEntry {
   lastRunAt: string | null;
   stalenessMinutes: number | null;
   recordCount: number | null;
+  /** CURRENT: an incident still open. Never true for a resolved incident. */
   hasOpenIncident: boolean;
+  /** HISTORY: this source has recovered from an incident at least once. */
+  hasResolvedIncident: boolean;
 }
 
 export interface SourceDirectory {

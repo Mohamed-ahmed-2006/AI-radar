@@ -48,22 +48,28 @@ export function ProviderHealthOverview({
                     )}
                   </div>
                   <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                    {/* Every metric here is read from a row a collection run
+                        wrote. Request latency and per-run error rate are not
+                        measured anywhere in the pipeline, so they are absent
+                        rather than shown as an empty dash. */}
                     <div>
-                      <dt className="text-radar-text-muted inline">Models </dt>
+                      <dt className="text-radar-text-muted inline">Priced models </dt>
                       <dd className="inline font-mono text-radar-text-secondary">
-                        {provider.modelsTracked}
+                        {provider.pricedModels}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-radar-text-muted inline">Error rate </dt>
+                      <dt className="text-radar-text-muted inline">Sources </dt>
                       <dd className="inline font-mono text-radar-text-secondary">
-                        {provider.errorRate24h === null ? "—" : `${(provider.errorRate24h * 100).toFixed(1)}%`}
+                        {provider.sourcesMonitored}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-radar-text-muted inline">P95 latency </dt>
+                      <dt className="text-radar-text-muted inline">Accepted records </dt>
                       <dd className="inline font-mono text-radar-text-secondary">
-                        {provider.latencyP95Ms === null ? "—" : `${provider.latencyP95Ms}ms`}
+                        {provider.acceptedRecords === null
+                          ? "not reported"
+                          : provider.acceptedRecords.toLocaleString("en-US")}
                       </dd>
                     </div>
                     <div>

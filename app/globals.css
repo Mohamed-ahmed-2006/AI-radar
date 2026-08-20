@@ -548,6 +548,22 @@ body {
   align-content: start;
 }
 
+/* Separates the current-state KPI row from the historical one, so the two
+   time horizons are visually distinct and not read as one block. */
+.radar-kpi-group-label {
+  margin-top: 0.75rem;
+  margin-bottom: 0.375rem;
+  font-size: 10px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--radar-text-muted);
+}
+
+.radar-kpi-group-label:first-of-type {
+  margin-top: 0;
+}
+
 @media (min-width: 640px) {
   .radar-sentinel-stats {
     grid-template-columns: repeat(3, 1fr);
@@ -1439,6 +1455,15 @@ body {
   align-items: center;
   gap: 0.625rem;
   flex-wrap: wrap;
+}
+
+/* The historical line under the current-state badge. Kept visually quieter so
+   a past recovery cannot be mistaken for the present verdict. */
+.radar-source-detail-history {
+  margin-top: 0.375rem;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--radar-text-muted);
 }
 
 .radar-source-detail-grid {
