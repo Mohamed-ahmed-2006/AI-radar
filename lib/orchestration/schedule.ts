@@ -1,14 +1,14 @@
 /**
  * Cadence arithmetic for the scheduler.
  *
- * Vercel Cron fires one fixed tick. Which sources actually run on a tick is
+ * The scheduler fires one fixed tick. Which sources actually run on a tick is
  * decided here from each source's configured cadence and its last attempt, so
- * adding or re-pacing a source never means editing `vercel.json`.
+ * adding or re-pacing a source never means editing the scheduler workflow.
  */
 
 import type { CollectionSourceDefinition } from "./types";
 
-/** The single scheduled entry point. Must match `vercel.json`. */
+/** The single scheduled entry point. Must match `.github/workflows/collect.yml`. */
 export const SCHEDULER_TICK = {
   path: "/api/cron/collect",
   /** Hourly: the finest cadence granularity the fleet can express. */

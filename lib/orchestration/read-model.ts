@@ -71,7 +71,7 @@ export interface OrchestrationSourceStatus {
 export interface OrchestrationReadModel {
   generatedAt: string;
   scheduler: {
-    mechanism: "vercel-cron";
+    mechanism: "scheduled-workflow";
     path: string;
     cronExpression: string;
     tickIntervalMinutes: number;
@@ -228,7 +228,7 @@ export async function getOrchestrationReadModel(
   return {
     generatedAt: now().toISOString(),
     scheduler: {
-      mechanism: "vercel-cron",
+      mechanism: "scheduled-workflow",
       path: SCHEDULER_TICK.path,
       cronExpression: SCHEDULER_TICK.cronExpression,
       tickIntervalMinutes: SCHEDULER_TICK.intervalMinutes,

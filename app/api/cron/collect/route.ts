@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * The single scheduled entry point (see `vercel.json`).
+ * The single scheduled entry point (see `.github/workflows/collect.yml`).
  *
  * Vercel Cron issues a GET with `Authorization: Bearer $CRON_SECRET`. Which
  * sources actually run is decided by each source's configured cadence, so the

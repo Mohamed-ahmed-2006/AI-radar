@@ -101,7 +101,7 @@ test("the status read model reports every source, including one that failed", as
   assert.equal(readModel.summary.quarantined, 1);
   assert.equal(readModel.summary.running, 0);
 
-  assert.equal(readModel.scheduler.mechanism, "vercel-cron");
+  assert.equal(readModel.scheduler.mechanism, "scheduled-workflow");
   assert.equal(readModel.scheduler.path, SCHEDULER_TICK.path);
   assert.equal(readModel.scheduler.cronExpression, SCHEDULER_TICK.cronExpression);
 
