@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 function inlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
   let last = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -11,6 +11,24 @@ function inlineMarkdown(text: string): ReactNode[] {
     const token = match[0];
     if (token.startsWith("**")) {
       nodes.push(<strong key={`b-${key++}`}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("[")) {
+      const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (link) {
+        nodes.push(
+          <a
+            key={`a-${key++}`}
+            href={link[2]}
+            className="radar-inline-link"
+            {...(link[2].startsWith("http")
+              ? { target: "_blank", rel: "noreferrer" }
+              : {})}
+          >
+            {link[1]}
+          </a>,
+        );
+      } else {
+        nodes.push(token);
+      }
     } else {
       nodes.push(
         <code key={`c-${key++}`} className="font-mono text-[0.8em]">
@@ -69,7 +87,7 @@ function parseTable(lines: string[]): ReactNode {
  * shown as literals. Plain answers stay a single paragraph.
  */
 export function GroundedProse({ text }: { text: string }) {
-  const hasMarkup = /(^|\n)\s*#{1,3}\s|(^|\n)\s*[-*]\s|\*\*|`|\|/.test(text);
+  const hasMarkup = /(^|\n)\s*#{1,6}\s|(^|\n)\s*[-*]\s|\*\*|`|\||\[[^\]]+\]\([^)]+\)/.test(text);
   if (!hasMarkup) {
     return <p className="radar-ask-answer">{text}</p>;
   }
@@ -84,11 +102,15 @@ export function GroundedProse({ text }: { text: string }) {
       index += 1;
       continue;
     }
-    if (/^\s*#{1,3}\s/.test(line)) {
-      const depth = line.trim().match(/^#+/)?.[0].length ?? 3;
-      const Tag = (depth === 1 ? "h1" : depth === 2 ? "h2" : "h3") as "h1" | "h2" | "h3";
+    if (/^\s*#{1,6}\s/.test(line)) {
+      const depth = Math.min(line.trim().match(/^#+/)?.[0].length ?? 3, 4);
+      const Tag = (depth === 1 ? "h1" : depth === 2 ? "h2" : depth === 3 ? "h3" : "h4") as
+        | "h1"
+        | "h2"
+        | "h3"
+        | "h4";
       blocks.push(
-        <Tag key={`h-${index}`}>{inlineMarkdown(line.replace(/^\s*#{1,3}\s+/, ""))}</Tag>,
+        <Tag key={`h-${index}`}>{inlineMarkdown(line.replace(/^\s*#{1,6}\s+/, ""))}</Tag>,
       );
       index += 1;
       continue;
@@ -123,7 +145,7 @@ export function GroundedProse({ text }: { text: string }) {
     while (
       index < lines.length &&
       lines[index].trim() !== "" &&
-      !/^\s*#{1,3}\s/.test(lines[index]) &&
+      !/^\s*#{1,6}\s/.test(lines[index]) &&
       !/^\s*[-*]\s/.test(lines[index])
     ) {
       paragraph.push(lines[index]);

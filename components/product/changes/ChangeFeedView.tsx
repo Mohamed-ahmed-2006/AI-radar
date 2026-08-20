@@ -15,6 +15,7 @@ import { Panel } from "../../radar/ui/Panel";
 import { StatCard } from "../../radar/ui/StatCard";
 import { DemoNotice } from "../common/DemoNotice";
 import { useWatchlist } from "../watchlist/use-watchlist";
+import { GroundedProse } from "../ui/GroundedProse";
 import { ChangeFeedFilters } from "./ChangeFeedFilters";
 import { ChangeFeedList } from "./ChangeFeedList";
 
@@ -136,9 +137,7 @@ export function ChangeFeedView({
           title="What changed"
           subtitle="Deterministic summary of the events below"
         >
-          <p className="text-sm text-radar-text-secondary leading-relaxed">
-            {feed.narrativeSummary}
-          </p>
+          <GroundedProse text={feed.narrativeSummary} />
         </Panel>
       )}
 
