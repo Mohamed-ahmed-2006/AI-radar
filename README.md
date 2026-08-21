@@ -12,7 +12,7 @@ The important difference: a scraper result is an **observation**, not automatica
 
 **Live:** [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
 **GitHub:** [https://github.com/Mohamed-ahmed-2006/AI-radar](https://github.com/Mohamed-ahmed-2006/AI-radar)
-**Demo video:** Coming before submission
+**Demo video:** [https://youtu.be/gvW5WQxCS5o]
 
 Built for the WeMakeDevs **Into the Scrape-Verse** hackathon.
 
