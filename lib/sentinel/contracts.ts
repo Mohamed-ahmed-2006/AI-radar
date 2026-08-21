@@ -19,6 +19,7 @@ import {
   RawXaiCatalogRecordSchema,
   type RawXaiCatalogRecord,
   type CatalogProviderSlug,
+  normalizeExactTokenCount,
 } from "../contracts";
 import { PRICING_PROVIDERS, type PricingProviderSlug } from "../pipeline/providers";
 import type {
@@ -428,6 +429,54 @@ export function createAnthropicCatalogSourceHealthContract(
       } catch (err) {
         return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
       }
+    },
+    /**
+     * The Anthropic models overview *is* the comparison table: every current
+     * model it lists publishes a context window and a max output figure in the
+     * same two rows. A batch where not one record yields either number did not
+     * observe an Anthropic page that stopped stating limits — it observed a
+     * broken extraction, or a normalizer that stopped recognising the shorthand
+     * the table is written in.
+     *
+     * This is deliberately a source-specific invariant rather than a change to
+     * what null means. Unknown stays Unknown everywhere, including here: a
+     * single model missing a figure is still just unobserved. What is refused
+     * is the *uniform* disappearance across the whole batch, which is the
+     * signature this source cannot produce honestly.
+     */
+    validateSemanticInvariants: (records): SemanticInvariantCheckResult[] => {
+      const results: SemanticInvariantCheckResult[] = [];
+      if (records.length === 0) return results;
+
+      const withContext = records.filter(
+        (record) => normalizeExactTokenCount(record.context_window_raw) !== null,
+      ).length;
+      const withMaxOutput = records.filter(
+        (record) => normalizeExactTokenCount(record.max_output_tokens_raw) !== null,
+      ).length;
+
+      if (withContext === 0) {
+        results.push({
+          passed: false,
+          code: "CAPABILITY_TOKEN_LIMITS_MISSING",
+          reason:
+            `None of the ${records.length} Anthropic catalog records yielded a context ` +
+            "window. The models overview publishes one per current model, so a uniform " +
+            "absence is an extraction or normalization fault rather than a source change.",
+        });
+      }
+      if (withMaxOutput === 0) {
+        results.push({
+          passed: false,
+          code: "CAPABILITY_TOKEN_LIMITS_MISSING",
+          reason:
+            `None of the ${records.length} Anthropic catalog records yielded a max output ` +
+            "figure. The models overview publishes one per current model, so a uniform " +
+            "absence is an extraction or normalization fault rather than a source change.",
+        });
+      }
+
+      return results;
     },
   });
 }

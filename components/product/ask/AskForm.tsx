@@ -85,10 +85,29 @@ export function AskExamples({
   onSelect: (query: string) => void;
 }) {
   const temporal = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "temporal");
+  const fact = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "fact");
   const decision = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "decision");
 
   return (
     <div className="radar-ask-examples">
+      <section aria-labelledby="ask-fact-examples-heading">
+        <h2 id="ask-fact-examples-heading" className="radar-subheading">
+          Model fact
+        </h2>
+        <ul className="radar-ask-example-list" aria-label="Model fact example questions">
+          {fact.map((example) => (
+            <li key={example.id}>
+              <button
+                type="button"
+                className="radar-ask-example"
+                onClick={() => onSelect(example.query)}
+              >
+                {example.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
       <section aria-labelledby="ask-temporal-examples-heading">
         <h2 id="ask-temporal-examples-heading" className="radar-subheading">
           Temporal

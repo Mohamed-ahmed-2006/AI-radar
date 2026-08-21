@@ -2369,6 +2369,10 @@ body {
   color: var(--radar-info);
 }
 
+.radar-ask-intent-fact {
+  color: var(--radar-signal);
+}
+
 .radar-ask-intent-decision {
   color: var(--radar-signal);
 }

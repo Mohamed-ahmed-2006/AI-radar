@@ -27,7 +27,13 @@ import {
   type StackOptimizerRequest,
   type StackOptimizerResult,
 } from "../optimizer";
-import type { ModelExplorerReadPort } from "../explorer";
+import { getModelExplorer, type ModelExplorerReadPort } from "../explorer";
+import {
+  lookupModelFact,
+  modelFactAmounts,
+  modelFactAnswer,
+  resolveModelIdentity,
+} from "./model-fact";
 import {
   comparisonAnswer,
   filterAnswer,
@@ -44,6 +50,7 @@ import {
 import {
   planQuery,
   type ComparisonIntent,
+  type ModelFactIntent,
   type ModelFilterIntent,
   type QueryPlan,
   type SelectionConstraints,
@@ -264,6 +271,87 @@ async function executeTemporal(
   };
 }
 
+/**
+ * Answers a question about one field of one model.
+ *
+ * The order is the safety property: resolve identity first, and only read
+ * evidence once exactly one canonical model is on the table. An unresolvable
+ * phrase never reaches a lookup, so there is no path on which a model AI Radar
+ * has never observed acquires a fact.
+ */
+async function executeModelFact(
+  plan: QueryPlan,
+  intent: ModelFactIntent,
+  options: AskOptions,
+  now: Date,
+): Promise<GroundedAskResult> {
+  const explorer = await getModelExplorer({ port: options.port, now: () => now });
+  const resolution = resolveModelIdentity(explorer.entries, intent.modelQuery);
+
+  if (resolution.status !== "resolved") {
+    // Fail closed. AI Radar knows plenty about models in general and none of it
+    // is evidence, so a phrase it cannot resolve gets no answer at all.
+    const detail =
+      resolution.status === "ambiguous"
+        ? `"${intent.modelQuery}" matches several models AI Radar tracks ` +
+          `(${resolution.candidates.join(", ")}). Name one of them exactly.`
+        : `AI Radar has no observed model matching "${intent.modelQuery}". It answers ` +
+          "model facts only from collected evidence, so it will not answer this from " +
+          "model memory.";
+    return executeUnsupported(
+      plan,
+      {
+        kind: "unsupported",
+        reason: resolution.status === "ambiguous" ? "ambiguous_model" : "unresolved_model",
+        detail,
+        missing: resolution.status === "ambiguous" ? [] : [intent.modelQuery],
+      },
+      now,
+    );
+  }
+
+  const { entry, matchKind, matchedOn } = resolution.resolved;
+  const lookup = lookupModelFact(entry, intent.field, intent.modality);
+  const draft = modelFactAnswer(entry, lookup);
+
+  // The sentence is assembled from this one lookup, so the only amounts and
+  // dates it may contain are that lookup's own. Verifying it is cheap and it
+  // keeps the fact path under the same check as every other published answer.
+  const groundedness = verifyDecisionText(
+    draft,
+    modelFactAmounts(lookup),
+    lookup.observedAt ? [lookup.observedAt.slice(0, 10)] : [],
+  );
+
+  const missingEvidence =
+    lookup.value.status === "unknown" ? [lookup.value.reason] : [];
+
+  return {
+    question: plan.question,
+    interpretedIntent: "model_fact_query",
+    plan,
+    constraints: plan.constraints,
+    answerSummary: draft,
+    structured: { kind: "model_fact_query", model: entry, matchKind, matchedOn, lookup },
+    calculations: [],
+    evidenceFreshness: {
+      oldestObservedAt: lookup.observedAt,
+      newestObservedAt: lookup.observedAt,
+      maxAgeMinutes:
+        lookup.observedAt === null
+          ? null
+          : Math.max(0, Math.round((now.getTime() - Date.parse(lookup.observedAt)) / 60_000)),
+    },
+    provenance: lookup.provenance ? [lookup.provenance] : [],
+    missingEvidence,
+    unsupportedEvidence:
+      lookup.value.status === "unsupported" ? [lookup.value.statement] : [],
+    groundedness,
+    generatedAt: now.toISOString(),
+    interpreter: plan.interpreter,
+  };
+}
+
 async function executeOptimizerIntent(
   plan: QueryPlan,
   intent: WorkloadOptimizerIntent,
@@ -425,6 +513,8 @@ export async function answerQuestion(
   switch (intent.kind) {
     case "temporal_change_query":
       return executeTemporal(plan, intent, options, now);
+    case "model_fact_query":
+      return executeModelFact(plan, intent, options, now);
     case "model_filter_query":
       return executeFilter(plan, intent, options, now);
     case "workload_optimizer_query":

@@ -34,8 +34,33 @@ export const CatalogProvenanceSchema = CollectionMetadataSchema.extend({
 export type CatalogProvenance = z.infer<typeof CatalogProvenanceSchema>;
 
 /**
+ * A token count written in the shorthand provider tables actually use:
+ * `1M tokens`, `128k tokens`, `200k`. The magnitude suffix is the only thing
+ * allowed after the digits, optionally followed by the word "token"/"tokens".
+ *
+ * Anything else — `approx 128k`, `up to 2 million`, `~555k words` — fails the
+ * anchors and is rejected, because a hedge is not a published number.
+ */
+const SHORTHAND_TOKEN_COUNT = /^(\d+(?:\.\d+)?)\s*([km])\s*(?:tokens?)?$/i;
+
+/** A plain integer, optionally thousands-separated and suffixed with "tokens". */
+const EXACT_TOKEN_COUNT = /^(\d+)\s*(?:tokens?)?$/i;
+
+const SHORTHAND_MULTIPLIERS: Record<string, number> = { k: 1_000, m: 1_000_000 };
+
+/**
  * Exact numeric normalization for token counts (context window, max output tokens).
- * Rejects vague strings, decimals, zero, or negative numbers.
+ *
+ * "Exact" means the source stated a definite figure, not that it spelled every
+ * digit. Anthropic's comparison table publishes `1M tokens` and `128k tokens`;
+ * OpenAI's publishes `128,000`. Both are exact statements of the same kind of
+ * fact, and reading only the second is how a documented limit turns into "not
+ * observed" on a model page.
+ *
+ * What stays rejected is vagueness: hedging words, ranges, unit words other
+ * than tokens, and any shorthand that does not resolve to a whole number of
+ * tokens. The verbatim string is always preserved in raw evidence, so a reader
+ * can still see exactly what the source said.
  */
 export function normalizeExactTokenCount(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -43,18 +68,26 @@ export function normalizeExactTokenCount(value: unknown): number | null {
     if (Number.isSafeInteger(value) && value > 0) return value;
     return null;
   }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    // Handle standard formatted integers with commas (e.g. "128,000" or "1,000,000")
-    const cleaned = trimmed.replace(/,/g, "");
-    if (/^\d+$/.test(cleaned)) {
-      const parsed = Number(cleaned);
-      if (Number.isSafeInteger(parsed) && parsed > 0) {
-        return parsed;
-      }
-    }
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim().replace(/,/g, "");
+  if (!trimmed) return null;
+
+  const exact = EXACT_TOKEN_COUNT.exec(trimmed);
+  if (exact) {
+    const parsed = Number(exact[1]);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
   }
+
+  const shorthand = SHORTHAND_TOKEN_COUNT.exec(trimmed);
+  if (shorthand) {
+    const scaled =
+      Number(shorthand[1]) * SHORTHAND_MULTIPLIERS[shorthand[2].toLowerCase()];
+    // A shorthand that does not land on a whole token — "1.2345k" — is not a
+    // count the source actually published, so it is refused rather than rounded.
+    return Number.isSafeInteger(scaled) && scaled > 0 ? scaled : null;
+  }
+
   return null;
 }
 
@@ -79,6 +112,38 @@ export function normalizeModalities(
   return Array.from(normalizedSet);
 }
 
+/**
+ * Raw-evidence key a collector uses to publish the source's own sentence about
+ * which modalities a model supports — for example Anthropic's "All current
+ * Claude models support text and image input, text output, multilingual
+ * capabilities, and vision."
+ *
+ * The key carries a specific meaning, and it is the only thing in AI Radar that
+ * can turn a missing modality into an answer. An observed modality list is
+ * normally an open set: `image` not appearing means nobody said whether image
+ * is supported. When the source published a sentence that *enumerates* what is
+ * supported, the same list becomes a closed set, and a modality outside it is
+ * unsupported *according to that sentence* — quoted back with the answer so a
+ * reader can judge the claim for themselves.
+ *
+ * Collectors must only populate this when the page really does enumerate. A
+ * page that merely mentions modalities in passing leaves it absent, and absence
+ * keeps the safe reading: Unknown.
+ */
+export const MODALITY_ENUMERATION_STATEMENT_KEY = "capability_statement";
+
+/**
+ * The enumerating statement a record's raw evidence carries, or null when the
+ * source published none and the modality lists stay open.
+ */
+export function readModalityEnumerationStatement(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = (raw as Record<string, unknown>)[MODALITY_ENUMERATION_STATEMENT_KEY];
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 
 // ---------------------------------------------------------------------------
 // Raw Transport Schemas
@@ -99,6 +164,8 @@ export const RawOpenAiCatalogRecordSchema = z.object({
   supports_function_calling: z.boolean().nullish(),
   supported_features: z.array(z.string()).nullish(),
   default_snapshot: z.string().nullish(),
+  /** Verbatim source sentence enumerating supported modalities, when published. */
+  capability_statement: z.string().min(1).max(1000).nullish(),
   source_url: SourceUrlSchema.optional(),
   input: z.record(z.string(), z.unknown()).optional(),
 }).strict();
@@ -117,6 +184,8 @@ export const RawAnthropicCatalogRecordSchema = z.object({
   supports_tool_use: z.boolean().nullish(),
   input_modalities: z.array(z.string()).nullish(),
   output_modalities: z.array(z.string()).nullish(),
+  /** Verbatim source sentence enumerating supported modalities, when published. */
+  capability_statement: z.string().min(1).max(1000).nullish(),
   source_url: SourceUrlSchema.optional(),
   input: z.record(z.string(), z.unknown()).optional(),
 }).strict();
@@ -137,6 +206,8 @@ export const RawGeminiCatalogRecordSchema = z.object({
   supports_vision: z.boolean().nullish(),
   supports_function_calling: z.boolean().nullish(),
   supported_features: z.array(z.string()).nullish(),
+  /** Verbatim source sentence enumerating supported modalities, when published. */
+  capability_statement: z.string().min(1).max(1000).nullish(),
   source_url: SourceUrlSchema.optional(),
   input: z.record(z.string(), z.unknown()).optional(),
 }).strict();
@@ -157,6 +228,8 @@ export const RawXaiCatalogRecordSchema = z.object({
     structuredOutputs: z.boolean().optional(),
     reasoning: z.boolean().optional(),
   }).nullish(),
+  /** Verbatim source sentence enumerating supported modalities, when published. */
+  capability_statement: z.string().min(1).max(1000).nullish(),
   source_url: SourceUrlSchema.optional(),
   input: z.record(z.string(), z.unknown()).optional(),
 }).strict();

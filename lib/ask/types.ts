@@ -9,7 +9,9 @@
  * the structured result.
  */
 
+import type { ModelExplorerEntry } from "../explorer";
 import type { EvidenceBundle } from "../intelligence/contracts";
+import type { ModelFactLookup, ModelFactMatchKind } from "./model-fact";
 import type { ProvenanceView } from "../product/provenance";
 import type {
   ProviderChoice,
@@ -47,6 +49,14 @@ export interface AskGroundedness {
 
 export type StructuredAskResults =
   | { kind: "temporal_change_query"; bundle: EvidenceBundle }
+  | {
+      kind: "model_fact_query";
+      /** The canonical model the question's phrase resolved to. */
+      model: ModelExplorerEntry;
+      matchKind: ModelFactMatchKind;
+      matchedOn: string;
+      lookup: ModelFactLookup;
+    }
   | {
       kind: "model_filter_query";
       /**

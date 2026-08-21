@@ -10,6 +10,7 @@
 export * from "./intent";
 export * from "./types";
 export * from "./groundedness";
+export * from "./model-fact";
 export * from "./answer";
 export * from "./execute";
 export * from "./handler";

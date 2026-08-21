@@ -16,7 +16,7 @@
 import type { FreshnessView } from "./explorer";
 import type { ProvenanceView } from "./provenance";
 
-export const ASK_INTENTS = ["temporal", "decision", "unsupported", "empty"] as const;
+export const ASK_INTENTS = ["temporal", "fact", "decision", "unsupported", "empty"] as const;
 
 export type AskIntent = (typeof ASK_INTENTS)[number];
 
@@ -126,6 +126,36 @@ export const ASK_EXAMPLE_QUERIES = [
     label: "Compare Claude Sonnet 5 and Gemini 2.5 Pro.",
     query: "Compare Claude Sonnet 5 and Gemini 2.5 Pro.",
   },
+  {
+    id: "fact-opus-context",
+    intent: "fact" as const,
+    label: "What is Claude Opus 5's context window?",
+    query: "What is Claude Opus 5's context window?",
+  },
+  {
+    id: "fact-opus-video",
+    intent: "fact" as const,
+    label: "Does Claude Opus 5 support video input?",
+    query: "Does Claude Opus 5 support video input?",
+  },
+  {
+    id: "fact-opus-vision",
+    intent: "fact" as const,
+    label: "Does Claude Opus 5 support vision?",
+    query: "Does Claude Opus 5 support vision?",
+  },
+  {
+    id: "fact-opus-cost",
+    intent: "fact" as const,
+    label: "What does Claude Opus 5 cost?",
+    query: "What does Claude Opus 5 cost?",
+  },
+  {
+    id: "fact-sonnet-max-output",
+    intent: "fact" as const,
+    label: "What is Claude Sonnet 5's max output?",
+    query: "What is Claude Sonnet 5's max output?",
+  },
 ] as const;
 
 export const ASK_GROUNDING_PRESETS = [
@@ -181,6 +211,8 @@ export function askIntentLabel(intent: AskIntent): string {
   switch (intent) {
     case "temporal":
       return "Temporal";
+    case "fact":
+      return "Model fact";
     case "decision":
       return "Decision";
     case "unsupported":

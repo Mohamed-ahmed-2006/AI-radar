@@ -37,6 +37,7 @@ import type {
   SourceSummary,
   SourceTransformationView,
 } from "../sources/types";
+import { expectedCadenceMinutes } from "../orchestration/cadence";
 import { provenanceFromSource, type ProvenanceValidationStatus } from "./provenance";
 import {
   available,
@@ -395,7 +396,18 @@ export function buildSourceDetailFromReadModel(
       lastRunAt: health.lastAttemptedRunAt,
       lastSuccessAt: health.lastSuccessfulRunAt,
       stalenessMinutes: health.freshness.ageMinutes,
-      expectedIntervalMinutes: health.freshness.maxStalenessMinutes,
+      // The cadence the fleet schedules this source at — not the contract's
+      // staleness tolerance. Those are different numbers with different jobs:
+      // a catalog page is collected every 720 minutes and is only *stale* after
+      // 1440. Publishing the tolerance here made Source Detail claim a 1440m
+      // expected interval for a source the scheduler runs twice as often, and
+      // made its freshness percentage read half of what it really was. The
+      // dashboard's freshness panel already asks `expectedCadenceMinutes`; this
+      // screen now asks the same function so the two cannot disagree.
+      expectedIntervalMinutes: expectedCadenceMinutes(
+        identity.category,
+        identity.providerSlug,
+      ),
     },
     lastKnownGood,
     runHistory: available(detail.runs.map(toRunRecord)),

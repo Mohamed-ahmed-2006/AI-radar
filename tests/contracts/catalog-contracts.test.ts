@@ -25,13 +25,43 @@ test("normalizeExactTokenCount only parses exact positive integers", () => {
   assert.equal(normalizeExactTokenCount("1000000"), 1000000);
 
   // Rejects fuzzy or non-exact strings
-  assert.equal(normalizeExactTokenCount("1M"), null);
   assert.equal(normalizeExactTokenCount("approx 128k"), null);
   assert.equal(normalizeExactTokenCount("up to 2 million"), null);
   assert.equal(normalizeExactTokenCount(-500), null);
   assert.equal(normalizeExactTokenCount(0), null);
   assert.equal(normalizeExactTokenCount(null), null);
   assert.equal(normalizeExactTokenCount(undefined), null);
+});
+
+/**
+ * Anthropic's comparison table publishes "1M tokens" and "128k tokens" where
+ * OpenAI's publishes "128,000". Both are definite figures, and reading only the
+ * second is what made every current Claude model report an unobserved context
+ * window and max output on its model page.
+ */
+test("normalizeExactTokenCount reads the shorthand provider tables publish", () => {
+  assert.equal(normalizeExactTokenCount("1M tokens "), 1_000_000);
+  assert.equal(normalizeExactTokenCount("128k tokens"), 128_000);
+  assert.equal(normalizeExactTokenCount("200k tokens "), 200_000);
+  assert.equal(normalizeExactTokenCount("64k tokens"), 64_000);
+  assert.equal(normalizeExactTokenCount("1M"), 1_000_000);
+  assert.equal(normalizeExactTokenCount("200K"), 200_000);
+  assert.equal(normalizeExactTokenCount("1.5M tokens"), 1_500_000);
+  assert.equal(normalizeExactTokenCount("128000 tokens"), 128_000);
+});
+
+/**
+ * Shorthand is not a licence to read hedges. A magnitude suffix is accepted
+ * only when it is the whole of what the source said.
+ */
+test("normalizeExactTokenCount still refuses hedged or non-token shorthand", () => {
+  assert.equal(normalizeExactTokenCount("~555k words"), null);
+  assert.equal(normalizeExactTokenCount("up to 1M tokens"), null);
+  assert.equal(normalizeExactTokenCount("about 128k"), null);
+  assert.equal(normalizeExactTokenCount("1M-2M tokens"), null);
+  assert.equal(normalizeExactTokenCount("2.5M unicode characters"), null);
+  assert.equal(normalizeExactTokenCount("1.2345k tokens"), null);
+  assert.equal(normalizeExactTokenCount("0k tokens"), null);
 });
 
 test("normalizeModalities extracts canonical lowercase modality names", () => {

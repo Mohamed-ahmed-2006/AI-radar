@@ -68,6 +68,16 @@ export interface ModelCapabilityEvidence {
   outputModalities: string[];
   supportedFeatures: string[];
   /**
+   * The source's own sentence enumerating which modalities the model supports,
+   * verbatim, when it published one.
+   *
+   * Its presence is what closes the modality lists above. Without it a modality
+   * missing from `inputModalities` is merely unobserved; with it, the source has
+   * said what the supported set is, and a modality outside that set is
+   * unsupported according to this quotable statement.
+   */
+  modalityStatement: string | null;
+  /**
    * True when several API model ids currently claim this canonical model while
    * publishing different capability evidence. The evidence is then withheld in
    * full rather than resolved by arrival order.

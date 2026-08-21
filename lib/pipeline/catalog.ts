@@ -50,6 +50,7 @@ import {
   toSentinelSummary,
   type SentinelIngestionSummary,
 } from "./sentinel-gate";
+import { guardCollectionRun } from "./run-guard";
 import {
   CATALOG_PROVIDERS,
   resolveCatalogProviderConfiguration,
@@ -279,213 +280,221 @@ export async function ingestCatalogProvider(
     };
   }
 
-  const rawRecords = Array.isArray(collection.data) ? collection.data : [];
+  // Every write below happens against a run row that is already claiming to
+  // be in flight. The guard is what makes that claim honest: if anything from
+  // here on throws, the run is finalized as failed before the error escapes.
+  return guardCollectionRun(
+    run.id,
+    (runId, error, counts) => repository.failCollectionRun(runId, error, counts),
+    async () => {
+    const rawRecords = Array.isArray(collection.data) ? collection.data : [];
 
-  // Inline Sentinel gate: quarantines before any canonical persistence
-  const decision = await assertSentinelSafe({
-    target: { domain: "catalog", providerSlug: providerDef.slug },
-    source: {
-      id: source.id,
-      providerId: provider.id,
-      collectorId,
-      sourceUrl,
-      label: providerDef.label,
-    },
-    rawRecords,
-    collectorError,
-    observedAt,
-    runId: run.id,
-    externalRunId,
-    repository: options.sentinelRepository,
-    failRun: async (message, details) => {
-      await repository.failCollectionRun(
-        run.id,
-        { message, details },
-        {
-          recordsSeen: rawRecords.length,
-          recordsAccepted: 0,
-          recordsRejected: rawRecords.length,
-        },
-      );
-    },
-  });
-
-  const adaptedRecords: NormalizedCatalogRecord[] = [];
-  const rejectedRecords: unknown[] = [];
-
-  for (const raw of rawRecords) {
-    try {
-      const adapted = providerDef.adapt(
-        raw,
-        sourceUrl,
-        collectorId,
-        observedAt,
-      );
-      adaptedRecords.push(adapted);
-    } catch {
-      rejectedRecords.push(raw);
-    }
-  }
-
-  // Records rejected before identity expansion; counted separately because
-  // expansion changes how many records the run actually evaluated.
-  const adaptRejectedCount = rejectedRecords.length;
-
-  // Normalize identity before anything canonical is written: expand family
-  // pages that enumerate several API model ids, then resolve collisions by
-  // provenance instead of arrival order.
-  const expandedRecords = expandEnumeratedCatalogIdentities(adaptedRecords);
-  const { accepted: uniqueRecords, conflicts } = resolveCatalogIdentities(expandedRecords);
-  for (const conflict of conflicts) {
-    rejectedRecords.push({
-      reason: conflict.reason,
-      apiModelId: conflict.apiModelId,
-      detail: conflict.detail,
-      sourceUrl: conflict.record.provenance.sourceUrl,
-      raw: conflict.record.rawEvidence,
-    });
-  }
-
-  // Plan model identity matches against existing models & aliases
-  const existingModels = await repository.listModels(provider.id);
-  const existingAliases = await repository.listModelAliases(provider.id);
-
-  const apiModelIds = uniqueRecords.map((r) => r.apiModelId);
-  const matchPlan = planCatalogModelMatches(
-    providerDef.slug,
-    apiModelIds,
-    existingModels,
-    existingAliases,
-    { onAmbiguity: "throw" },
-  );
-
-  const modelMap = new Map<string, ModelRow>();
-  for (const plan of matchPlan) {
-    if (plan.model) {
-      modelMap.set(plan.apiModelId, plan.model);
-    } else if (plan.createModelName) {
-      // Create new model row (never modifies existing models)
-      const created = await repository.upsertModel({
+    // Inline Sentinel gate: quarantines before any canonical persistence
+    const decision = await assertSentinelSafe({
+      target: { domain: "catalog", providerSlug: providerDef.slug },
+      source: {
+        id: source.id,
         providerId: provider.id,
-        modelName: plan.createModelName,
-        displayName: plan.createModelName,
-        isActive: true,
-      });
-      modelMap.set(plan.apiModelId, created);
-    }
-  }
+        collectorId,
+        sourceUrl,
+        label: providerDef.label,
+      },
+      rawRecords,
+      collectorError,
+      observedAt,
+      runId: run.id,
+      externalRunId,
+      repository: options.sentinelRepository,
+      failRun: async (message, details) => {
+        await repository.failCollectionRun(
+          run.id,
+          { message, details },
+          {
+            recordsSeen: rawRecords.length,
+            recordsAccepted: 0,
+            recordsRejected: rawRecords.length,
+          },
+        );
+      },
+    });
 
-  // Ensure api_model_id alias exists for each model
-  for (const record of uniqueRecords) {
-    const model = modelMap.get(record.apiModelId);
-    if (model) {
-      await repository.upsertModelAlias({
+    const adaptedRecords: NormalizedCatalogRecord[] = [];
+    const rejectedRecords: unknown[] = [];
+
+    for (const raw of rawRecords) {
+      try {
+        const adapted = providerDef.adapt(
+          raw,
+          sourceUrl,
+          collectorId,
+          observedAt,
+        );
+        adaptedRecords.push(adapted);
+      } catch {
+        rejectedRecords.push(raw);
+      }
+    }
+
+    // Records rejected before identity expansion; counted separately because
+    // expansion changes how many records the run actually evaluated.
+    const adaptRejectedCount = rejectedRecords.length;
+
+    // Normalize identity before anything canonical is written: expand family
+    // pages that enumerate several API model ids, then resolve collisions by
+    // provenance instead of arrival order.
+    const expandedRecords = expandEnumeratedCatalogIdentities(adaptedRecords);
+    const { accepted: uniqueRecords, conflicts } = resolveCatalogIdentities(expandedRecords);
+    for (const conflict of conflicts) {
+      rejectedRecords.push({
+        reason: conflict.reason,
+        apiModelId: conflict.apiModelId,
+        detail: conflict.detail,
+        sourceUrl: conflict.record.provenance.sourceUrl,
+        raw: conflict.record.rawEvidence,
+      });
+    }
+
+    // Plan model identity matches against existing models & aliases
+    const existingModels = await repository.listModels(provider.id);
+    const existingAliases = await repository.listModelAliases(provider.id);
+
+    const apiModelIds = uniqueRecords.map((r) => r.apiModelId);
+    const matchPlan = planCatalogModelMatches(
+      providerDef.slug,
+      apiModelIds,
+      existingModels,
+      existingAliases,
+      { onAmbiguity: "throw" },
+    );
+
+    const modelMap = new Map<string, ModelRow>();
+    for (const plan of matchPlan) {
+      if (plan.model) {
+        modelMap.set(plan.apiModelId, plan.model);
+      } else if (plan.createModelName) {
+        // Create new model row (never modifies existing models)
+        const created = await repository.upsertModel({
+          providerId: provider.id,
+          modelName: plan.createModelName,
+          displayName: plan.createModelName,
+          isActive: true,
+        });
+        modelMap.set(plan.apiModelId, created);
+      }
+    }
+
+    // Ensure api_model_id alias exists for each model
+    for (const record of uniqueRecords) {
+      const model = modelMap.get(record.apiModelId);
+      if (model) {
+        await repository.upsertModelAlias({
+          providerId: provider.id,
+          modelId: model.id,
+          sourceId: source.id,
+          alias: record.apiModelId,
+          aliasType: "api_model_id",
+        });
+      }
+    }
+
+    // Fetch prior comparable snapshots for change detection
+    const previousSnapshots = await repository.getComparableCapabilitySnapshots({
+      providerSlug: providerDef.slug,
+      sourceId: source.id,
+    });
+
+    const previousRecords = previousSnapshots.map((s) =>
+      capabilitySnapshotToRecord(s, providerDef.slug),
+    );
+
+    const changeEvents = detectCapabilityChanges(previousRecords, uniqueRecords);
+
+    // Persist snapshots to capability_snapshots
+    const snapshotInputs: CapabilitySnapshotInput[] = uniqueRecords.map((record) => {
+      const model = modelMap.get(record.apiModelId)!;
+      return {
+        runId: run.id,
+        sourceId: source.id,
         providerId: provider.id,
         modelId: model.id,
-        sourceId: source.id,
-        alias: record.apiModelId,
-        aliasType: "api_model_id",
-      });
-    }
-  }
-
-  // Fetch prior comparable snapshots for change detection
-  const previousSnapshots = await repository.getComparableCapabilitySnapshots({
-    providerSlug: providerDef.slug,
-    sourceId: source.id,
-  });
-
-  const previousRecords = previousSnapshots.map((s) =>
-    capabilitySnapshotToRecord(s, providerDef.slug),
-  );
-
-  const changeEvents = detectCapabilityChanges(previousRecords, uniqueRecords);
-
-  // Persist snapshots to capability_snapshots
-  const snapshotInputs: CapabilitySnapshotInput[] = uniqueRecords.map((record) => {
-    const model = modelMap.get(record.apiModelId)!;
-    return {
-      runId: run.id,
-      sourceId: source.id,
-      providerId: provider.id,
-      modelId: model.id,
-      apiModelId: record.apiModelId,
-      displayName: record.displayName,
-      modelFamily: record.modelFamily,
-      modelStage: record.modelStage,
-      contextWindow: record.contextWindow,
-      maxOutputTokens: record.maxOutputTokens,
-      supportsVision: record.supportsVision,
-      supportsToolCalling: record.supportsToolCalling,
-      inputModalities: record.inputModalities,
-      outputModalities: record.outputModalities,
-      supportedFeatures: record.supportedFeatures,
-      sourceUrl,
-      raw: record.rawEvidence as unknown as Json,
-      observedAt,
-    };
-  });
-
-  const savedSnapshots = await repository.saveCapabilitySnapshots(snapshotInputs);
-  const snapshotByModelId = new Map(savedSnapshots.map((s) => [s.model_id, s]));
-
-  // Save detected change events
-  if (changeEvents.length > 0) {
-    const changeEventInputs: ChangeEventInput[] = changeEvents.map((evt) => {
-      const model = modelMap.get(evt.apiModelId);
-      const snapshot = model ? snapshotByModelId.get(model.id) : null;
-      return {
-        providerId: provider.id,
-        sourceId: source.id,
-        runId: run.id,
-        modelId: model ? model.id : null,
-        changeType: "capability_changed",
-        fieldName: evt.field,
-        oldValue: evt.oldValue as unknown as Json,
-        newValue: evt.newValue as unknown as Json,
-        currentSnapshotId: snapshot ? snapshot.id : null,
-        summary: capabilityChangeSummary(evt),
-        detectedAt: observedAt,
+        apiModelId: record.apiModelId,
+        displayName: record.displayName,
+        modelFamily: record.modelFamily,
+        modelStage: record.modelStage,
+        contextWindow: record.contextWindow,
+        maxOutputTokens: record.maxOutputTokens,
+        supportsVision: record.supportsVision,
+        supportsToolCalling: record.supportsToolCalling,
+        inputModalities: record.inputModalities,
+        outputModalities: record.outputModalities,
+        supportedFeatures: record.supportedFeatures,
+        sourceUrl,
+        raw: record.rawEvidence as unknown as Json,
+        observedAt,
       };
     });
 
-    await repository.saveChangeEvents(changeEventInputs);
-  }
+    const savedSnapshots = await repository.saveCapabilitySnapshots(snapshotInputs);
+    const snapshotByModelId = new Map(savedSnapshots.map((s) => [s.model_id, s]));
 
-  // Complete collection run
-  // A family page can enumerate several API model ids, so identity expansion
-  // yields more records than the collector returned rows. Counting the raw rows
-  // here would report fewer records seen than were accepted and rejected, which
-  // violates `collection_runs_counts_balance` and loses the whole run. What the
-  // run actually evaluated is the expanded set plus whatever failed to adapt.
-  const recordsSeen = expandedRecords.length + adaptRejectedCount;
-  const recordsAccepted = uniqueRecords.length;
-  const recordsRejected = rejectedRecords.length;
-  const status: Extract<RunStatus, "succeeded" | "partial"> =
-    recordsRejected > 0 ? "partial" : "succeeded";
+    // Save detected change events
+    if (changeEvents.length > 0) {
+      const changeEventInputs: ChangeEventInput[] = changeEvents.map((evt) => {
+        const model = modelMap.get(evt.apiModelId);
+        const snapshot = model ? snapshotByModelId.get(model.id) : null;
+        return {
+          providerId: provider.id,
+          sourceId: source.id,
+          runId: run.id,
+          modelId: model ? model.id : null,
+          changeType: "capability_changed",
+          fieldName: evt.field,
+          oldValue: evt.oldValue as unknown as Json,
+          newValue: evt.newValue as unknown as Json,
+          currentSnapshotId: snapshot ? snapshot.id : null,
+          summary: capabilityChangeSummary(evt),
+          detectedAt: observedAt,
+        };
+      });
 
-  await repository.completeCollectionRun(
-    run.id,
-    { recordsSeen, recordsAccepted, recordsRejected },
-    status,
-    rejectedRecords as unknown as Json,
+      await repository.saveChangeEvents(changeEventInputs);
+    }
+
+    // Complete collection run
+    // A family page can enumerate several API model ids, so identity expansion
+    // yields more records than the collector returned rows. Counting the raw rows
+    // here would report fewer records seen than were accepted and rejected, which
+    // violates `collection_runs_counts_balance` and loses the whole run. What the
+    // run actually evaluated is the expanded set plus whatever failed to adapt.
+    const recordsSeen = expandedRecords.length + adaptRejectedCount;
+    const recordsAccepted = uniqueRecords.length;
+    const recordsRejected = rejectedRecords.length;
+    const status: Extract<RunStatus, "succeeded" | "partial"> =
+      recordsRejected > 0 ? "partial" : "succeeded";
+
+    await repository.completeCollectionRun(
+      run.id,
+      { recordsSeen, recordsAccepted, recordsRejected },
+      status,
+      rejectedRecords as unknown as Json,
+    );
+
+    return {
+      success: true,
+      collectionRunId: run.id,
+      externalRunId,
+      recordsSeen,
+      recordsAccepted,
+      recordsRejected,
+      acceptedCount: recordsAccepted,
+      rejectedCount: recordsRejected,
+      changesDetected: changeEvents.length,
+      changeEvents,
+      sentinel: toSentinelSummary(decision),
+      records: uniqueRecords,
+    };
+    },
   );
-
-  return {
-    success: true,
-    collectionRunId: run.id,
-    externalRunId,
-    recordsSeen,
-    recordsAccepted,
-    recordsRejected,
-    acceptedCount: recordsAccepted,
-    rejectedCount: recordsRejected,
-    changesDetected: changeEvents.length,
-    changeEvents,
-    sentinel: toSentinelSummary(decision),
-    records: uniqueRecords,
-  };
-
 }
 
 /**

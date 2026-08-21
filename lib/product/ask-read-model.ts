@@ -66,6 +66,8 @@ function intentOf(result: GroundedAskResult): AskIntent {
   switch (result.interpretedIntent) {
     case "temporal_change_query":
       return "temporal";
+    case "model_fact_query":
+      return "fact";
     case "model_filter_query":
     case "workload_optimizer_query":
     case "comparison_query":
@@ -152,6 +154,30 @@ function evidenceFrom(result: GroundedAskResult): AskEvidenceItem[] {
         provenance: result.provenance.find((view) => view.sourceUrl === event.source.url) ?? null,
       });
     }
+  }
+
+  if (structured.kind === "model_fact_query") {
+    const entry = structured.model;
+    const canonicalId = explorerCanonicalId({
+      providerSlug: entry.provider.slug,
+      apiModelId: entry.apiModelId ?? entry.modelName,
+      modelId: entry.canonicalModelId,
+    });
+    items.push({
+      id: entry.canonicalModelId,
+      kind: "model",
+      title: entry.displayName ?? entry.modelName,
+      // Naming the matched identity is what lets a reader confirm the answer is
+      // about the model they meant, rather than one whose name merely overlaps.
+      summary:
+        `${entry.provider.name} · resolved from "${structured.matchedOn}" ` +
+        `(${structured.matchKind} match) · ${structured.lookup.fieldLabel}`,
+      observedAt: structured.lookup.observedAt,
+      modelCanonicalId: canonicalId,
+      sourceId: null,
+      href: modelDetailHref(canonicalId),
+      provenance: structured.lookup.provenance,
+    });
   }
 
   if (structured.kind === "workload_optimizer_query" || structured.kind === "model_filter_query") {

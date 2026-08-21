@@ -47,6 +47,11 @@ const REASON_CODE_COPY: Record<
     description:
       "The batch broke a domain rule the data must always satisfy, such as a monotonic lifecycle transition.",
   },
+  CAPABILITY_TOKEN_LIMITS_MISSING: {
+    title: "Capability token limits missing",
+    description:
+      "Every record in the batch lost its context window or max output figure at once. A source that publishes those limits per model cannot drop all of them in one run, so the batch is treated as an extraction fault rather than a capability change.",
+  },
   STALE_SOURCE: {
     title: "Stale source",
     description:

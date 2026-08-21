@@ -33,6 +33,7 @@ import {
 
 export const IntentKindSchema = z.enum([
   "temporal_change_query",
+  "model_fact_query",
   "model_filter_query",
   "workload_optimizer_query",
   "comparison_query",
@@ -102,10 +103,55 @@ export const ComparisonIntentSchema = z.object({
     .default("lowest_total_cost"),
 });
 
+/**
+ * The observed fields a `model_fact_query` may ask about.
+ *
+ * A closed list, and deliberately a short one. Every entry names a field the
+ * canonical read model already publishes with its own provenance, so answering
+ * one is a lookup rather than a generation. A question about anything outside
+ * this list does not compile, which is what keeps Ask from drifting into a
+ * chatbot that answers model trivia from pretrained memory.
+ */
+export const ModelFactFieldSchema = z.enum([
+  "context_window",
+  "max_output_tokens",
+  "input_price",
+  "output_price",
+  "price",
+  "vision",
+  "tool_calling",
+  "input_modality",
+  "output_modality",
+  "lifecycle",
+]);
+
+export type ModelFactField = z.infer<typeof ModelFactFieldSchema>;
+
+export const ModelFactModalitySchema = z.enum(["text", "image", "audio", "video"]);
+export type ModelFactModality = z.infer<typeof ModelFactModalitySchema>;
+
+export const ModelFactIntentSchema = z.object({
+  kind: z.literal("model_fact_query"),
+  /**
+   * The model phrase lifted from the question, verbatim. It is a *query*, not
+   * an identity: the planner has no database and never decides which canonical
+   * model this is. The executor resolves it, and fails closed when it resolves
+   * to no model or to more than one.
+   */
+  modelQuery: z.string().min(1),
+  field: ModelFactFieldSchema,
+  /** Set only for `input_modality` / `output_modality`. */
+  modality: ModelFactModalitySchema.nullable().default(null),
+});
+
 export const UnsupportedReasonSchema = z.enum([
   "no_recognized_intent",
   "missing_workload",
   "insufficient_constraints",
+  /** The model phrase matched no canonical model AI Radar has observed. */
+  "unresolved_model",
+  /** The model phrase matched several canonical models. */
+  "ambiguous_model",
 ]);
 
 export type UnsupportedReason = z.infer<typeof UnsupportedReasonSchema>;
@@ -120,6 +166,7 @@ export const UnsupportedIntentSchema = z.object({
 
 export const QueryIntentSchema = z.discriminatedUnion("kind", [
   TemporalChangeIntentSchema,
+  ModelFactIntentSchema,
   ModelFilterIntentSchema,
   WorkloadOptimizerIntentSchema,
   ComparisonIntentSchema,
@@ -127,6 +174,7 @@ export const QueryIntentSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type QueryIntent = z.infer<typeof QueryIntentSchema>;
+export type ModelFactIntent = z.infer<typeof ModelFactIntentSchema>;
 export type TemporalChangeIntent = z.infer<typeof TemporalChangeIntentSchema>;
 export type ModelFilterIntent = z.infer<typeof ModelFilterIntentSchema>;
 export type WorkloadOptimizerIntent = z.infer<typeof WorkloadOptimizerIntentSchema>;
@@ -314,6 +362,140 @@ const FAMILY_RULES: ReadonlyArray<{ family: string; pattern: RegExp }> = [
   { family: "gpt", pattern: /\bgpt\b/i },
   { family: "grok", pattern: /\bgrok\b/i },
 ];
+
+// ---------------------------------------------------------------------------
+// Model-fact extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Words a model name can begin with. Recognising a name lexically is not the
+ * same as knowing a model: this list only decides *where a phrase starts*, and
+ * every phrase it produces is handed to the executor to resolve against the
+ * canonical catalog. `GPT-6` is extracted exactly as readily as `Claude Opus 5`
+ * — and then fails to resolve, which is the point.
+ */
+const MODEL_NAME_HEAD =
+  /^(?:claude|gpt|gemini|grok|imagen|veo|lyria|o[1-9]|codex|deep-research|antigravity)(?:[.\-_][a-z0-9.\-_]*)?$/i;
+
+/**
+ * Words that continue a model name once one has started. Restricting the
+ * continuation is what stops "Claude this month" from being read as a model
+ * called "Claude this month": a token that is not a version number or a known
+ * name part ends the phrase.
+ */
+const MODEL_NAME_PART =
+  /^(?:\d[\w.\-]*|opus|sonnet|haiku|fable|mythos|flash|pro|lite|mini|nano|turbo|ultra|image|audio|tts|live|embedding|robotics|realtime|native|computer|use|preview|exp|experimental|instruct|thinking|latest|max|codex|research)$/i;
+
+/** Splits a question into tokens that keep the characters model ids use. */
+function modelTokens(text: string): string[] {
+  return text
+    .split(/[^\w.\-']+/)
+    .map((token) => token.replace(/'s$/i, "").replace(/^[-.]+|[-.]+$/g, ""))
+    .filter(Boolean);
+}
+
+/**
+ * The longest model-shaped phrase in the question, or null.
+ *
+ * Only the first phrase is returned. A question that names two models is a
+ * comparison, and the routing above `model_fact_query` has already claimed it.
+ */
+export function extractModelPhrase(text: string): string | null {
+  const tokens = modelTokens(text);
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (!MODEL_NAME_HEAD.test(tokens[index])) continue;
+    const phrase = [tokens[index]];
+    let cursor = index + 1;
+    while (cursor < tokens.length && MODEL_NAME_PART.test(tokens[cursor])) {
+      phrase.push(tokens[cursor]);
+      cursor += 1;
+    }
+    return phrase.join(" ");
+  }
+  return null;
+}
+
+/**
+ * Which observed field the question is about.
+ *
+ * Ordered, and the order carries meaning. "video input" must be read as a
+ * modality question before "input" can be read as a price question, and "max
+ * output" must be read as a token limit before "output" can be read as either.
+ * A question that matches nothing here is not a model-fact question at all.
+ */
+const MODEL_FACT_RULES: ReadonlyArray<{
+  field: ModelFactField;
+  pattern: RegExp;
+  modality?: ModelFactModality;
+}> = [
+  { field: "input_modality", pattern: /\btext\s*(?:as\s*)?input\b/i, modality: "text" },
+  { field: "input_modality", pattern: /\bimage\s*(?:as\s*)?input\b/i, modality: "image" },
+  { field: "input_modality", pattern: /\baudio\s*(?:as\s*)?input\b/i, modality: "audio" },
+  { field: "input_modality", pattern: /\bvideo\s*(?:as\s*)?input\b/i, modality: "video" },
+  { field: "input_modality", pattern: /\binput\s*(?:modality|modalities)\b/i },
+  { field: "output_modality", pattern: /\btext\s*output\b/i, modality: "text" },
+  { field: "output_modality", pattern: /\bimage\s*output\b/i, modality: "image" },
+  { field: "output_modality", pattern: /\baudio\s*output\b/i, modality: "audio" },
+  { field: "output_modality", pattern: /\bvideo\s*output\b/i, modality: "video" },
+  { field: "output_modality", pattern: /\boutput\s*(?:modality|modalities)\b/i },
+  { field: "max_output_tokens", pattern: /\bmax(?:imum)?[-\s]*output\b/i },
+  { field: "context_window", pattern: /\bcontext(?:\s*(?:window|length|size))?\b/i },
+  { field: "input_price", pattern: /\binput\s*(?:price|cost|pricing|rate)\b/i },
+  { field: "output_price", pattern: /\boutput\s*(?:price|cost|pricing|rate)\b/i },
+  { field: "price", pattern: /\bcost\b|\bprice\b|\bpricing\b|\bhow much\b/i },
+  { field: "vision", pattern: /\bvision\b/i },
+  {
+    field: "tool_calling",
+    pattern: /\btool[-\s]?(?:calling|use)\b|\bfunction[-\s]?call\w*\b|\btools\b/i,
+  },
+  {
+    field: "lifecycle",
+    pattern:
+      /\bdeprecat\w*\b|\bretir\w*\b|\blifecycle\b|\bend[- ]of[- ]life\b|\beol\b|\bstill (?:available|active|supported)\b/i,
+  },
+];
+
+interface ModelFactSignal {
+  field: ModelFactField;
+  modality: ModelFactModality | null;
+  evidence: string;
+  /** Where the field phrase sits, so it can be kept out of the model phrase. */
+  index: number;
+  length: number;
+}
+
+export function extractModelFactField(text: string): ModelFactSignal | null {
+  for (const rule of MODEL_FACT_RULES) {
+    const match = rule.pattern.exec(text);
+    if (!match) continue;
+    return {
+      field: rule.field,
+      modality: rule.modality ?? null,
+      evidence: match[0].trim(),
+      index: match.index,
+      length: match[0].length,
+    };
+  }
+  return null;
+}
+
+/**
+ * The model phrase, read from a question with the field phrase masked out.
+ *
+ * Masking is what keeps the two extractions from eating each other. "Claude
+ * Sonnet 5's max output" contains `max`, which is a legitimate part of model
+ * names such as `deep-research-max-preview-04-2026`; without masking the phrase
+ * runs on into "Claude Sonnet 5 max" and resolves to nothing. Removing the span
+ * the field already claimed leaves each extraction reading only its own half of
+ * the question, whichever order they appear in.
+ */
+export function extractModelPhraseFor(text: string, field: ModelFactSignal): string | null {
+  const masked =
+    text.slice(0, field.index) +
+    " ".repeat(field.length) +
+    text.slice(field.index + field.length);
+  return extractModelPhrase(masked);
+}
 
 const MODEL_RULES: ReadonlyArray<{ model: string; pattern: RegExp }> = [
   { model: "sonnet", pattern: /\bsonnet\b/i },
@@ -574,6 +756,53 @@ function interpretDeterministically(question: string, options: PlanOptions): Que
         workload: statedWorkload,
         constraints,
         priority,
+      }),
+    );
+  }
+
+  // A question that names one model and asks about one observed field of it is
+  // a lookup, and it sits above the catalog filter for the same reason the
+  // temporal branch does: answering "does Claude Opus 5 support video input"
+  // with a filtered list of every Anthropic model drops the model the reader
+  // asked about. It sits *below* the temporal, workload and comparison
+  // branches because each of those is a more specific reading — a change verb,
+  // a stated volume, or a second model — that a single-model lookup would
+  // discard.
+  const factField = extractModelFactField(text);
+  const modelPhrase = factField ? extractModelPhraseFor(text, factField) : null;
+
+  // "Is Claude Opus 5 deprecated?" asks what that model's state is now.
+  // "What was deprecated this month?" asks what the timeline did. Both contain
+  // a lifecycle verb, so the verb cannot separate them — a named model and the
+  // absence of a time window can. The override is confined to the lifecycle
+  // field and to phrases that actually name a model rather than a family, so
+  // "which Claude models were deprecated" stays a timeline question.
+  const namesOneModel = (modelPhrase?.split(" ").length ?? 0) >= 2;
+  const lifecycleStateQuestion =
+    factField?.field === "lifecycle" &&
+    namesOneModel &&
+    !TEMPORAL_WINDOW_PATTERN.test(text);
+
+  if (
+    factField &&
+    modelPhrase &&
+    providers.length <= 1 &&
+    !wantsComparison &&
+    !CHEAPEST_PATTERN.test(text) &&
+    !TEMPORAL_WINDOW_PATTERN.test(text) &&
+    (!TEMPORAL_CHANGE_PATTERN.test(text) || lifecycleStateQuestion)
+  ) {
+    found.add("model", modelPhrase, "question", modelPhrase);
+    found.add("field", factField.field, "question", factField.evidence);
+    if (factField.modality) {
+      found.add("modality", factField.modality, "question", factField.evidence);
+    }
+    return plan(
+      ModelFactIntentSchema.parse({
+        kind: "model_fact_query",
+        modelQuery: modelPhrase,
+        field: factField.field,
+        modality: factField.modality,
       }),
     );
   }

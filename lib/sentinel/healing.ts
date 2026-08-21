@@ -46,6 +46,11 @@ export function generateHealingPrompt(
     prompt += "Scraper extracted 0 records. DOM selectors may have moved. Locate and extract all pricing rows again.";
   } else if (evaluation.reasonCodes.includes("ALL_PRICES_NULL")) {
     prompt += "All price values extracted as null. Inspect table cells/spans and capture numeric input/output token prices.";
+  } else if (evaluation.reasonCodes.includes("CAPABILITY_TOKEN_LIMITS_MISSING")) {
+    prompt +=
+      "Every record lost its context window and/or max output value. Re-locate the model " +
+      "comparison table and capture the context window and max output cells verbatim, " +
+      "including shorthand such as '1M tokens' or '128k tokens'.";
   } else if (evaluation.reasonCodes.includes("RECORD_COUNT_COLLAPSE")) {
     prompt += `Extracted records collapsed unexpectedly (${evaluation.recordsValid} valid vs expected). Ensure pagination/containers capture all models.`;
   } else if (evaluation.reasonCodes.includes("ILLEGAL_ENUM_VALUE") || evaluation.reasonCodes.includes("SCHEMA_VALIDATION_FAILURE")) {

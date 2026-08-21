@@ -6,4 +6,5 @@ export * from "./catalog";
 export * from "./all-pricing";
 export * from "./providers";
 export * from "./sentinel-gate";
+export * from "./run-guard";
 export * from "./ingest-route";

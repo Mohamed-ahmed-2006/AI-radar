@@ -55,6 +55,7 @@ export function deriveSentinelSeverity(
     reasonCodes.includes("ILLEGAL_ENUM_VALUE") ||
     reasonCodes.includes("ALL_PRICES_NULL") ||
     reasonCodes.includes("SEMANTIC_INVARIANT_VIOLATION") ||
+    reasonCodes.includes("CAPABILITY_TOKEN_LIMITS_MISSING") ||
     reasonCodes.includes("DUPLICATE_IDENTIFIERS")
   ) {
     return "warning";

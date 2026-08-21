@@ -11,6 +11,7 @@
  * absence into a `false`, a `0`, or an empty string.
  */
 
+import { readModalityEnumerationStatement } from "../contracts";
 import { provenanceTrustFromAuthority, type ProvenanceView } from "../product/provenance";
 import { resolveSourceCategory, resolveSourceContractView } from "../sources/contract-view";
 import type { AuthorityLevel } from "../intelligence/contracts";
@@ -206,6 +207,7 @@ const UNKNOWN_CAPABILITIES: Omit<ModelCapabilityEvidence, "conflicted"> = {
   inputModalities: [],
   outputModalities: [],
   supportedFeatures: [],
+  modalityStatement: null,
   observedAt: null,
   provenance: null,
 };
@@ -223,6 +225,7 @@ function capabilityFingerprint(row: LatestCapabilitySnapshotRow): string {
     [...(row.input_modalities ?? [])].sort(),
     [...(row.output_modalities ?? [])].sort(),
     [...(row.supported_features ?? [])].sort(),
+    readModalityEnumerationStatement(row.raw),
   ]);
 }
 
@@ -266,6 +269,7 @@ export function buildCapabilityEvidence(
     inputModalities: [...(row.input_modalities ?? [])],
     outputModalities: [...(row.output_modalities ?? [])],
     supportedFeatures: [...(row.supported_features ?? [])],
+    modalityStatement: readModalityEnumerationStatement(row.raw),
     conflicted: false,
     observedAt: row.observed_at,
     provenance: buildEvidenceProvenance(
