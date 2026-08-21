@@ -51,6 +51,21 @@ test("normalizeExactTokenCount reads the shorthand provider tables publish", () 
 });
 
 /**
+ * Anthropic's context-window cell carries U+E08F — the Private Use Area code
+ * point its icon font renders as the tooltip marker. It is not a character in
+ * any alphabet and `trim()` leaves it in place, so the cell arrives as
+ * "1M tokens " and fails every anchor a number parser can set. This is
+ * the exact sequence collector c_msz68u3ovithdetgu returns.
+ */
+test("normalizeExactTokenCount sees through the page's icon-font glyphs", () => {
+  assert.equal(normalizeExactTokenCount("1M tokens "), 1_000_000);
+  assert.equal(normalizeExactTokenCount("200k tokens "), 200_000);
+  assert.equal(normalizeExactTokenCount("﻿128,000​"), 128_000);
+  // A glyph on its own says nothing, and must not become a number.
+  assert.equal(normalizeExactTokenCount(""), null);
+});
+
+/**
  * Shorthand is not a licence to read hedges. A magnitude suffix is accepted
  * only when it is the whole of what the source said.
  */

@@ -49,6 +49,46 @@ const EXACT_TOKEN_COUNT = /^(\d+)\s*(?:tokens?)?$/i;
 const SHORTHAND_MULTIPLIERS: Record<string, number> = { k: 1_000, m: 1_000_000 };
 
 /**
+ * Icon-font glyphs and invisible formatting characters that documentation pages
+ * carry inside their own text nodes.
+ *
+ * Anthropic's comparison table publishes its context window as `1M tokens`
+ * followed by U+E08F — the Private Use Area code point its icon font renders as
+ * the tooltip marker. It is not a character in any alphabet, it means nothing
+ * outside that font, and `trim()` does not remove it, so the cell arrives as
+ * `"1M tokens "` and fails every anchor a number parser can set.
+ *
+ * Stripping is confined to code points that cannot carry textual content: the
+ * three Private Use ranges, zero-width joiners and marks, the bidi controls, and
+ * the byte-order mark. Nothing a reader could see is removed, and the verbatim
+ * string is preserved in raw evidence either way.
+ */
+const NON_TEXTUAL_CODE_POINTS = new RegExp(
+  "[" +
+    "\u200B-\u200F" + // zero-width space/joiners and the LTR/RTL marks
+    "\u2028\u2029" + // line and paragraph separators
+    "\u202A-\u202E" + // bidi embedding and override controls
+    "\u2060-\u2064" + // word joiner and invisible operators
+    "\u206A-\u206F" + // deprecated formatting controls
+    "\uE000-\uF8FF" + // Private Use Area: the icon-font glyphs
+    "\uFEFF" + // byte-order mark
+    "]" +
+    "|[\u{F0000}-\u{FFFFD}]" + // Supplementary Private Use Area-A
+    "|[\u{100000}-\u{10FFFD}]", // Supplementary Private Use Area-B
+  "gu",
+);
+
+/**
+ * A scraped string reduced to the characters that actually say something.
+ *
+ * Exported because the fault it fixes is not specific to token counts: any
+ * value lifted from a documentation table can pick up the page's icon glyphs.
+ */
+export function stripNonTextualCharacters(value: string): string {
+  return value.replace(NON_TEXTUAL_CODE_POINTS, "").trim();
+}
+
+/**
  * Exact numeric normalization for token counts (context window, max output tokens).
  *
  * "Exact" means the source stated a definite figure, not that it spelled every
@@ -70,7 +110,7 @@ export function normalizeExactTokenCount(value: unknown): number | null {
   }
   if (typeof value !== "string") return null;
 
-  const trimmed = value.trim().replace(/,/g, "");
+  const trimmed = stripNonTextualCharacters(value).replace(/,/g, "");
   if (!trimmed) return null;
 
   const exact = EXACT_TOKEN_COUNT.exec(trimmed);
@@ -103,7 +143,7 @@ export function normalizeModalities(
   const normalizedSet = new Set<Modality>();
   for (const m of list) {
     if (typeof m !== "string") continue;
-    const lower = m.trim().toLowerCase();
+    const lower = stripNonTextualCharacters(m).toLowerCase();
     if (lower === "text") normalizedSet.add("text");
     else if (lower === "image" || lower === "vision") normalizedSet.add("image");
     else if (lower === "audio" || lower === "voice" || lower === "speech") normalizedSet.add("audio");
