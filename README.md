@@ -1,186 +1,391 @@
-# AI Radar / StackPulse
+# AI Radar
 
-**powered by SourcePulse**
+AI Radar turns changing AI-provider websites into trusted, auditable intelligence.
 
-The changing AI web → **Bright Data Scraper Studio** → contracts → Sentinel validation → trusted history → decision intelligence.
+It monitors official public pages from **OpenAI**, **Anthropic**, **Google Gemini**, and **xAI** across three domains:
 
-AI Radar is a live intelligence console for the AI model ecosystem. It does not scrape the public web with ad-hoc scripts. It collects through **Bright Data Scraper Studio**, admits only payloads that satisfy a contract, and answers questions from that trusted history — never from model memory.
+- **Pricing**
+- **Model catalogs / capabilities**
+- **Lifecycle / deprecations**
 
-Production: [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+The important difference: a scraper result is an **observation**, not automatically the truth. Bright Data Scraper Studio collects the page. Sentinel decides whether that payload may enter canonical history. If extraction fails, last-known-good stays up and the bad run writes nothing.
 
-All ten configured fleet sources ingest live through Bright Data Scraper Studio. The hourly scheduler is operational. An isolated Bright Data healing proof completed through **RECOVERED**: last-known-good was preserved, and the refused run wrote zero canonical rows.
+**Live:** [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+**GitHub:** [https://github.com/Mohamed-ahmed-2006/AI-radar](https://github.com/Mohamed-ahmed-2006/AI-radar)
+**Demo video:** Coming before submission
+
+Built for the WeMakeDevs **Into the Scrape-Verse** hackathon.
 
 ---
 
-## Problem
+## The problem
 
-AI infrastructure pages change constantly: prices move, models launch or retire, context windows and capabilities are rewritten, and HTML layouts break collectors. Teams still make stack decisions from screenshots, stale docs, or a chatbot's pretrained guesses.
+AI providers constantly change models, prices, context windows, capabilities, lifecycle notices, and the HTML around all of that.
 
-The failure mode is not "we needed another scraper." It is **untrusted observation**: a broken extraction written as a price change, an unknown capability treated as unsupported, or a healing job declared recovered because a demo said so.
+Developers still make stack decisions from:
 
-## Product
+- docs they last opened weeks ago
+- comparison sites that lag
+- screenshots in Slack
+- whatever a chatbot remembers from training
+- ordinary scrapers that write whatever they extracted
 
-**StackPulse** is the decision surface: catalog, compare, change feed, My Stack, Stack Optimizer, and Ask AI Radar.
+The deeper failure is not “we needed another scraper.” It is mistaking a **broken extraction** for a **real ecosystem change**.
 
-**SourcePulse** is the collection integrity surface: Bright Data collectors, contracts, Sentinel, last-known-good, quarantine, self-healing, Source Health, Source Detail, and the isolated recovery demo.
+Example:
 
-Judges should read the product as one pipeline. Bright Data is the collection and repair plane. Everything above it is only as trustworthy as what Sentinel admitted.
+1. A pricing or catalog layout changes.
+2. The scraper returns zero models.
+3. A naive pipeline concludes the models disappeared, and writes that as history.
 
-## Core thesis
+AI Radar exists to stop that class of failure. Missing or invalid collector output is refused. Canonical history is not rewritten from a collapsed page.
+
+---
+
+## How AI Radar works
 
 ```
-Public AI web
-    → Bright Data Scraper Studio collectors
-    → raw contracts
-    → Sentinel validation
-    → quarantine / last-known-good / healing
-    → normalization
-    → Supabase snapshots, history, change events
-    → Explorer / Compare / Changes / Optimizer / Ask
+Official provider websites
+        ↓
+Bright Data Scraper Studio
+        ↓
+Raw observations
+        ↓
+Source contracts
+        ↓
+Sentinel
+Validate / quarantine / last-known-good
+        ↓
+Canonical snapshots + history
+        ↓
+Changes / Explorer / Compare / Optimizer / Ask
 ```
 
-A website can change. The data contract must not silently change with it.
+**Bright Data** is the collection and repair plane: dedicated Scraper Studio collectors, dataset polling, and the same-collector refactor used when a layout breaks.
 
-## Architecture
+**Sentinel** is the trust and admission plane: structural and semantic validation, quarantine, partial acceptance where appropriate, last-known-good, incidents, and healing validation.
 
-Bright Data is architectural, not decorative. Every pricing, lifecycle, and catalog source is a Scraper Studio collector. Ingestion cannot run without `BRIGHTDATA_API_KEY`. Healing is a real Scraper Studio refactor of an isolated collector, then the same Sentinel gate again.
+Nothing in the Next.js app scrapes provider pages itself. If `BRIGHTDATA_API_KEY` is missing, collection does not run.
 
 ```mermaid
-flowchart LR
-  WEB["Public AI web<br/>OpenAI · Anthropic · Gemini · xAI"]
-  BD["Bright Data<br/>Scraper Studio"]
-  RAW["Raw contracts<br/>pricing · lifecycle · catalog"]
+flowchart TB
+  WEB["Official provider websites<br/>OpenAI · Anthropic · Gemini · xAI"]
+  BD["Bright Data Scraper Studio<br/>collect + repair"]
+  RAW["Raw observations<br/>pricing · catalog · lifecycle"]
   SEN["Sentinel"]
   Q["Quarantine"]
   LKG["Last-known-good"]
-  HEAL["Scraper Studio<br/>heal / refactor"]
-  NORM["Normalization"]
-  SB[("Supabase<br/>snapshots · history · change events")]
-  UI["StackPulse<br/>Explorer · Compare · Changes<br/>Optimizer · Ask"]
+  CAN["Canonical snapshots + history"]
+  UI["Explorer · Compare · Optimizer · Ask · Changes"]
 
   WEB --> BD
   BD --> RAW
   RAW --> SEN
   SEN -->|unsafe| Q
   SEN -->|unsafe| LKG
-  Q --> HEAL
-  HEAL --> BD
+  SEN -->|safe / partial| CAN
+  Q --> BD
   LKG -.->|trusted current| UI
-  SEN -->|safe| NORM
-  NORM --> SB
-  SB --> UI
+  CAN --> UI
 ```
 
-A fuller diagram lives in [`docs/architecture.md`](docs/architecture.md). Collection orchestration is in [`docs/collection-orchestration.md`](docs/collection-orchestration.md).
+---
 
-### Production shape
+## Bright Data Scraper Studio
 
-| Layer | Implementation |
-| --- | --- |
-| App | Next.js on Vercel ([ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)) |
-| Reads | Supabase anon client + RLS |
-| Writes | Server-only service role during ingestion |
-| Collection | Vercel Cron → `/api/cron/collect` (hourly heartbeat; per-source cadence) |
-| Collectors | Bright Data Scraper Studio (10 configured sources) |
-| Integrity | Sentinel gate inside every pipeline, before the first canonical write |
-| Operator demo | Isolated collector + signed HttpOnly session |
+Collection is not a side script. Every production source is a dedicated Scraper Studio collector.
 
-## Providers and collectors
+AI Radar:
 
-Configured fleet (`lib/orchestration/registry.ts`):
+1. Triggers the Studio collector (`POST /dca/trigger`)
+2. Polls the resulting dataset
+3. Parses structured output
+4. Validates it against a provider-specific contract
+5. Hands the observation to Sentinel, which decides whether it may enter canonical history
 
-| Source | Kind | Default public page |
-| --- | --- | --- |
-| OpenAI pricing | pricing | developers.openai.com pricing |
-| Anthropic pricing | pricing | platform.claude.com pricing |
-| Gemini pricing | pricing | ai.google.dev Gemini pricing |
-| xAI pricing | pricing | docs.x.ai pricing |
-| Anthropic lifecycle | lifecycle | Claude model deprecations |
-| Gemini lifecycle | lifecycle | Gemini deprecations |
-| OpenAI catalog | catalog | OpenAI models docs |
-| Anthropic catalog | catalog | Claude models overview |
-| Gemini catalog | catalog | Gemini models docs |
-| xAI catalog | catalog | xAI models docs |
+### Production collectors
 
-Sanitized collector output shapes: [`docs/examples/`](docs/examples/).
+Ten fleet collectors, from `lib/orchestration/registry.ts` and the committed collector defaults:
 
-## Bright Data integration
+| Provider | Domain | Source | Collector |
+| --- | --- | --- | --- |
+| OpenAI | Pricing | [developers.openai.com pricing](https://developers.openai.com/api/docs/pricing) | `c_msx3bqlyjtv2qustx` |
+| Anthropic | Pricing | [platform.claude.com pricing](https://platform.claude.com/docs/en/about-claude/pricing) | `c_msxbuggp1czbtysx06` |
+| Google Gemini | Pricing | [ai.google.dev Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) | `c_msxdkx5424fwc069z7` |
+| xAI | Pricing | [docs.x.ai pricing](https://docs.x.ai/developers/pricing) | `c_msxf12ec1vq9w3d0r1` |
+| Anthropic | Lifecycle | [Claude model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations) | `c_msxj0fk3153bu9oz7l` |
+| Google Gemini | Lifecycle | [Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations) | `c_msxqpelk2cpxz8r386` |
+| OpenAI | Catalog | [OpenAI models docs](https://developers.openai.com/api/docs/models) | `c_msz67jyrmiom6mbvn` |
+| Anthropic | Catalog | [Claude models overview](https://platform.claude.com/docs/en/about-claude/models/overview) | `c_msz68u3ovithdetgu` |
+| Google Gemini | Catalog | [Gemini models docs](https://ai.google.dev/gemini-api/docs/models) | `c_msz708an1gawux0njo` |
+| xAI | Catalog | [xAI models docs](https://docs.x.ai/developers/models) | `c_msz6ahaofpm2d9j73` |
 
-Server-side adapter (`lib/brightdata`):
+OpenAI and xAI do not currently have dedicated lifecycle collectors. Lifecycle changes are only admitted from authoritative lifecycle sources (Anthropic and Gemini deprecation pages). A model vanishing from a pricing table is not treated as a retirement.
 
-1. Trigger a Scraper Studio collector (`POST /dca/trigger`).
-2. Poll the dataset until records arrive.
-3. Parse against the domain contract (Zod).
-4. Record run metadata (collector id, run id, timing, status).
+There is also an **isolated demo collector** (`BRIGHTDATA_DEMO_COLLECTOR_ID`) used only for the SourcePulse recovery proof. It is not one of the ten fleet sources, and the harness refuses to run rather than borrowing a production collector.
 
-Healing uses the same account and API: Sentinel observations drive a **real refactor job**. The candidate is previewed, validated with the same contract, approved only if it passed, then re-run through the same gate. Recovery is earned by a successful run, not assigned by the UI.
+### What happens when scraping breaks
 
-The isolated recovery demo has its own `BRIGHTDATA_DEMO_COLLECTOR_ID`. Unset, the demo reports **unavailable** and refuses to run rather than borrowing a production collector.
+```
+broken layout
+  → invalid extraction
+  → Sentinel ZERO_RECORDS
+  → quarantine
+  → zero bad canonical writes
+  → last-known-good preserved
+  → Bright Data refactors the SAME dedicated demo collector
+  → preview
+  → validation
+  → approval
+  → rerun
+  → RECOVERED
+```
+
+Production has already completed that path. The live app includes a **read-only historical Recovery Proof Replay** at [`/demo/healing`](https://ai-radar-orpin.vercel.app/demo/healing). Clicking **Replay proof** animates evidence that is already in the database. It does **not** trigger Bright Data again.
+
+---
 
 ## SourcePulse / Sentinel
 
-Sentinel sits **between** the collector and canonical persistence (`lib/sentinel/gate.ts`):
+SourcePulse is the reliability and data-contract subsystem under AI Radar. Sentinel is the gate between a collector payload and canonical persistence.
 
-1. Load last-known-good for the source.
-2. Validate the raw payload against the source contract and evaluate health.
-3. Unsafe → open an incident, isolate the payload in quarantine, fail the run, throw. **Zero canonical rows.**
-4. Safe → persist models, snapshots, change events; resolve an open incident if the source recovered.
+What it actually does:
 
-There is no path that persists a quarantined collection. Healing never bypasses the gate: a repaired candidate re-enters the same pipeline.
+- **Structural validation** — records must match the source contract (Zod).
+- **Semantic validation** — collapsed counts, illegal enums, missing token limits, duplicate identities, and similar invariants.
+- **Quarantine** — refused payloads are stored as incidents, not as prices or capabilities.
+- **Partial acceptance** — trusted records can be admitted while contradictory ones are refused. The source is then **DEGRADED**, not silently marked Healthy.
+- **Last-known-good** — the last trusted snapshot remains the current evidence while a source is broken.
+- **Incidents** — open, healing, resolved. The UI cannot mark a source healthy.
+- **Healing validation** — a Bright Data refactor candidate re-enters the same gate. Recovery is earned by a successful admitted run.
+- **Provenance** — admitted values keep source URL, collector, observation time, run, and snapshot identity.
 
-### Last-known-good
+Invariant: a missing model on a **pricing** page never automatically means the model was retired. Lifecycle changes only come from authoritative lifecycle sources.
 
-The last trusted snapshot remains the current evidence while a source is broken. The product keeps serving LKG instead of writing a bad extraction as history.
+Three-state honesty:
 
-### Quarantine
+- **Unknown ≠ Unsupported**
+- **Unknown ≠ zero**
+- **Unavailable ≠ zero**
 
-Rejected payloads are stored as incidents, not as prices or capabilities. Source Health and Source Detail show what was refused and why.
+If nobody published a capability, the product says Unknown. It does not invent “no.”
 
-### Self-healing
+---
 
-Bounded repair: request a Scraper Studio refactor from what Sentinel observed → preview → validate → approve only a passing candidate → re-run → recover only if the gate accepts the new payload.
+## How to use the application
 
-The in-memory Sentinel simulator (`SENTINEL_DEMO_MODE=1`) is **not** healing. It is a local recording aid and must be unset in production.
+Production: [https://ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
 
-The judge-facing page is `/demo/healing`. Production has completed a live Bright Data recovery through **RECOVERED** (LKG preserved; refused run wrote zero canonical rows). Source Health keeps that recovered timeline. After proof the demo page is left clean and ready — healthy last-known-good, no open incident — rather than restaging an expensive cycle. If Bright Data, the dedicated collector, or Supabase writes are missing, the page says **unavailable**. It does not show a successful recovery it did not earn.
+### Dashboard
 
-## StackPulse surfaces
+The Intelligence Console. Current ecosystem and fleet overview: models with canonical pricing, monitored sources, 24h changes, source health, recent events, and the judge path through the rest of the product.
 
-| Route | What it is |
+### Model Explorer
+
+[`/models`](https://ai-radar-orpin.vercel.app/models) — browse and filter observed models by provider, price, context, lifecycle, vision, tool calling, and active-only. Each row links provenance (**Official source** vs **Verified scrape**). **Quick View** opens a drawer with the same facts without leaving the table. This page explores; it does not rank.
+
+### Model Detail
+
+[`/models/[id]`](https://ai-radar-orpin.vercel.app/models) — one model’s pricing, context, max output, capabilities, modalities, lifecycle, freshness, and evidence.
+
+### Compare
+
+[`/models/compare`](https://ai-radar-orpin.vercel.app/models/compare) — side-by-side aligned observations for selected canonical ids. Shareable via URL. Compare explains differences. It does **not** rank or name a winner.
+
+### Stack Optimizer
+
+[`/optimizer`](https://ai-radar-orpin.vercel.app/optimizer) — you provide workload constraints and monthly token volumes. Deterministic filtering plus pricing math ranks eligible models. Unknown evidence does not count as unsupported; missing prices stay unavailable.
+
+Pricing semantics: **standard pricing** is the normal default. Long-context surcharge tiers remain available separately and are **not** selected merely because a model supports a large context window.
+
+### Ask AI Radar
+
+[`/ask`](https://ai-radar-orpin.vercel.app/ask) — natural language in, typed intent out, trusted database, deterministic executor, grounded explanation. Never model-memory facts.
+
+Three current typed modes:
+
+1. **Temporal**
+   Example: “What changed in Claude this month?”
+2. **Decision / workload**
+   Example: “What is the cheapest active model with at least 128K context and tool calling?”
+3. **Model Fact**
+   Examples: “Does Claude Opus 5 support video input?” · “What is Claude Opus 5's context window?”
+
+Fail-closed example:
+
+> “What does GPT-6 cost?”
+>
+> No trusted observed entity or evidence → AI Radar refuses to invent the answer.
+
+The planner never emits SQL and never contributes a dollar figure. Ungroundable text is stripped.
+
+### Changes
+
+[`/changes`](https://ai-radar-orpin.vercel.app/changes) — historical trusted intelligence feed: price, capability, and lifecycle events with provenance.
+
+Inadmissible historical observations may remain in audit storage while being excluded from this trusted feed. Nothing is silently rewritten; the row can still be inspected, it just is not presented as intelligence.
+
+### My Stack
+
+[`/my-stack`](https://ai-radar-orpin.vercel.app/my-stack) — a browser-local watchlist for models you actually care about. It is stored in that browser only, over live evidence.
+
+### Sources
+
+[`/sources`](https://ai-radar-orpin.vercel.app/sources) — every monitored web source and its current state (ten fleet collectors plus the isolated healing-demo source).
+
+### Source Detail
+
+[`/sources/[id]`](https://ai-radar-orpin.vercel.app/sources) — runs, incidents, healing, observed vs trusted records, evidence, and provenance for one source.
+
+### Source Health
+
+[`/source-health`](https://ai-radar-orpin.vercel.app/source-health) — Sentinel fleet / control-room view.
+
+Current truthful Gemini example: the catalog can be **DEGRADED** while still freshly collecting, because 40 of 41 records were trusted and one contradictory identity was refused. That is partial acceptance, not a broken scraper.
+
+### Healing Demo / Recovery Proof
+
+[`/demo/healing`](https://ai-radar-orpin.vercel.app/demo/healing)
+
+Plain-language version of what already happened:
+
+1. The page DOM changed.
+2. Extraction failed (zero records).
+3. Sentinel blocked the observation (`ZERO_RECORDS`).
+4. Last-known-good stayed available.
+5. Bright Data repaired **the same** dedicated collector.
+6. The repaired candidate passed validation and approval.
+7. A rerun was admitted. The source is **RECOVERED**.
+
+The page’s historical proof is a **read-only replay**. It does not run Bright Data when you press replay. Operator-only controls for a new live demonstration sit separately and do not rewrite that proof.
+
+---
+
+## Real production proof
+
+Things the frozen product has actually done — not projections:
+
+- Production is live at [ai-radar-orpin.vercel.app](https://ai-radar-orpin.vercel.app)
+- Ten production Scraper Studio collectors across four providers
+- Real production ingestion on all ten fleet sources
+- Real quarantine on a zero-record extraction
+- Zero bad canonical writes during the recovery proof
+- Last-known-good preserved (10 trusted demo records kept serving)
+- Same-collector Bright Data refactor (confirmed in the proof)
+- Real **RECOVERED** state on the isolated demo source
+- Fail-closed grounded Ask (unobserved models such as GPT-6 are refused)
+- Real partial acceptance / contradiction handling on the Gemini catalog
+
+No invented benchmark percentages.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Schedule["Scheduler"]
+    GA["GitHub Actions<br/>hourly workflow"]
+    CRON["POST /api/cron/collect<br/>protected"]
+  end
+
+  subgraph Fleet["Orchestration"]
+    CAD["Cadence gates<br/>pricing 6h · catalog/lifecycle 12h"]
+    LEASE["Per-source lease<br/>no overlap"]
+  end
+
+  subgraph Collect["Bright Data"]
+    ST["Scraper Studio collectors"]
+    DCA["Trigger · poll · refactor"]
+  end
+
+  subgraph Trust["Sentinel"]
+    GATE["Contract + health vs LKG"]
+  end
+
+  subgraph Store["Supabase / PostgreSQL"]
+    SNAP["Snapshots · history · change events"]
+  end
+
+  subgraph App["Next.js on Vercel"]
+    SURFACES["Dashboard · Explorer · Optimizer · Ask · Health"]
+  end
+
+  GA --> CRON
+  CRON --> CAD
+  CAD --> LEASE
+  LEASE --> ST
+  ST --> DCA
+  DCA --> GATE
+  GATE --> SNAP
+  SNAP --> SURFACES
+```
+
+The scheduler is **GitHub Actions**, not Vercel Cron. Hobby-plan Vercel Cron cannot tick hourly, so `.github/workflows/collect.yml` calls the protected `/api/cron/collect` route every hour. That tick is a heartbeat. Each source still runs only when its own cadence has elapsed:
+
+| Family | Default cadence |
 | --- | --- |
-| `/` | Dashboard — live ecosystem, provenance, command center |
-| `/models` | Model Explorer — observed pricing, capabilities, lifecycle, freshness |
-| `/models/[id]` | Model Detail — one canonical model and its evidence |
-| `/models/compare` | Compare — side by side; this view does not rank |
-| `/changes` | Change Feed — price, lifecycle, capability events with provenance |
-| `/my-stack` | My Stack — browser-local watchlist over live evidence |
-| `/optimizer` | Stack Optimizer — workload ranking from observed prices and constraints |
-| `/ask` | Ask AI Radar — temporal and decision questions from trusted evidence |
-| `/sources` | Source registry |
-| `/sources/[id]` | Source Detail — runs, incidents, healing, transformations |
-| `/source-health` | Sentinel fleet health |
-| `/demo/healing` | Isolated Bright Data recovery demo |
+| Pricing | 6 hours |
+| Lifecycle | 12 hours |
+| Catalog | 12 hours |
 
-Unknown capabilities render as **Unknown**, never as unsupported. Missing prices stay unavailable. Empty live data is empty, not a fixture.
+Sources are isolated: one source failing does not stop the rest of the fleet. A lease prevents overlapping runs of the same source. Duplicate scheduler deliveries in the same tick window are no-ops.
 
-### Natural-language intelligence
+More detail: [`docs/architecture.md`](docs/architecture.md), [`docs/collection-orchestration.md`](docs/collection-orchestration.md), [`docs/brightdata-ingestion.md`](docs/brightdata-ingestion.md).
 
-Ask compiles English into a typed plan (`lib/ask`), then runs engines that already own the domain:
+---
 
-- **Temporal** — "What changed in Claude this month?" reads the change feed. No events → it says so.
-- **Model selection / workload** — cheapest eligible model, vision + tools, compare providers. Ranking and arithmetic come from the optimizer, not from a language model.
+## Tech stack
 
-The planner never emits SQL and never contributes a fact. Ungroundable text is stripped. `?demo=true` cannot serve the fabricated corpus unless `AI_RADAR_DEMO_EVIDENCE=1` is set server-side (forbidden in production).
+Verified from `package.json` and the repo, not a wish list:
 
-### Provenance
+| Layer | What is actually used |
+| --- | --- |
+| App | Next.js 16, React 19, TypeScript |
+| Styling | Tailwind CSS 4, custom console CSS, Geist / Geist Mono |
+| Data | Supabase (PostgreSQL), `@supabase/ssr` + `@supabase/supabase-js` |
+| Contracts | Zod |
+| Collection | Bright Data Scraper Studio / DCA API |
+| Hosting | Vercel |
+| Scheduler | GitHub Actions (`collect.yml`) |
 
-Every trusted value can be traced to provider, source URL, collector, observation time, collection run, and snapshot (`GET /api/provenance`, Source Detail). Ask and Optimizer attach the same provenance to answers.
+There is no extra motion library and no unused analytics/ORM stack in the product.
 
-## Setup
+---
+
+## Provenance / trust
+
+Two badges appear throughout the product. They are not the same thing:
+
+| Badge | Meaning |
+| --- | --- |
+| **Official source** | Read directly from the provider’s own published page (authoritative domain such as lifecycle or catalog). |
+| **Verified scrape** | Scraped and validated against the source contract before acceptance. |
+
+A successful scrape is still an observation. Sentinel has to admit it before it becomes trusted history. Model facts in Explorer, Optimizer, Ask, and Changes link back to source evidence (page, collector, observation time, run, snapshot). The product does not ask you to trust a number with no trail.
+
+---
+
+## Current honest degradation example
+
+The Gemini catalog may show **DEGRADED** while collection is still fresh.
+
+Google currently publishes a contradictory Lyria identity. AI Radar:
+
+- admits the trusted records
+- rejects the contradictory one
+- does **not** force the source to Healthy
+- does **not** invent a new identity to make the collision disappear
+
+That is the system working. It is not a dead collector.
+
+---
+
+## Setup / development
 
 ```bash
-git clone <this-repo>
-cd AI-Radar
+git clone https://github.com/Mohamed-ahmed-2006/AI-radar.git
+cd AI-radar
 npm install
 cp .env.example .env.local
 # fill required names from the table below — values stay in your environment
@@ -190,6 +395,14 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run check:env    # prints names and reasons only, never values
+```
 
 ### Environment variable names
 
@@ -211,47 +424,87 @@ Values are never documented here. `npm run check:env` prints names and reasons o
 
 **Optional collector / cadence overrides** — see `.env.example` (`BRIGHTDATA_*_COLLECTOR_ID`, `*_SOURCE_URL`, `AI_RADAR_COLLECTION_*`, `AI_RADAR_SOURCE_*`).
 
-**Must be unset in production**
+**Must remain unset in production**
 
 - `SENTINEL_DEMO_MODE`
 - `AI_RADAR_DEMO_EVIDENCE`
 - `AI_RADAR_HEALING_DEMO_OPEN_CONTROLS`
 
-## Running locally
+Ingest and cron routes fail closed without secrets. Healing-demo mutating actions need the operator session (`POST /api/operator/session`).
 
-```bash
-npm run dev          # Next.js
-npm test             # unit / rendering tests
-npm run typecheck
-npm run lint
-npm run build
-npm run check:env    # production contract, names only
-```
+---
 
-Ingest and cron routes fail closed without secrets. Healing demo mutating actions need the operator session (`POST /api/operator/session`).
+## Security
+
+This is an intelligence console, not a security product. The deployment posture is still fail-closed:
+
+- Ingestion and orchestration mutations require `AI_RADAR_INGEST_SECRET` / `CRON_SECRET`
+- Healing mutations are operator-only (signed HttpOnly session)
+- Service-role keys stay server-side; the browser bundle uses the anon/publishable key under RLS
+- The in-memory Sentinel simulator and fabricated Ask corpus are disabled in production
+
+---
 
 ## AI-use disclosure
 
-Development was AI-assisted (Cursor, Claude, Codex, and related coding agents) for implementation, tests, and documentation. Product behavior is determined by contracts, Sentinel, Bright Data collectors, and the checked-in tests — not by a model answering from memory at runtime.
+AI coding assistants (Cursor, Claude, Codex, and related agents) were used during development for implementation, tests, and documentation. Humans directed product scope, contracts, and the freeze.
 
-Ask AI Radar interprets a question into a plan, then answers only from collected evidence.
+Runtime Ask is not that. A question is compiled into a typed plan, then answered from collected evidence by deterministic executors (change feed, explorer, optimizer, model-fact lookup). Assistant memory is not the product database.
 
 Full statement: [`docs/ai-use-disclosure.md`](docs/ai-use-disclosure.md).
 
+---
+
 ## Hackathon alignment
 
-Built for a Bright Data Scraper Studio / SourcePulse brief:
+Into the Scrape-Verse, mapped to the six judging areas with what the repo actually ships:
 
-- **Scraper Studio is the collection plane** — ten collectors, trigger/poll, contracts, run metadata.
-- **Reliability** — Sentinel, quarantine, last-known-good, isolated failure, bounded retries.
-- **Self-healing** — real refactor → preview → validate → approve → re-run; production earned **RECOVERED** on the isolated demo collector.
-- **Decision intelligence** — Explorer, Compare, Optimizer, Ask, Change Feed, all provenance-backed.
-- **Honest presentation** — fixtures and simulators are opt-in; production shows empty or unavailable rather than invented success.
+| Axis | Evidence |
+| --- | --- |
+| **Potential Impact** | Official AI-provider pages become an auditable history of prices, capabilities, and lifecycle — so a layout break cannot be mistaken for models disappearing. |
+| **Creativity & Innovation** | Scraper output is an observation. Natural language is compiled into a typed intent. Unknown is a first-class state, not a synonym for false. |
+| **Technical Excellence** | Ten contracted collectors, Zod gates, Sentinel before the first canonical write, leases, source isolation, RLS reads, server-only writes. |
+| **Use of Scraper Studio** | Collection **is** Studio (trigger, poll, parse). Healing **is** Studio (refactor the same dedicated collector, preview, validate, approve, rerun). The Next.js app does not scrape. |
+| **Reliability & Self-Healing** | ZERO_RECORDS → quarantine → zero bad writes → LKG preserved → same-collector repair → RECOVERED. Partial acceptance keeps Gemini honest instead of fake-healthy. |
+| **Presentation** | Live app, judge path, read-only Recovery Proof Replay, grounded Ask, Source Health that shows degradation without calling it a broken scraper. |
 
-Judging-axis copy: [`docs/submission.md`](docs/submission.md).
 Judge walkthrough: [`docs/demo-script.md`](docs/demo-script.md).
-Production contract: [`docs/production-readiness.md`](docs/production-readiness.md).
+Submission notes: [`docs/submission.md`](docs/submission.md).
 
-## License
+---
 
-Private hackathon submission unless otherwise stated.
+## Screenshots
+
+From current production. Details: [`docs/screenshots/README.md`](docs/screenshots/README.md).
+
+**Dashboard**
+
+![AI Radar dashboard](docs/screenshots/dashboard.png)
+
+**Model Explorer**
+
+![Model Explorer](docs/screenshots/explorer.png)
+
+**Stack Optimizer**
+
+![Stack Optimizer](docs/screenshots/optimizer.png)
+
+**Ask AI Radar**
+
+![Ask AI Radar grounded model fact](docs/screenshots/ask.png)
+
+**Source Health**
+
+![Source Health Sentinel fleet](docs/screenshots/source-health.png)
+
+**Recovery Proof**
+
+![Healing Demo recovery proof replay](docs/screenshots/healing-demo.png)
+
+---
+
+## Repository status
+
+This repository is **public**.
+
+No `LICENSE` file is present. Do not assume an open-source license unless one is added later.
