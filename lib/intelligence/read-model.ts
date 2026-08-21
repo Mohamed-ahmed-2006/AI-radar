@@ -2,7 +2,10 @@ import {
   createSupabaseServerClient,
   getRecentChangeEvents,
   listModels,
+  type ChangeEventRow,
+  type SupabaseServerClient,
 } from "../supabase";
+import { localeQueryParameter } from "../sentinel/contracts";
 import type {
   EcosystemSignificanceSummary,
   EvidenceBundle,
@@ -22,6 +25,66 @@ import {
   resolveDateRange,
 } from "./query-engine";
 import { buildDeterministicNarrativeSummary } from "./summarizer";
+
+/**
+ * Drops capability events whose producing observation would not be admitted
+ * today.
+ *
+ * A change event is a claim about the world backed by one observation. When
+ * that observation is later found to be inadmissible — not wrong about a fact,
+ * but collected from evidence the source contract now refuses — the claim it
+ * produced was never intelligence, and the trusted feed should not present it
+ * as such.
+ *
+ * The test is the contract's own, applied to the snapshot's preserved raw
+ * provenance: a capability observation scraped from a localized rendering of a
+ * provider page is refused at ingestion now, so an event produced by one before
+ * that rule existed is refused here. Nothing is deleted, no event is rewritten,
+ * and no invalidation state is stored — the row stays in `change_events` for
+ * audit, and this is purely a read-time exclusion.
+ *
+ * Deliberately narrow. It is not "hide anything later reversed": a provider that
+ * genuinely turns a capability off and on again is real intelligence and both
+ * events survive, because both are backed by admissible observations.
+ */
+export async function withoutSupersededCapabilityEvidence(
+  db: SupabaseServerClient,
+  rows: readonly ChangeEventRow[],
+): Promise<ChangeEventRow[]> {
+  const snapshotIds = [
+    ...new Set(
+      rows
+        .map((row) => row.current_capability_snapshot_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  if (snapshotIds.length === 0) return [...rows];
+
+  const { data, error } = await db
+    .from("capability_snapshots")
+    .select("id, raw")
+    .in("id", snapshotIds);
+  // A read failure must not silently drop real intelligence; the feed is left
+  // exactly as it was rather than filtered on evidence we could not load.
+  if (error || !data) return [...rows];
+
+  const inadmissible = new Set(
+    data
+      .filter((snapshot) => {
+        const raw = snapshot.raw as { source_url?: unknown } | null;
+        const sourceUrl = typeof raw?.source_url === "string" ? raw.source_url : undefined;
+        return localeQueryParameter(sourceUrl) !== null;
+      })
+      .map((snapshot) => snapshot.id),
+  );
+  if (inadmissible.size === 0) return [...rows];
+
+  return rows.filter(
+    (row) =>
+      row.current_capability_snapshot_id === null ||
+      !inadmissible.has(row.current_capability_snapshot_id),
+  );
+}
 
 /**
  * Loads raw change events from Supabase and transforms them into TemporalEvidence.
@@ -63,7 +126,9 @@ export async function loadLiveTemporalEvidence(
       (runsResult.data ?? []).map((run) => [run.id, run.external_run_id]),
     );
 
-    return transformChangeEventsToEvidence(changeRows, {
+    const trustedRows = await withoutSupersededCapabilityEvidence(db, changeRows);
+
+    return transformChangeEventsToEvidence(trustedRows, {
       sources: sourcesResult.data ?? [],
       modelNamesById,
       providerSlugsById,

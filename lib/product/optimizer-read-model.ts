@@ -9,6 +9,7 @@
 
 import { getModelExplorer, type ModelExplorerEntry, type ModelExplorerReadPort } from "../explorer";
 import {
+  LONG_CONTEXT_SURCHARGE_CAVEAT,
   calculateMonthlyCost,
   formatMoney,
   optimizeStack,
@@ -356,7 +357,15 @@ function projectResult(
     generatedAt: optimizer.generatedAt,
     isDemo: false,
     evidenceQuality: evidence.quality,
-    evidenceNote: evidence.note,
+    // The optimizer already states, in its explanation, that it cost on the
+    // standard tier and cannot know whether a long-context surcharge applies.
+    // Carrying that line through is what lets the screen say so too.
+    evidenceNote: [
+      evidence.note,
+      optimizer.explanation.find((line) => line === LONG_CONTEXT_SURCHARGE_CAVEAT) ?? null,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ") || null,
     emptyReason,
   };
 }
