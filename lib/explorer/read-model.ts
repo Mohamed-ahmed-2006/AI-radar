@@ -373,6 +373,15 @@ export async function getModelDetail(
       !inadmissibleSnapshotIds.has(event.current_capability_snapshot_id),
   );
 
+  // The same rule governs the history itself. An inadmissible observation
+  // listed among the trusted states reads as a period when the model really
+  // did lack vision, which is the misreading the whole rule exists to prevent.
+  // The rows are still returned by the port and still in the database — this
+  // withholds them from the trusted projection, nothing more.
+  const trustedCapabilityHistory = capabilityHistory.filter(
+    (snapshot) => !inadmissibleSnapshotIds.has(snapshot.id),
+  );
+
   // History and change events reference runs the current-evidence load may not
   // have seen, so provenance resolves their collector run ids too.
   const historyContext: EvidenceContext = {
@@ -392,7 +401,7 @@ export async function getModelDetail(
   return {
     current,
     pricingHistory: pricingHistory.map((row) => pricingHistoryEntry(row, historyContext)),
-    capabilityHistory: capabilityHistory.map((row) =>
+    capabilityHistory: trustedCapabilityHistory.map((row) =>
       capabilityHistoryEntry(row, historyContext),
     ),
     lifecycleHistory: lifecycleHistory.map((row) =>

@@ -108,7 +108,13 @@ export function IncidentSpotlight({
         <div className="radar-spotlight-split">
           <div className="flex flex-col gap-2 min-w-0">
             <h3 className="text-[10px] uppercase tracking-[0.06em] text-radar-text-muted">
-              Why the run was rejected
+              {/*
+                A degraded source has not had its run rejected — a partial run
+                accepted most of its records and refused some. The heading names
+                the source's state, which is true whether the run was refused
+                outright or only in part.
+              */}
+              Why the source is degraded
             </h3>
             <AnomalyReason
               incident={source.incident}

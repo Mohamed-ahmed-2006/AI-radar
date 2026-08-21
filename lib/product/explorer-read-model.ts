@@ -173,8 +173,12 @@ export function freshnessFromObservation(
       quality: "degraded",
       label: evidenceQualityLabel("degraded"),
       observedAt,
+      // Degraded is a fact about the *source*, not about this record. A partial
+      // run that accepted 40 of 41 records collected this one perfectly well,
+      // and telling a reader it "may not be current" invites them to distrust a
+      // fresh, accepted observation because a different record was rejected.
       description: observedAt
-        ? "Collection is degraded; this observation may not be current."
+        ? "Accepted from a partial collection. The source is degraded because another record was rejected, not this one."
         : "Collection is degraded and no observation time is available.",
     };
   }
