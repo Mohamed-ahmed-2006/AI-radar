@@ -326,6 +326,42 @@ export interface StartRunInput {
  * Opens a run. If `externalRunId` was already recorded for this source the
  * existing run is returned instead, so re-delivering a snapshot is safe.
  */
+export const ABANDONED_RUN_REASON =
+  "Abandoned: a later collection run started for this source before this one reported an outcome.";
+
+/**
+ * Closes any run for this source that is still claiming to be in flight.
+ *
+ * `guardCollectionRun` handles a pipeline that throws. It cannot handle a
+ * serverless invocation that is killed outright — the stack never unwinds, so
+ * no handler runs and the row stays `running` forever. `orchestration_runs`
+ * already solves this by reclaiming an expired lease when the next run starts;
+ * `collection_runs` has no lease, but it has the same natural signal, because a
+ * source only ever has one collection in flight at a time.
+ *
+ * So starting a run is the moment to reconcile: anything older still open was
+ * abandoned by definition. Counts are left exactly as they were, because
+ * nothing here knows what the dead run had actually processed — the row records
+ * that it ended and why, not a fabricated result.
+ */
+export async function reconcileAbandonedRuns(
+  db: SupabaseServerClient,
+  sourceId: string,
+): Promise<number> {
+  const { data, error } = await db
+    .from("collection_runs")
+    .update({
+      status: "failed",
+      completed_at: new Date().toISOString(),
+      error_message: ABANDONED_RUN_REASON,
+    })
+    .eq("source_id", sourceId)
+    .eq("status", "running")
+    .select("id");
+  if (error) throw new RepositoryError("reconcileAbandonedRuns", error);
+  return (data ?? []).length;
+}
+
 export async function startCollectionRun(
   db: SupabaseServerClient,
   input: StartRunInput,
@@ -340,6 +376,8 @@ export async function startCollectionRun(
     if (error) throw new RepositoryError("startCollectionRun", error);
     if (data) return data;
   }
+
+  await reconcileAbandonedRuns(db, input.sourceId);
 
   return unwrap(
     "startCollectionRun",
