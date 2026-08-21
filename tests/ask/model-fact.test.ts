@@ -206,7 +206,7 @@ test("MODEL_FACT: an observed capability answers plainly", async () => {
   const result = await ask("Does Claude Opus 5 support vision?");
   assert.deepEqual(factValue(result), {
     status: "observed",
-    display: "vision is supported",
+    display: "supported",
     value: true,
   });
 });

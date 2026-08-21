@@ -149,6 +149,15 @@ export type ModelFactValue =
 export interface ModelFactLookup {
   field: ModelFactField;
   fieldLabel: string;
+  /**
+   * What the answer is about, in the sentence's own words: "context window",
+   * "video input", "lifecycle state".
+   *
+   * Kept apart from `fieldLabel` because a modality question is about one
+   * modality, not about the whole list — and because a value like "supported"
+   * only makes sense once something has been named to be supported.
+   */
+  subject: string;
   modality: ModelFactModality | null;
   value: ModelFactValue;
   /** Provenance for the evidence domain the field was read from. */
@@ -187,6 +196,23 @@ export const MODEL_FACT_FIELD_LABELS: Record<ModelFactField, string> = {
   output_modality: "Output modalities",
   lifecycle: "Lifecycle",
 };
+
+/**
+ * What the sentence names before it states the value.
+ *
+ * A modality question is about one modality, so it says "video input", not
+ * "input modalities" — asking about video and being told the input modalities
+ * are unsupported would be a different, wrong claim.
+ */
+export function modelFactSubject(
+  field: ModelFactField,
+  modality: ModelFactModality | null,
+): string {
+  if (modality && field === "input_modality") return `${modality} input`;
+  if (modality && field === "output_modality") return `${modality} output`;
+  if (field === "lifecycle") return "lifecycle state";
+  return MODEL_FACT_FIELD_LABELS[field].toLowerCase();
+}
 
 function tokens(value: number): string {
   return `${value.toLocaleString("en-US")} tokens`;
@@ -235,14 +261,14 @@ function modalityFact(
   }
 
   if (observed.includes(modality)) {
-    return { status: "observed", display: `${modality} ${direction} is supported`, value: true };
+    return { status: "observed", display: "supported", value: true };
   }
 
   const statement = capabilities.modalityStatement;
   if (statement && observed.length > 0) {
     return {
       status: "unsupported",
-      display: `${modality} ${direction} is not supported`,
+      display: "not supported",
       statement,
     };
   }
@@ -295,7 +321,12 @@ export function lookupModelFact(
     observedAt: entry.lifecycle.observedAt,
   };
 
-  const base = { field, fieldLabel: MODEL_FACT_FIELD_LABELS[field], modality };
+  const base = {
+    field,
+    fieldLabel: MODEL_FACT_FIELD_LABELS[field],
+    subject: modelFactSubject(field, modality),
+    modality,
+  };
   const tier = entry.pricing.primary;
 
   switch (field) {
@@ -375,8 +406,8 @@ export function lookupModelFact(
         value: booleanFact(
           entry,
           entry.capabilities.supportsVision,
-          "vision is supported",
-          "vision is not supported",
+          "supported",
+          "not supported",
           `Whether ${label} supports vision has not been observed from a trusted source.`,
         ),
       };
@@ -387,8 +418,8 @@ export function lookupModelFact(
         value: booleanFact(
           entry,
           entry.capabilities.supportsToolCalling,
-          "tool calling is supported",
-          "tool calling is not supported",
+          "supported",
+          "not supported",
           `Whether ${label} supports tool calling has not been observed from a trusted source. ` +
             "AI Radar will not infer it from the pages it does collect.",
         ),
@@ -423,10 +454,10 @@ export function modelFactAnswer(entry: ModelExplorerEntry, lookup: ModelFactLook
 
   switch (lookup.value.status) {
     case "observed":
-      return `${label} (${provider}): ${lookup.fieldLabel.toLowerCase()} is ${lookup.value.display}.`;
+      return `${label} (${provider}): ${lookup.subject} is ${lookup.value.display}.`;
     case "unsupported":
       return (
-        `${label} (${provider}): ${lookup.value.display}. The source enumerates what is ` +
+        `${label} (${provider}): ${lookup.subject} is ${lookup.value.display}. The source enumerates what is ` +
         `supported — "${lookup.value.statement}" — so this is an observed absence, not a gap ` +
         "in AI Radar's evidence."
       );
