@@ -97,6 +97,16 @@ export function classifyChangeTypeAndCategory(
     return { changeType: "lifecycle_transition", category: "lifecycle" };
   }
 
+  // A capability diff comes from a provider's own catalog documentation, so it
+  // is catalog evidence — which is what makes it authoritative downstream. It
+  // used to fall through to the `metadata` default and render as a verified
+  // scrape while the identical evidence read as official in Explorer and
+  // Source Detail. The change *type* stays `metadata_changed`: the temporal
+  // vocabulary has no capability member and inventing one is not a hotfix.
+  if (rawChangeType === "capability_changed") {
+    return { changeType: "metadata_changed", category: "catalog" };
+  }
+
   if (rawChangeType === "metadata_changed") {
     return { changeType: "metadata_changed", category: "metadata" };
   }

@@ -49,11 +49,19 @@ export function AskModelFactCard({
       <p className={`radar-ask-fact-value radar-ask-fact-value-${fact.status}`}>
         {headline}
       </p>
-      <p className="radar-ask-fact-status">
-        <span className={`radar-ask-fact-chip radar-ask-fact-chip-${fact.status}`}>
-          {statusLabel}
-        </span>
-      </p>
+      {/*
+        The chip classifies the answer; the headline states it. For an observed
+        value those are different sentences ("1,000,000 tokens" / "Observed"),
+        but for a modality they are the same words twice — the card read
+        "Not supported / Not supported". Shown only when it adds something.
+      */}
+      {statusLabel.toLowerCase() !== headline.toLowerCase() && (
+        <p className="radar-ask-fact-status">
+          <span className={`radar-ask-fact-chip radar-ask-fact-chip-${fact.status}`}>
+            {statusLabel}
+          </span>
+        </p>
+      )}
 
       {fact.status === "unsupported" && fact.statement && (
         <p className="radar-ask-fact-reason">

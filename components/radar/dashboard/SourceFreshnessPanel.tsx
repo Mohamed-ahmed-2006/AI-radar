@@ -106,8 +106,15 @@ export function SourceFreshnessPanel({
                     >
                       {source.label}
                     </Link>
+                    {/*
+                      The badge names the source's health, which is what
+                      `status` carries. It used to read "Stale" — a claim about
+                      freshness — so a source that had just collected but whose
+                      last run was partial was labelled stale next to its own
+                      "28m / 720m". Staleness is the number beside it.
+                    */}
                     {source.status === "degraded" && (
-                      <Badge variant="warning">Stale</Badge>
+                      <Badge variant="warning">Degraded</Badge>
                     )}
                     {source.status === "unknown" && (
                       <Badge variant="muted">Unknown</Badge>

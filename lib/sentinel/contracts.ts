@@ -29,6 +29,21 @@ import {
  * Returns null for a canonical URL, so "no locale" and "locale we happen to
  * expect" cannot be confused: any `hl` at all means the page was translated.
  */
+/**
+ * True when a stored capability observation would be refused by the catalog
+ * contract as it stands today.
+ *
+ * The single admissibility rule every judge-facing surface shares. Only the
+ * *lookup* differs between surfaces — the Change Feed resolves the snapshot by
+ * id, Model Detail already holds the capability history — and this is the test
+ * all of them apply once they have the raw evidence in hand.
+ */
+export function isInadmissibleCapabilityEvidence(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const sourceUrl = (raw as { source_url?: unknown }).source_url;
+  return localeQueryParameter(typeof sourceUrl === "string" ? sourceUrl : undefined) !== null;
+}
+
 export function localeQueryParameter(sourceUrl: string | undefined): string | null {
   if (!sourceUrl) return null;
   try {

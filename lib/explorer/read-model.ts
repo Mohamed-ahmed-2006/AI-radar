@@ -13,6 +13,7 @@
  * published.
  */
 
+import { isInadmissibleCapabilityEvidence } from "../sentinel/contracts";
 import { provenanceTrustFromAuthority, type ProvenanceView } from "../product/provenance";
 import type {
   CapabilitySnapshotRow,
@@ -356,6 +357,22 @@ export async function getModelDetail(
       port.listModelAliases([canonicalModelId]),
     ]);
 
+  // Model Detail's history is judge-facing and answers to the same
+  // admissibility rule as the Change Feed: a capability event whose producing
+  // observation would be refused today is not history, it is a retracted claim.
+  // The capability snapshots are already loaded here, so the shared rule is
+  // applied to them directly rather than re-queried.
+  const inadmissibleSnapshotIds = new Set(
+    capabilityHistory
+      .filter((snapshot) => isInadmissibleCapabilityEvidence(snapshot.raw))
+      .map((snapshot) => snapshot.id),
+  );
+  const trustedChanges = changes.filter(
+    (event) =>
+      event.current_capability_snapshot_id === null ||
+      !inadmissibleSnapshotIds.has(event.current_capability_snapshot_id),
+  );
+
   // History and change events reference runs the current-evidence load may not
   // have seen, so provenance resolves their collector run ids too.
   const historyContext: EvidenceContext = {
@@ -381,7 +398,7 @@ export async function getModelDetail(
     lifecycleHistory: lifecycleHistory.map((row) =>
       lifecycleHistoryEntry(row, historyContext),
     ),
-    recentChanges: changes.map((event) => changeEntry(event, historyContext)),
+    recentChanges: trustedChanges.map((event) => changeEntry(event, historyContext)),
     apiModelIds: [
       ...new Set(
         aliases

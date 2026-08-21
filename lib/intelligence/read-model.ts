@@ -5,7 +5,7 @@ import {
   type ChangeEventRow,
   type SupabaseServerClient,
 } from "../supabase";
-import { localeQueryParameter } from "../sentinel/contracts";
+import { isInadmissibleCapabilityEvidence } from "../sentinel/contracts";
 import type {
   EcosystemSignificanceSummary,
   EvidenceBundle,
@@ -70,11 +70,7 @@ export async function withoutSupersededCapabilityEvidence(
 
   const inadmissible = new Set(
     data
-      .filter((snapshot) => {
-        const raw = snapshot.raw as { source_url?: unknown } | null;
-        const sourceUrl = typeof raw?.source_url === "string" ? raw.source_url : undefined;
-        return localeQueryParameter(sourceUrl) !== null;
-      })
+      .filter((snapshot) => isInadmissibleCapabilityEvidence(snapshot.raw))
       .map((snapshot) => snapshot.id),
   );
   if (inadmissible.size === 0) return [...rows];

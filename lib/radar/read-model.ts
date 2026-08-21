@@ -7,6 +7,7 @@ import type {
   SourceFreshness,
 } from "@/components/radar/types";
 import { expectedCadenceMinutes } from "../orchestration/cadence";
+import { withoutSupersededCapabilityEvidence } from "../intelligence/read-model";
 import { activeSourceRows, isDemoProviderSlug } from "../sources/active-fleet";
 import {
   resolveSourceCategory,
@@ -383,6 +384,14 @@ export async function getLiveRadarDashboardData(): Promise<RadarDashboardData> {
       changeTypes: ["lifecycle_changed", "model_removed"],
       limit: 500,
     }),
+  ]);
+
+  // The dashboard's Recent Changes is the same trusted feed as `/changes` and
+  // must apply the same admissibility rule, or the two disagree about what
+  // happened. One shared helper, called here rather than reimplemented.
+  const [trustedRecent, trustedRecent24h] = await Promise.all([
+    withoutSupersededCapabilityEvidence(db, recentEvents),
+    withoutSupersededCapabilityEvidence(db, recentEvents24h),
   ]);
 
   return buildRadarDashboardData(
