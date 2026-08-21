@@ -331,7 +331,11 @@ export function buildSourceDetailFromReadModel(
 
   const lastKnownGood: SectionState<SourceSnapshotRef> =
     health.lastKnownGoodRunId === null && health.lastKnownGoodAt === null
-      ? unavailable(NO_LKG_REASON)
+      ? unavailable(
+          health.status === "degraded"
+            ? "No fully clean run yet. Trusted records from the latest partial run continue to be served; rejected records stay out."
+            : NO_LKG_REASON,
+        )
       : available({
           label: "Last known good",
           runId: health.lastKnownGoodRunId,
@@ -395,6 +399,7 @@ export function buildSourceDetailFromReadModel(
     freshness: {
       lastRunAt: health.lastAttemptedRunAt,
       lastSuccessAt: health.lastSuccessfulRunAt,
+      lastRunStatus: (latestRun?.status as SourceRunStatus | undefined) ?? null,
       stalenessMinutes: health.freshness.ageMinutes,
       // The cadence the fleet schedules this source at — not the contract's
       // staleness tolerance. Those are different numbers with different jobs:

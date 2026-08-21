@@ -103,6 +103,13 @@ export function SourceHealthCard({
           </div>
         </dl>
 
+        {source.status === "degraded" && source.lastRunStatus === "partial" && (
+          <p className="radar-source-fresh-partial" role="status">
+            Fresh collection · partial acceptance
+            {source.lastKnownGood === null ? " · no fully clean run yet" : ""}
+          </p>
+        )}
+
         {source.incident && (
           <AnomalyReason incident={source.incident} maxCodes={2} />
         )}

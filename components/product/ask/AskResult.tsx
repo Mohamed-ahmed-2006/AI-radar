@@ -11,6 +11,7 @@ import { FreshnessStatus } from "../explorer/FreshnessStatus";
 import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
 import { AskGroundingBanner } from "./AskGroundingBanner";
 import { AskAnswerProse } from "./AskAnswerProse";
+import { AskModelFactCard } from "./AskModelFactCard";
 
 const EVIDENCE_PREVIEW = 3;
 
@@ -50,7 +51,7 @@ export function AskResult({ result }: { result: AskReadModel }) {
     return (
       <EmptyState
         title="Ask a grounded question"
-        description="Temporal questions about observed changes, or decision questions about eligible models. AI Radar will not answer from model memory."
+        description="Model facts, temporal questions about observed changes, or decision questions about eligible models. AI Radar will not answer from model memory."
       />
     );
   }
@@ -60,52 +61,68 @@ export function AskResult({ result }: { result: AskReadModel }) {
   const previewChanges = changeEvidence.slice(0, EVIDENCE_PREVIEW);
   const hiddenChanges = changeEvidence.slice(EVIDENCE_PREVIEW);
   const leadCost = result.calculations[0] ?? null;
+  const isFact = result.intent === "fact" && result.modelFact !== null;
+  const collapseEvidence = isFact || changeEvidence.length > EVIDENCE_PREVIEW;
 
   return (
     <article className="radar-ask-result" aria-labelledby="ask-result-heading">
-      <AskGroundingBanner statement={result.groundingStatement} />
+      {isFact && result.modelFact ? (
+        <AskModelFactCard fact={result.modelFact} freshness={result.freshness} />
+      ) : (
+        <AskGroundingBanner statement={result.groundingStatement} />
+      )}
 
       <Panel
         id="ask-answer"
-        title="Grounded answer"
+        title={isFact ? "Authoritative reason" : "Grounded answer"}
         subtitle={`${result.intentLabel} query`}
-        action={<FreshnessStatus freshness={result.freshness} />}
+        action={!isFact ? <FreshnessStatus freshness={result.freshness} /> : undefined}
       >
-        <AskAnswerProse text={result.answer} intent={result.intent} />
+        {!isFact && <AskAnswerProse text={result.answer} intent={result.intent} />}
+        {isFact && (
+          <details>
+            <summary className="radar-inline-link cursor-pointer">Full grounded sentence</summary>
+            <AskAnswerProse text={result.answer} intent={result.intent} />
+          </details>
+        )}
 
         <p className="radar-ask-question">
           <span className="radar-subheading">Your question</span>
           <span id="ask-result-heading">{result.question}</span>
         </p>
 
-        <p className={intentClass(result.intent)}>
-          Interpreted as {result.intentLabel}
-        </p>
+        <details className="radar-ask-interpretation">
+          <summary className="radar-inline-link cursor-pointer">
+            Interpreted as {result.intentLabel}
+          </summary>
+          <p className={intentClass(result.intent)}>
+            {result.intentLabel} query
+          </p>
+          {result.interpretedConstraints.length > 0 && (
+            <section aria-labelledby="ask-constraints-heading">
+              <h3 id="ask-constraints-heading" className="radar-subheading">
+                Interpreted constraints
+              </h3>
+              <dl className="radar-constraint-list">
+                {result.interpretedConstraints.map((constraint) => (
+                  <div key={constraint.id} className="radar-constraint">
+                    <dt>{constraint.label}</dt>
+                    <dd>{constraint.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+        </details>
 
-        {result.interpretedConstraints.length > 0 && (
-          <section aria-labelledby="ask-constraints-heading">
-            <h3 id="ask-constraints-heading" className="radar-subheading">
-              Interpreted constraints
-            </h3>
-            <dl className="radar-constraint-list">
-              {result.interpretedConstraints.map((constraint) => (
-                <div key={constraint.id} className="radar-constraint">
-                  <dt>{constraint.label}</dt>
-                  <dd>{constraint.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-
-        {leadCost && (
+        {leadCost && !isFact && (
           <p className="radar-ask-cost">
             <span className="radar-subheading">{leadCost.label}</span>
             <span className="radar-ask-cost-result">{leadCost.result}</span>
           </p>
         )}
 
-        {result.unsupportedReason && (
+        {result.unsupportedReason && result.intent !== "fact" && (
           <EvidenceState
             tone="unsupported"
             title="This question is unsupported"
@@ -113,7 +130,7 @@ export function AskResult({ result }: { result: AskReadModel }) {
           />
         )}
 
-        {result.observedAt && (
+        {!isFact && result.observedAt && (
           <p className="radar-ask-observed">
             Observed{" "}
             <time dateTime={result.observedAt}>
@@ -122,7 +139,7 @@ export function AskResult({ result }: { result: AskReadModel }) {
           </p>
         )}
 
-        {result.provenance && (
+        {!isFact && result.provenance && (
           <ProvenanceDisclosure
             provenance={result.provenance}
             subject="this answer"
@@ -162,7 +179,7 @@ export function AskResult({ result }: { result: AskReadModel }) {
       )}
 
       {result.evidence.length > 0 && (
-        <details className="radar-panel" {...(changeEvidence.length > EVIDENCE_PREVIEW ? {} : { open: true })}>
+        <details className="radar-panel" {...(collapseEvidence ? {} : { open: true })}>
           <summary className="radar-panel-header cursor-pointer">
             <div>
               <h2 className="radar-panel-title">Structured evidence</h2>

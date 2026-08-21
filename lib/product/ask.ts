@@ -53,6 +53,26 @@ export interface AskEvidenceItem {
 export const ASK_GROUNDING_STATEMENT =
   "AI Radar answered this from live trusted evidence, not model memory.";
 
+/**
+ * Presentation of one MODEL_FACT lookup. Assembled from the executor's
+ * structured result; the UI must not invent a value, status, or model name.
+ */
+export interface AskModelFactView {
+  modelName: string;
+  modelHref: string | null;
+  providerName: string;
+  fieldLabel: string;
+  /** What the question is about, e.g. "video input" or "context window". */
+  subject: string;
+  status: "observed" | "unknown" | "unsupported";
+  display: string;
+  statement: string | null;
+  reason: string | null;
+  observedAt: string | null;
+  provenance: ProvenanceView | null;
+  sourceLabel: string | null;
+}
+
 export interface AskReadModel {
   question: string;
   intent: AskIntent;
@@ -67,6 +87,8 @@ export interface AskReadModel {
   observedAt: string | null;
   freshness: FreshnessView;
   provenance: ProvenanceView | null;
+  /** Set only for MODEL_FACT. Null for every other intent. */
+  modelFact: AskModelFactView | null;
   generatedAt: string;
   isDemo: boolean;
 }
@@ -271,7 +293,22 @@ export function emptyAskReadModel(generatedAt = new Date(0).toISOString()): AskR
       description: "No query has been submitted yet.",
     },
     provenance: null,
+    modelFact: null,
     generatedAt,
     isDemo: false,
   };
+}
+
+export function askModelFactHeadline(fact: AskModelFactView): string {
+  if (fact.status === "unsupported") return "Not supported";
+  if (fact.status === "unknown") return "Unknown";
+  return fact.display;
+}
+
+export function askModelFactStatusLabel(fact: AskModelFactView): string {
+  if (fact.status === "unsupported") return "Not supported";
+  if (fact.status === "unknown") return "Unknown · not observed";
+  if (/^supported$/i.test(fact.display)) return "Supported";
+  if (/^not supported$/i.test(fact.display)) return "Not supported";
+  return "Observed";
 }

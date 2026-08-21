@@ -255,6 +255,9 @@ test("Compare table uses row headers and does not rank or name a winner", () => 
   assert.match(html, /does not rank/i);
   assert.doesNotMatch(html, /best model/i);
   assert.match(html, /missing:model/);
+  assert.match(html, /Where did this come from\?/);
+  assert.doesNotMatch(html, /radar-provenance-body/);
+  assert.doesNotMatch(html, /radar-provenance-grid/);
 });
 
 test("Mobile cards use a labelled list with the same fields as the table", () => {

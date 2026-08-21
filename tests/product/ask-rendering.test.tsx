@@ -34,7 +34,7 @@ test("Ask examples visibly separate temporal and decision questions", () => {
 test("Ask grounding presets are discoverable fail-closed questions", () => {
   const html = renderToStaticMarkup(<AskGroundingPresets onSelect={() => undefined} />);
 
-  assert.match(html, /Try the grounding/i);
+  assert.match(html, /Try grounding/i);
   assert.match(html, /What does GPT-6 cost\?/);
   assert.match(html, /Does Claude Opus 5 support video input\?/);
   assert.match(html, /at least 128K context and tool calling/);

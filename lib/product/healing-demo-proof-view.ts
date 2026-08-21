@@ -34,6 +34,17 @@ export const RECOVERY_PROOF_TIMELINE_LABELS: Record<
 export const RECOVERY_PROOF_THESIS =
   "Bright Data repairs extraction. Sentinel decides whether repaired data may become truth.";
 
+/** Short non-engineer walkthrough of the recorded recovery. */
+export const RECOVERY_PROOF_EXPLAINER = [
+  "The provider page changed its HTML structure.",
+  "The collector returned zero valid records.",
+  "Sentinel refused the observation instead of treating it as truth.",
+  "Last-known-good data remained available.",
+  "Bright Data repaired the same collector.",
+  "The repaired output passed validation.",
+  "The source recovered.",
+] as const;
+
 export interface RecoveryProofChip {
   id: string;
   label: string;

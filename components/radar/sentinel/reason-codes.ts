@@ -30,7 +30,7 @@ const REASON_CODE_COPY: Record<
   DUPLICATE_IDENTIFIERS: {
     title: "Duplicate identifiers",
     description:
-      "The same record identity appeared more than once, so the batch could not be applied deterministically.",
+      "The same record identity appeared more than once. Conflicting rows are refused; trusted distinct records continue to be admitted.",
   },
   ILLEGAL_ENUM_VALUE: {
     title: "Illegal enum value",

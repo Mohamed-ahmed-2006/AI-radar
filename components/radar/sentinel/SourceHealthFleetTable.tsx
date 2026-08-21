@@ -35,6 +35,19 @@ export function SourceHealthFleetTable({
                   <StatusDot status={source.health} decorative />{" "}
                   {source.name}
                 </Link>
+                {source.status === "degraded" && source.lastRunStatus === "partial" && (
+                  <p className="radar-source-fresh-partial">
+                    Fresh collection
+                    {source.currentRecordCount !== null
+                      ? ` · ${source.currentRecordCount.toLocaleString("en-US")} trusted`
+                      : ""}
+                    {source.incident?.reasonCodes.includes("DUPLICATE_IDENTIFIERS")
+                      ? " · DUPLICATE_IDENTIFIERS"
+                      : source.incident?.reasonCodes[0]
+                        ? ` · ${source.incident.reasonCodes[0]}`
+                        : " · partial acceptance"}
+                  </p>
+                )}
               </td>
               <td className="radar-table-cell">{source.providerName}</td>
               <td className="radar-table-cell">

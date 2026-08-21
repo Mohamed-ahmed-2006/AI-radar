@@ -54,6 +54,7 @@ export function SourceDetail({ detail }: { detail: SourceDetailView }) {
             health={detail.health}
             recovery={detail.recovery}
             freshness={detail.freshness}
+            observedData={detail.observedData.available ? detail.observedData.data : null}
           />
         </>
       }

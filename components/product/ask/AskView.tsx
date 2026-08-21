@@ -71,6 +71,22 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
 
   return (
     <div className="radar-ask-split">
+      <div>
+      {status === "loading" ? (
+        <div className="radar-ask-reasoning" role="status" aria-live="polite" aria-busy="true">
+          <span className="radar-spinner" aria-hidden="true" />
+          Reading trusted evidence… assembling observed records, not a chain of thought.
+        </div>
+      ) : status === "error" ? (
+        <ErrorState
+          title="Ask AI Radar could not be read"
+          description={error ?? undefined}
+        />
+      ) : (
+        <AskResult result={result ?? emptyAskReadModel()} />
+      )}
+      </div>
+
       <div className="radar-ask-composer radar-surface-stack">
       {showDemo && (
         <DemoNotice title="Demonstration grounded answers">
@@ -100,22 +116,6 @@ export function AskView({ initialQuery, initialResult }: AskViewProps) {
           submit(query);
         }}
       />
-      </div>
-
-      <div>
-      {status === "loading" ? (
-        <div className="radar-ask-reasoning" role="status" aria-live="polite" aria-busy="true">
-          <span className="radar-spinner" aria-hidden="true" />
-          Reading trusted evidence… assembling observed records, not a chain of thought.
-        </div>
-      ) : status === "error" ? (
-        <ErrorState
-          title="Ask AI Radar could not be read"
-          description={error ?? undefined}
-        />
-      ) : (
-        <AskResult result={result ?? emptyAskReadModel()} />
-      )}
       </div>
     </div>
   );

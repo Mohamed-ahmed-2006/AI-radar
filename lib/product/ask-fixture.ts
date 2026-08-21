@@ -110,6 +110,7 @@ const TEMPORAL_CLAUDE: Omit<AskReadModel, "question"> = {
   freshness: currentFreshness,
   provenance: anthropicProvenance,
   generatedAt: GENERATED_AT,
+  modelFact: null,
   isDemo: true,
 };
 
@@ -158,6 +159,7 @@ const TEMPORAL_GEMINI: Omit<AskReadModel, "question"> = {
   },
   provenance: geminiProvenance,
   generatedAt: GENERATED_AT,
+  modelFact: null,
   isDemo: true,
 };
 
@@ -223,6 +225,7 @@ const DECISION_500K: Omit<AskReadModel, "question"> = {
   freshness: currentFreshness,
   provenance: geminiProvenance,
   generatedAt: GENERATED_AT,
+  modelFact: null,
   isDemo: true,
 };
 
@@ -282,6 +285,7 @@ const DECISION_128K: Omit<AskReadModel, "question"> = {
   freshness: currentFreshness,
   provenance: anthropicProvenance,
   generatedAt: GENERATED_AT,
+  modelFact: null,
   isDemo: true,
 };
 
@@ -327,6 +331,7 @@ const DECISION_COMPARE: Omit<AskReadModel, "question"> = {
   freshness: currentFreshness,
   provenance: anthropicProvenance,
   generatedAt: GENERATED_AT,
+  modelFact: null,
   isDemo: true,
 };
 
@@ -355,6 +360,7 @@ function unsupportedModel(question: string): AskReadModel {
     },
     provenance: null,
     generatedAt: GENERATED_AT,
+    modelFact: null,
     isDemo: true,
   };
 }
@@ -380,6 +386,7 @@ function emptyModel(): AskReadModel {
     },
     provenance: null,
     generatedAt: GENERATED_AT,
+    modelFact: null,
     isDemo: true,
   };
 }

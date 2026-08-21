@@ -48,7 +48,7 @@ export default async function AskPage({
       <div className="radar-surface-stack">
         <PageIntro
           title="Ask AI Radar"
-          description="Temporal questions about what changed, and decision questions about eligible models. Answers are assembled from observed evidence — not from model memory."
+          description="Model facts about one model, temporal questions about what changed, and decision questions about eligible models. Answers are assembled from observed evidence — not from model memory."
           action={
             <span className="radar-page-intro-links">
               <Link href="/changes" className="radar-inline-link">

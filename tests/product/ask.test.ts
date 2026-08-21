@@ -30,12 +30,14 @@ test("Ask query round-trips through the shareable q param", () => {
   assert.equal(askQueryFromParams({}), "");
 });
 
-test("example queries cover both temporal and decision intents", () => {
+test("example queries cover temporal, decision and model-fact intents", () => {
   const intents = new Set(ASK_EXAMPLE_QUERIES.map((example) => example.intent));
   assert.ok(intents.has("temporal"));
   assert.ok(intents.has("decision"));
+  assert.ok(intents.has("fact"));
   assert.equal(askIntentLabel("temporal"), "Temporal");
   assert.equal(askIntentLabel("decision"), "Decision");
+  assert.equal(askIntentLabel("fact"), "Model fact");
 });
 
 test("grounding presets are query buttons only and include fail-closed examples", () => {

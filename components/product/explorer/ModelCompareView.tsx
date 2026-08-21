@@ -12,7 +12,7 @@ import {
   type ModelCompareReadModel,
 } from "../../../lib/product/explorer";
 import type { ProvenanceView } from "../../../lib/product/provenance";
-import { ProvenanceDisclosure } from "../provenance/ProvenanceDisclosure";
+import { ProvenanceInspect } from "../provenance/ProvenanceInspect";
 import { CapabilityStatus } from "./CapabilityStatus";
 import { FreshnessStatus } from "./FreshnessStatus";
 import { formatModalities, formatObservedPrice, formatObservedTokens } from "./format";
@@ -244,8 +244,8 @@ export function ModelCompareView({
 }
 
 /**
- * Each evidence domain discloses its own source. A domain with no observation
- * says so rather than showing another domain's page.
+ * Each evidence domain discloses its own source. Forensic provenance opens in
+ * the Evidence drawer so table cells stay compact.
  */
 function DomainProvenanceCell({
   provenance,
@@ -257,7 +257,13 @@ function DomainProvenanceCell({
   if (!provenance) {
     return <span className="text-xs text-radar-text-muted">Not observed</span>;
   }
-  return <ProvenanceDisclosure provenance={provenance} subject={subject} />;
+  return (
+    <ProvenanceInspect
+      provenance={provenance}
+      subject={subject}
+      compact
+    />
+  );
 }
 
 function CompareDataRow({

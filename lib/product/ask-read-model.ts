@@ -24,6 +24,7 @@ import {
   type AskConstraint,
   type AskEvidenceItem,
   type AskIntent,
+  type AskModelFactView,
   type AskReadModel,
 } from "./ask";
 
@@ -253,10 +254,36 @@ function evidenceFrom(result: GroundedAskResult): AskEvidenceItem[] {
   return items;
 }
 
+function modelFactFrom(result: GroundedAskResult): AskModelFactView | null {
+  if (result.structured.kind !== "model_fact_query") return null;
+  const { model, lookup } = result.structured;
+  const canonicalId = explorerCanonicalId({
+    providerSlug: model.provider.slug,
+    apiModelId: model.apiModelId ?? model.modelName,
+    modelId: model.canonicalModelId,
+  });
+  const value = lookup.value;
+  return {
+    modelName: model.displayName ?? model.modelName,
+    modelHref: modelDetailHref(canonicalId),
+    providerName: model.provider.name,
+    fieldLabel: lookup.fieldLabel,
+    subject: lookup.subject,
+    status: value.status,
+    display: value.status === "unknown" ? "Unknown" : value.display,
+    statement: value.status === "unsupported" ? value.statement : null,
+    reason: value.status === "unknown" ? value.reason : null,
+    observedAt: lookup.observedAt,
+    provenance: lookup.provenance,
+    sourceLabel: lookup.provenance?.sourceLabel ?? null,
+  };
+}
+
 export function projectAskReadModel(result: GroundedAskResult, now = new Date()): AskReadModel {
   const intent = intentOf(result);
   const isDemo =
     result.structured.kind === "temporal_change_query" && result.structured.bundle.isDemoData;
+  const isFact = intent === "fact";
   return {
     question: result.question,
     intent,
@@ -269,13 +296,15 @@ export function projectAskReadModel(result: GroundedAskResult, now = new Date())
     unsupportedReason:
       result.structured.kind === "unsupported"
         ? result.structured.detail
-        : result.unsupportedEvidence.length > 0
+        : !isFact && result.unsupportedEvidence.length > 0
           ? result.unsupportedEvidence.join(" ")
           : null,
-    missingData: result.missingEvidence.length > 0 ? result.missingEvidence.join(" ") : null,
+    missingData:
+      !isFact && result.missingEvidence.length > 0 ? result.missingEvidence.join(" ") : null,
     observedAt: result.evidenceFreshness.newestObservedAt,
     freshness: freshnessFromObservation(result.evidenceFreshness.newestObservedAt, now, false),
     provenance: result.provenance[0] ?? null,
+    modelFact: modelFactFrom(result),
     generatedAt: result.generatedAt,
     isDemo,
   };

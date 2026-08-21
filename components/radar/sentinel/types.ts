@@ -78,6 +78,8 @@ export interface SentinelSourceView {
   lastRunAt: string | null;
   stalenessMinutes: number | null;
   currentRecordCount: number | null;
+  /** Latest collection run status, verbatim from the backend when known. */
+  lastRunStatus: string | null;
   lastKnownGood: SentinelSnapshotView | null;
   rejectedCandidate: SentinelSnapshotView | null;
   incident: SentinelIncidentView | null;

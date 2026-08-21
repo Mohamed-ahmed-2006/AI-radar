@@ -141,73 +141,144 @@ export function HealingDemoView({ initial }: HealingDemoViewProps) {
         {model.busy ? " · in progress" : ""}
       </div>
 
-      {model.recoveryProof.available && <CurrentSessionCard model={model} />}
       {model.recoveryProof.available ? (
         <RecoveryProofReplay
           key={model.recoveryProof.recoveredAt ?? model.recoveryProof.title ?? "proof"}
           proof={model.recoveryProof}
         />
-      ) : null}
-      {(!model.recoveryProof.available || !isCleanHealingDemoSession(model)) && (
+      ) : (
         <>
           <HealingDemoPhaseHero model={model} />
           <HealingStateMachine model={model} />
         </>
       )}
-      <HealingDemoIdentityStrip model={model} />
 
-      <details
-        className="radar-panel"
-        {...(model.phase !== "healthy" || model.busy ? { open: true } : {})}
-      >
-        <summary className="radar-panel-header cursor-pointer">
-          <div>
-            <h2 className="radar-panel-title">Inspect recovery</h2>
-            <p className="radar-panel-subtitle">
-              Genuine recovery timeline · Healthy → break → detected → quarantined → healing → preview → approval → rerun → recovered
-            </p>
+      {model.recoveryProof.available ? (
+        <details
+          className="radar-panel"
+          {...(!isCleanHealingDemoSession(model) ? { open: true } : {})}
+        >
+          <summary className="radar-panel-header cursor-pointer">
+            <div>
+              <h2 className="radar-panel-title">Advanced</h2>
+              <p className="radar-panel-subtitle">
+                Run a new live demonstration · operator-only · current session stays separate from the proof above
+              </p>
+            </div>
+          </summary>
+          <div className="radar-panel-body radar-surface-stack">
+            <CurrentSessionCard model={model} />
+            {!isCleanHealingDemoSession(model) && (
+              <>
+                <HealingDemoPhaseHero model={model} />
+                <HealingStateMachine model={model} />
+              </>
+            )}
+            <HealingDemoIdentityStrip model={model} />
+            <section aria-labelledby="live-demo-timeline-heading">
+              <h3 id="live-demo-timeline-heading" className="radar-subheading">
+                Current session timeline
+              </h3>
+              <p className="radar-healing-session-copy">
+                {isCleanHealingDemoSession(model)
+                  ? "Not started. Starting a demonstration here does not rewrite the historical proof."
+                  : "Live demonstration in progress. This timeline is not the recorded proof."}
+              </p>
+              <RecoveryTimeline
+                stages={
+                  model.phase === "healthy" && !model.busy
+                    ? timelineToSentinelStages(model.timeline).map((stage) =>
+                        stage.status === "active" ? { ...stage, status: "pending" } : stage,
+                      )
+                    : timelineToSentinelStages(model.timeline)
+                }
+                wide
+                label="Current demonstration timeline"
+              />
+            </section>
+            <HealingTrustComparison model={model} />
+            <div className="radar-healing-split">
+              <HealingBrightDataPanel model={model} />
+              <HealingIncidentPanel model={model} />
+            </div>
+            {locked && (
+              <OperatorUnlock
+                onUnlocked={() => {
+                  setLocked(false);
+                  setError(null);
+                }}
+              />
+            )}
+            {loading && pendingAction === null ? (
+              <LoadingState title="Reading real healing demo…" />
+            ) : (
+              <HealingDemoControls
+                model={model}
+                pendingAction={pendingAction}
+                error={error}
+                onAction={runAction}
+              />
+            )}
           </div>
-        </summary>
-        <div className="radar-panel-body" id="healing-timeline">
-        <RecoveryTimeline
-          stages={
-            model.phase === "healthy" && !model.busy
-              ? timelineToSentinelStages(model.timeline).map((stage) =>
-                  stage.status === "active" ? { ...stage, status: "pending" } : stage,
-                )
-              : timelineToSentinelStages(model.timeline)
-          }
-          wide
-          label="SourcePulse recovery timeline"
-        />
-        </div>
-      </details>
-
-      <HealingTrustComparison model={model} />
-
-      <div className="radar-healing-split">
-        <HealingBrightDataPanel model={model} />
-        <HealingIncidentPanel model={model} />
-      </div>
-
-      {locked && (
-        <OperatorUnlock
-          onUnlocked={() => {
-            setLocked(false);
-            setError(null);
-          }}
-        />
-      )}
-
-      {loading && pendingAction === null ? (
-        <LoadingState title="Reading real healing demo…" />
+        </details>
       ) : (
-        <HealingDemoControls
-          model={model}
-          pendingAction={pendingAction}
-          error={error}
-          onAction={runAction}
-        />
+        <>
+          <HealingDemoIdentityStrip model={model} />
+
+          <details
+            className="radar-panel"
+            {...(model.phase !== "healthy" || model.busy ? { open: true } : {})}
+          >
+            <summary className="radar-panel-header cursor-pointer">
+              <div>
+                <h2 className="radar-panel-title">Current session timeline</h2>
+                <p className="radar-panel-subtitle">
+                  Genuine recovery timeline · Healthy → break → detected → quarantined → healing → preview → approval → rerun → recovered
+                </p>
+              </div>
+            </summary>
+            <div className="radar-panel-body" id="healing-timeline">
+            <RecoveryTimeline
+              stages={
+                model.phase === "healthy" && !model.busy
+                  ? timelineToSentinelStages(model.timeline).map((stage) =>
+                      stage.status === "active" ? { ...stage, status: "pending" } : stage,
+                    )
+                  : timelineToSentinelStages(model.timeline)
+              }
+              wide
+              label="SourcePulse recovery timeline"
+            />
+            </div>
+          </details>
+
+          <HealingTrustComparison model={model} />
+
+          <div className="radar-healing-split">
+            <HealingBrightDataPanel model={model} />
+            <HealingIncidentPanel model={model} />
+          </div>
+
+          {locked && (
+            <OperatorUnlock
+              onUnlocked={() => {
+                setLocked(false);
+                setError(null);
+              }}
+            />
+          )}
+
+          {loading && pendingAction === null ? (
+            <LoadingState title="Reading real healing demo…" />
+          ) : (
+            <HealingDemoControls
+              model={model}
+              pendingAction={pendingAction}
+              error={error}
+              onAction={runAction}
+            />
+          )}
+        </>
       )}
 
       <HealingDemoLinks model={model} />

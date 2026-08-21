@@ -58,6 +58,7 @@ export function sentinelSource(
     lastRunAt: "2026-08-17T09:00:00.000Z",
     stalenessMinutes: 42,
     currentRecordCount: 12,
+    lastRunStatus: "succeeded",
     lastKnownGood: {
       label: "Last-known-good",
       runId: null,

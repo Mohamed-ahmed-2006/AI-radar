@@ -7,6 +7,7 @@ import type {
   HealingDemoRecoveryStage,
 } from "../../../lib/product/healing-demo";
 import {
+  RECOVERY_PROOF_EXPLAINER,
   RECOVERY_PROOF_THESIS,
   RECOVERY_PROOF_TIMELINE_LABELS,
   recoveryFinalStateLabel,
@@ -87,11 +88,11 @@ export function RecoveryProofReplay({ proof }: { proof: HealingDemoRecoveryProof
       aria-labelledby="verified-recovery-heading"
     >
       <p className="radar-proof-historical" role="note">
-        Historical replay · not executing live
+        Historical · already completed · read-only
       </p>
 
       <header className="radar-proof-hero">
-        <p className="radar-healing-kicker">Verified live recovery</p>
+        <p className="radar-healing-kicker">Verified recovery proof</p>
         <h2 id="verified-recovery-heading" className="radar-proof-state">
           {finalLabel ?? "Recorded"}
         </h2>
@@ -102,6 +103,12 @@ export function RecoveryProofReplay({ proof }: { proof: HealingDemoRecoveryProof
         )}
         <p className="radar-proof-note">{proof.note}</p>
       </header>
+
+      <ol className="radar-proof-explainer" aria-label="What happened">
+        {RECOVERY_PROOF_EXPLAINER.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
 
       {chips.length > 0 && (
         <ul className="radar-proof-chips" aria-label="Verified recovery facts">
@@ -139,6 +146,17 @@ export function RecoveryProofReplay({ proof }: { proof: HealingDemoRecoveryProof
                 onClick={replayProof}
               >
                 Replay proof
+              </button>
+              <button
+                type="button"
+                className="radar-secondary-button"
+                onClick={() => {
+                  const recovered =
+                    stages.find((stage) => stage.id === "recovered") ?? stages.at(-1) ?? null;
+                  if (recovered) setInspecting(recovered);
+                }}
+              >
+                Inspect evidence
               </button>
               <button
                 type="button"

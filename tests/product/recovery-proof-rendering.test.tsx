@@ -19,11 +19,16 @@ test("historical proof is labeled as a replay and does not look like a live run"
 
   assert.match(html, /Ready for demonstration/i);
   assert.match(html, /Clean · Not started/);
-  assert.match(html, /Verified live recovery/i);
+  assert.match(html, /Verified recovery proof/i);
   assert.match(html, />Recovered</i);
-  assert.match(html, /Historical replay · not executing live/);
+  assert.match(html, /Historical · already completed · read-only/);
   assert.match(html, /Replay proof/);
-  assert.match(html, /Skip to result/);
+  assert.match(html, /Inspect evidence/);
+  assert.match(html, /Run a new live demonstration/i);
+  assert.match(html, /The provider page changed its HTML structure/);
+  assert.match(html, /The source recovered/);
+  assert.doesNotMatch(html, /Inspect recovery/);
+  assert.doesNotMatch(html, /Verified live recovery/i);
   assert.doesNotMatch(html, /method="post"/i);
 });
 
@@ -72,6 +77,7 @@ test("current session stays separate from historical recovery", () => {
   assert.match(html, /Current session/);
   assert.match(html, /Ready for demonstration/i);
   assert.match(html, /Clean · Not started/);
+  assert.doesNotMatch(html, /Verified recovery proof/i);
   assert.doesNotMatch(html, /Verified live recovery/i);
 });
 
@@ -81,6 +87,7 @@ test("replay controls are buttons and never a mutation form", () => {
   );
 
   assert.match(html, /<button type="button"[^>]*>Replay proof/);
+  assert.match(html, /<button type="button"[^>]*>Inspect evidence/);
   assert.match(html, /<button type="button"[^>]*>Skip to result/);
   assert.doesNotMatch(html, /\/api\/demo\/healing/);
 });

@@ -27,6 +27,15 @@ test("canonical Ask adapter is the installed default, not the fixture", () => {
   assert.notEqual(getAskAdapter().id, FIXTURE_ASK_ADAPTER_ID);
 });
 
+test("canonical Ask adapter projects MODEL_FACT as a dedicated fact view, not a ranking", async () => {
+  const result = await adapter().ask("What is Claude Sonnet 5's max output?");
+
+  assert.equal(result.intent, "fact");
+  assert.ok(result.modelFact);
+  assert.equal(result.modelFact?.modelName.includes("Sonnet"), true);
+  assert.equal(result.evidence.some((item) => item.kind === "note" && item.href === "/optimizer"), false);
+});
+
 test("canonical Ask adapter answers temporal questions from the temporal engine", async () => {
   const result = await adapter().ask("What changed in Claude this month?");
   assert.equal(result.intent, "temporal");

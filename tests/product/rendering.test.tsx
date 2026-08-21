@@ -203,6 +203,47 @@ test("Source health states the status in words beside the indicator", () => {
   assert.match(html, /2h/);
 });
 
+test("degraded partial-acceptance sources read as fresh, not as a dead collector", () => {
+  const html = renderToStaticMarkup(
+    <SourceHealthSummary
+      health={{
+        status: "degraded",
+        statusLabel: "Degraded",
+        health: "degraded",
+        recordCount: 40,
+        openIncident: {
+          incidentId: "inc-dup",
+          severity: "warning",
+          reasonCodes: ["DUPLICATE_IDENTIFIERS"],
+          openedAt: "2026-08-21T08:00:00.000Z",
+        },
+      }}
+      recovery={{ resolvedIncidents: 0, healingAttempts: 0, lastRecoveredAt: null }}
+      freshness={{
+        lastRunAt: "2026-08-21T08:16:00.000Z",
+        lastSuccessAt: null,
+        lastRunStatus: "partial",
+        stalenessMinutes: null,
+        expectedIntervalMinutes: 720,
+      }}
+      observedData={{
+        observedRecords: 41,
+        trustedRecords: 40,
+        rejectedRecords: 1,
+      }}
+    />,
+  );
+
+  assert.match(html, /Degraded/);
+  assert.match(html, /Fresh collection/);
+  assert.match(html, /40 of 41 records trusted/);
+  assert.match(html, /DUPLICATE_IDENTIFIERS/);
+  assert.match(html, /No fully clean run yet/);
+  assert.match(html, /Latest partial run/);
+  assert.doesNotMatch(html, /No successful run recorded/);
+  assert.doesNotMatch(html, />Healthy</);
+});
+
 test("Source health reports a healthy source without inventing a missing figure", () => {
   const html = renderToStaticMarkup(
     <SourceHealthSummary

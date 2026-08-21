@@ -279,6 +279,7 @@ export function buildSentinelViewFromReadModel(
       lastRunAt: source.lastRunAt,
       stalenessMinutes: source.stalenessMinutes,
       currentRecordCount: source.currentRecordCount,
+      lastRunStatus: source.lastRunStatus,
       lastKnownGood,
       rejectedCandidate,
       incident,
@@ -346,6 +347,7 @@ export function buildSentinelViewFromDemo(
     lastRunAt: finalStep?.timestamp ?? null,
     stalenessMinutes: null,
     currentRecordCount: finalStep?.recordsAccepted ?? null,
+    lastRunStatus: null,
     lastKnownGood:
       finalStep?.lastKnownGoodCount == null
         ? null

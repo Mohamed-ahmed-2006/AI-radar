@@ -35,7 +35,7 @@ export function AskForm({
           name="q"
           rows={3}
           value={query}
-          placeholder="What changed in Claude this month?"
+          placeholder="Does Claude Opus 5 support video input?"
           onChange={(event) => onChange(event.target.value)}
         />
       </div>
@@ -52,26 +52,50 @@ export function AskForm({
   );
 }
 
+function PresetChip({
+  label,
+  query,
+  onSelect,
+}: {
+  label: string;
+  query: string;
+  onSelect: (query: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="radar-ask-chip"
+      onClick={() => onSelect(query)}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function AskGroundingPresets({
   onSelect,
 }: {
   onSelect: (query: string) => void;
 }) {
+  const groundingQueries = new Set<string>(ASK_GROUNDING_PRESETS.map((preset) => preset.query));
+  const extraFacts = ASK_EXAMPLE_QUERIES.filter(
+    (example) => example.intent === "fact" && !groundingQueries.has(example.query),
+  );
+
   return (
-    <section className="radar-ask-grounding-presets" aria-labelledby="ask-grounding-presets-heading">
+    <section className="radar-ask-preset-group" aria-labelledby="ask-grounding-presets-heading">
       <h2 id="ask-grounding-presets-heading" className="radar-ask-grounding-title">
-        Try the grounding
+        Try grounding
       </h2>
-      <ul className="radar-ask-example-list" aria-label="Grounding preset questions">
+      <ul className="radar-ask-chip-list" aria-label="Grounding preset questions">
         {ASK_GROUNDING_PRESETS.map((preset) => (
           <li key={preset.id}>
-            <button
-              type="button"
-              className="radar-ask-example"
-              onClick={() => onSelect(preset.query)}
-            >
-              {preset.query}
-            </button>
+            <PresetChip label={preset.query} query={preset.query} onSelect={onSelect} />
+          </li>
+        ))}
+        {extraFacts.map((example) => (
+          <li key={example.id}>
+            <PresetChip label={example.label} query={example.query} onSelect={onSelect} />
           </li>
         ))}
       </ul>
@@ -85,61 +109,30 @@ export function AskExamples({
   onSelect: (query: string) => void;
 }) {
   const temporal = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "temporal");
-  const fact = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "fact");
   const decision = ASK_EXAMPLE_QUERIES.filter((example) => example.intent === "decision");
 
   return (
     <div className="radar-ask-examples">
-      <section aria-labelledby="ask-fact-examples-heading">
-        <h2 id="ask-fact-examples-heading" className="radar-subheading">
-          Model fact
-        </h2>
-        <ul className="radar-ask-example-list" aria-label="Model fact example questions">
-          {fact.map((example) => (
-            <li key={example.id}>
-              <button
-                type="button"
-                className="radar-ask-example"
-                onClick={() => onSelect(example.query)}
-              >
-                {example.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section aria-labelledby="ask-temporal-examples-heading">
-        <h2 id="ask-temporal-examples-heading" className="radar-subheading">
+      <section className="radar-ask-preset-group" aria-labelledby="ask-temporal-examples-heading">
+        <h2 id="ask-temporal-examples-heading" className="radar-ask-grounding-title">
           Temporal
         </h2>
-        <ul className="radar-ask-example-list" aria-label="Temporal example questions">
+        <ul className="radar-ask-chip-list" aria-label="Temporal example questions">
           {temporal.map((example) => (
             <li key={example.id}>
-              <button
-                type="button"
-                className="radar-ask-example"
-                onClick={() => onSelect(example.query)}
-              >
-                {example.label}
-              </button>
+              <PresetChip label={example.label} query={example.query} onSelect={onSelect} />
             </li>
           ))}
         </ul>
       </section>
-      <section aria-labelledby="ask-decision-examples-heading">
-        <h2 id="ask-decision-examples-heading" className="radar-subheading">
+      <section className="radar-ask-preset-group" aria-labelledby="ask-decision-examples-heading">
+        <h2 id="ask-decision-examples-heading" className="radar-ask-grounding-title">
           Decision
         </h2>
-        <ul className="radar-ask-example-list" aria-label="Decision example questions">
+        <ul className="radar-ask-chip-list" aria-label="Decision example questions">
           {decision.map((example) => (
             <li key={example.id}>
-              <button
-                type="button"
-                className="radar-ask-example"
-                onClick={() => onSelect(example.query)}
-              >
-                {example.label}
-              </button>
+              <PresetChip label={example.label} query={example.query} onSelect={onSelect} />
             </li>
           ))}
         </ul>

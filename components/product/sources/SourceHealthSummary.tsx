@@ -5,6 +5,7 @@ import { formatAbsoluteTime, formatRelativeTime } from "../../radar/utils";
 import type {
   SourceFreshnessState,
   SourceHealthState,
+  SourceObservedData,
   SourceRecoveryHistoryState,
 } from "../../../lib/product/source-detail";
 
@@ -14,6 +15,24 @@ function staleness(minutes: number | null): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h`;
   return `${Math.floor(hours / 24)}d`;
+}
+
+function isFreshPartialDegraded(
+  health: SourceHealthState,
+  freshness: SourceFreshnessState,
+  observed: SourceObservedData | null,
+): boolean {
+  if (health.status !== "degraded") return false;
+  if (!freshness.lastRunAt) return false;
+  if (freshness.lastRunStatus === "partial") return true;
+  if (
+    observed &&
+    (observed.trustedRecords ?? 0) > 0 &&
+    (observed.rejectedRecords ?? 0) > 0
+  ) {
+    return true;
+  }
+  return freshness.lastSuccessAt === null;
 }
 
 /**
@@ -29,11 +48,19 @@ export function SourceHealthSummary({
   health,
   recovery,
   freshness,
+  observedData = null,
 }: {
   health: SourceHealthState;
   recovery: SourceRecoveryHistoryState;
   freshness: SourceFreshnessState;
+  observedData?: SourceObservedData | null;
 }) {
+  const partial = isFreshPartialDegraded(health, freshness, observedData);
+  const trusted = observedData?.trustedRecords ?? null;
+  const seen = observedData?.observedRecords ?? null;
+  const rejected = observedData?.rejectedRecords ?? null;
+  const codes = health.openIncident?.reasonCodes ?? [];
+
   return (
     <div className="radar-source-detail-health">
       <p className="radar-source-detail-state">
@@ -42,7 +69,36 @@ export function SourceHealthSummary({
         {health.openIncident !== null && (
           <Badge variant="critical">Open incident</Badge>
         )}
+        {partial && <Badge variant="warning">Fresh collection</Badge>}
       </p>
+
+      {partial && (
+        <p className="radar-source-partial" role="status">
+          Current, fresh, partial-acceptance condition. Trusted records continue
+          to be admitted; conflicting records were refused. This is deliberate
+          fail-closed behavior, not a collector that has gone silent.
+          {trusted !== null && seen !== null && (
+            <>
+              {" "}
+              {trusted.toLocaleString("en-US")} of {seen.toLocaleString("en-US")} records trusted
+              {rejected !== null && rejected > 0
+                ? ` · ${rejected.toLocaleString("en-US")} contradictory identit${rejected === 1 ? "y" : "ies"} rejected`
+                : ""}
+              .
+            </>
+          )}
+          {codes.length > 0 && (
+            <>
+              {" "}
+              {codes.map((code) => (
+                <code key={code} className="font-mono">
+                  {code}
+                </code>
+              ))}
+            </>
+          )}
+        </p>
+      )}
 
       <p className="radar-source-detail-history">
         {health.openIncident !== null ? (
@@ -106,23 +162,54 @@ export function SourceHealthSummary({
             )
           }
         />
-        <StatCard
-          label="Last success"
-          value={
-            freshness.lastSuccessAt ? (
+        {partial && !freshness.lastSuccessAt ? (
+          <StatCard
+            label="Fully clean run"
+            value="None yet"
+            hint="No fully clean run yet"
+          />
+        ) : (
+          <StatCard
+            label="Last success"
+            value={
+              freshness.lastSuccessAt ? (
+                <time
+                  dateTime={freshness.lastSuccessAt}
+                  title={formatAbsoluteTime(freshness.lastSuccessAt)}
+                >
+                  {formatRelativeTime(freshness.lastSuccessAt)}
+                </time>
+              ) : (
+                "—"
+              )
+            }
+            hint={freshness.lastSuccessAt ? undefined : "No successful run recorded"}
+          />
+        )}
+        {partial && freshness.lastRunAt && (
+          <StatCard
+            label="Latest partial run"
+            value={
               <time
-                dateTime={freshness.lastSuccessAt}
-                title={formatAbsoluteTime(freshness.lastSuccessAt)}
+                dateTime={freshness.lastRunAt}
+                title={formatAbsoluteTime(freshness.lastRunAt)}
               >
-                {formatRelativeTime(freshness.lastSuccessAt)}
+                {formatRelativeTime(freshness.lastRunAt)}
               </time>
-            ) : (
-              "—"
-            )
+            }
+          />
+        )}
+        <StatCard
+          label="Freshness"
+          value={
+            freshness.stalenessMinutes !== null
+              ? staleness(freshness.stalenessMinutes)
+              : partial && freshness.lastRunAt
+                ? formatRelativeTime(freshness.lastRunAt)
+                : staleness(null)
           }
-          hint={freshness.lastSuccessAt ? undefined : "No successful run recorded"}
+          hint={partial ? "Since latest run" : "Since last run"}
         />
-        <StatCard label="Freshness" value={staleness(freshness.stalenessMinutes)} hint="Since last run" />
         <StatCard
           label="Expected interval"
           value={

@@ -90,6 +90,8 @@ export interface SourceFreshnessState {
   lastRunAt: string | null;
   /** Null when no run has succeeded, or when success cannot be determined. */
   lastSuccessAt: string | null;
+  /** Latest run status when the adapter knows it. Partial is not success. */
+  lastRunStatus?: SourceRunStatus | null;
   stalenessMinutes: number | null;
   expectedIntervalMinutes: number | null;
 }

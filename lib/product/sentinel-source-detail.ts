@@ -231,6 +231,7 @@ export function buildSourceDetailFromSentinel(
     freshness: {
       lastRunAt: source.lastRunAt,
       lastSuccessAt,
+      lastRunStatus: run?.status ?? null,
       stalenessMinutes: source.stalenessMinutes,
       // No source declares an expected collection interval yet.
       expectedIntervalMinutes: null,
@@ -238,7 +239,9 @@ export function buildSourceDetailFromSentinel(
     lastKnownGood: source.lastKnownGood
       ? available(source.lastKnownGood)
       : unavailable(
-          "No last-known-good snapshot has been recorded for this source yet.",
+          source.status === "degraded"
+            ? "No fully clean run yet. Trusted records from the latest partial run continue to be served; rejected records stay out."
+            : "No last-known-good snapshot has been recorded for this source yet.",
         ),
     runHistory: runRecord
       ? available([runRecord])

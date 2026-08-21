@@ -32,20 +32,30 @@ export function SourceDataPanel({
         {!observedData.available ? (
           <UnavailableNote reason={observedData.reason} />
         ) : (
-          <dl className="radar-metric-row">
-            <div className="radar-metric">
-              <dt className="radar-metric-label">Observed</dt>
-              <dd className="radar-metric-value">{count(observedData.data.observedRecords)}</dd>
-            </div>
-            <div className="radar-metric">
-              <dt className="radar-metric-label">Trusted</dt>
-              <dd className="radar-metric-value">{count(observedData.data.trustedRecords)}</dd>
-            </div>
-            <div className="radar-metric">
-              <dt className="radar-metric-label">Rejected</dt>
-              <dd className="radar-metric-value">{count(observedData.data.rejectedRecords)}</dd>
-            </div>
-          </dl>
+          <>
+            <dl className="radar-metric-row">
+              <div className="radar-metric">
+                <dt className="radar-metric-label">Observed</dt>
+                <dd className="radar-metric-value">{count(observedData.data.observedRecords)}</dd>
+              </div>
+              <div className="radar-metric">
+                <dt className="radar-metric-label">Trusted</dt>
+                <dd className="radar-metric-value">{count(observedData.data.trustedRecords)}</dd>
+              </div>
+              <div className="radar-metric">
+                <dt className="radar-metric-label">Rejected</dt>
+                <dd className="radar-metric-value">{count(observedData.data.rejectedRecords)}</dd>
+              </div>
+            </dl>
+            {(observedData.data.trustedRecords ?? 0) > 0 &&
+              (observedData.data.rejectedRecords ?? 0) > 0 && (
+                <p className="radar-source-partial" role="status">
+                  {count(observedData.data.trustedRecords)} of {count(observedData.data.observedRecords)} records trusted.
+                  Conflicting records were refused rather than applied. This is fail-closed
+                  partial acceptance, not a healthy run and not a dead collector.
+                </p>
+              )}
+          </>
         )}
 
         <div>

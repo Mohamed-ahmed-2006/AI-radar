@@ -342,6 +342,7 @@ function fleetSource(
     lastRunAt: null,
     stalenessMinutes: null,
     currentRecordCount: null,
+    lastRunStatus: null,
     lastKnownGood: null,
     rejectedCandidate: null,
     incident: null,
