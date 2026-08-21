@@ -49,6 +49,12 @@ export interface ModelPricingEvidence {
   primary: ModelPricingTier | null;
   /** Every current tier: the newest observation per (mode, tier). */
   tiers: ModelPricingTier[];
+  /**
+   * Published tiers that price a long-context request rather than an ordinary
+   * one. Never selected as `primary`: they are a surcharge, and quoting one as
+   * the model's price overstates it.
+   */
+  longContextTiers: ModelPricingTier[];
   observedAt: string | null;
   provenance: ProvenanceView | null;
 }

@@ -230,8 +230,15 @@ export function buildRadarDashboardData(
   });
 
   const sources: SourceFreshness[] = sourceHealth.map((source) => {
+    // Two different facts, and conflating them is what made a source that had
+    // just collected read as stale. Freshness asks "when did we last hear from
+    // this page", which any *completed* attempt answers — a partial run that
+    // accepted 40 of 41 records heard from it perfectly well. "Last fully clean
+    // success" is the separate, stricter fact, and it stays separate.
     const lastSuccessAt = source.last_run_status === "succeeded" ? source.last_run_completed_at : null;
-    const reference = lastSuccessAt ?? source.last_run_started_at;
+    const lastCompletedAt =
+      source.last_run_status === "running" ? null : source.last_run_completed_at;
+    const reference = lastCompletedAt ?? lastSuccessAt ?? source.last_run_started_at;
     const providerSlug = providerSlugFor(source.provider_id);
     const category = resolveSourceCategory(
       source.kind,

@@ -133,17 +133,57 @@ export function buildEvidenceProvenance(
  * model that silently picked the best number would make every filter depend on
  * which tiers happened to be collected.
  */
+/**
+ * Context tiers that price an ordinary request, best first.
+ *
+ * Providers do not agree on a name for "the normal price": OpenAI and xAI
+ * publish `short`/`long`, others publish a single `default`. What they do agree
+ * on is that the surcharge tier is the *other* one.
+ */
+const STANDARD_CONTEXT_TIERS = ["default", "short", "base", "standard"];
+
+/** Tier names that denote a long-context surcharge rather than a base price. */
+const LONG_CONTEXT_TIER = /long|extended|large|\b>\s*\d/i;
+
+export function isLongContextTier(contextTier: string): boolean {
+  return LONG_CONTEXT_TIER.test(contextTier);
+}
+
+/**
+ * Ranks a context tier by how ordinary the request it prices is. Lower wins.
+ */
+function contextTierRank(contextTier: string): number {
+  const known = STANDARD_CONTEXT_TIERS.indexOf(contextTier.trim().toLowerCase());
+  if (known >= 0) return known;
+  return isLongContextTier(contextTier) ? 100 : 50;
+}
+
+/**
+ * The tier a generic price should quote.
+ *
+ * Deterministic, and never chosen by price — but "deterministic" was not enough
+ * on its own. The previous rule looked for `default` and, finding none, fell
+ * back to sorting tier names alphabetically. For every provider that publishes
+ * `short` and `long`, that sorted `long` first and quoted the long-context
+ * surcharge as the model's headline price: GPT-5.6 Luna showed 0.40/1.80
+ * instead of 0.20/1.20, grok-4.6 showed 4/12 instead of 2/6.
+ *
+ * Ordinary tiers now rank ahead of surcharge tiers explicitly, so a provider
+ * naming convention AI Radar has not seen before lands mid-table rather than
+ * ahead of the base price.
+ */
 export function selectPrimaryPricingTier(
   tiers: readonly ModelPricingTier[],
 ): ModelPricingTier | null {
   if (tiers.length === 0) return null;
-  const standard = tiers.find(
-    (tier) => tier.pricingMode === "standard" && tier.contextTier === "default",
-  );
-  if (standard) return standard;
   return [...tiers].sort((a, b) => {
-    const byMode = a.pricingMode.localeCompare(b.pricingMode);
+    const byMode =
+      Number(a.pricingMode !== "standard") - Number(b.pricingMode !== "standard");
     if (byMode !== 0) return byMode;
+    const byTier = contextTierRank(a.contextTier) - contextTierRank(b.contextTier);
+    if (byTier !== 0) return byTier;
+    const byModeName = a.pricingMode.localeCompare(b.pricingMode);
+    if (byModeName !== 0) return byModeName;
     return a.contextTier.localeCompare(b.contextTier);
   })[0];
 }
@@ -171,6 +211,9 @@ export function buildPricingEvidence(
   });
 
   const primary = selectPrimaryPricingTier(tiers);
+  // Surfaced rather than substituted: a long-context tier is a real published
+  // price, but it prices a different request than the one a generic quote means.
+  const longContextTiers = tiers.filter((tier) => isLongContextTier(tier.contextTier));
   const primaryRow = primary
     ? rows.find((row) => row.id === primary.snapshotId) ?? null
     : null;
@@ -178,6 +221,7 @@ export function buildPricingEvidence(
   return {
     primary,
     tiers,
+    longContextTiers,
     observedAt: primary?.observedAt ?? null,
     provenance: primaryRow
       ? buildEvidenceProvenance(

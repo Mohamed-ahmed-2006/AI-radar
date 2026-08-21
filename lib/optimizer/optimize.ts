@@ -47,6 +47,23 @@ export interface StackOptimizerOptions {
   now?: () => Date;
 }
 
+/**
+ * Stated once, so the Optimizer, Ask Decision and any future caller word the
+ * same limitation the same way.
+ */
+export const LONG_CONTEXT_SURCHARGE_CAVEAT =
+  "Costs use each provider's standard pricing tier. Long-context surcharge may " +
+  "apply for requests above provider threshold; AI Radar does not collect those " +
+  "thresholds and a monthly token volume does not establish per-request context.";
+
+function longContextTierAvailable(
+  entries: readonly ModelExplorerEntry[],
+  canonicalModelId: string,
+): boolean {
+  const entry = entries.find((candidate) => candidate.canonicalModelId === canonicalModelId);
+  return (entry?.pricing.longContextTiers.length ?? 0) > 0;
+}
+
 function buildCandidate(
   entry: ModelExplorerEntry,
   request: NormalizedStackOptimizerRequest,
@@ -212,13 +229,26 @@ export async function optimizeStack(
     ranked: limited,
     eligibleWithoutCost,
     excluded,
-    explanation: buildExplanation(
-      normalized,
-      limited,
-      eligibleWithoutCost,
-      excluded.length,
-      candidates.length,
-    ),
+    explanation: [
+      ...buildExplanation(
+        normalized,
+        limited,
+        eligibleWithoutCost,
+        excluded.length,
+        candidates.length,
+      ),
+      // A workload states monthly volume. It does not state how large any one
+      // request is, and only per-request context decides whether a provider's
+      // long-context surcharge applies. A minimum context *requirement* is not
+      // evidence either — asking for a model that can hold 500K tokens is not
+      // the same as sending 500K tokens. So costing uses the standard tier and
+      // says so, rather than inferring a surcharge AI Radar cannot observe.
+      ...(limited.some((candidate) =>
+        longContextTierAvailable(explorer.entries, candidate.canonicalModelId),
+      )
+        ? [LONG_CONTEXT_SURCHARGE_CAVEAT]
+        : []),
+    ],
     evidenceFreshness: freshnessOf(limited, now),
     provenance: rankedProvenance(limited),
     insufficientEvidence: insufficiencyOf(

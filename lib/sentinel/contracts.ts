@@ -20,7 +20,23 @@ import {
   type RawXaiCatalogRecord,
   type CatalogProviderSlug,
   normalizeExactTokenCount,
+  normalizeModalities,
 } from "../contracts";
+
+/**
+ * The language a documentation URL was rendered in, when it names one.
+ *
+ * Returns null for a canonical URL, so "no locale" and "locale we happen to
+ * expect" cannot be confused: any `hl` at all means the page was translated.
+ */
+export function localeQueryParameter(sourceUrl: string | undefined): string | null {
+  if (!sourceUrl) return null;
+  try {
+    return new URL(sourceUrl).searchParams.get("hl");
+  } catch {
+    return null;
+  }
+}
 import { PRICING_PROVIDERS, type PricingProviderSlug } from "../pipeline/providers";
 import type {
   SourceHealthContract,
@@ -519,10 +535,73 @@ export function createGeminiCatalogSourceHealthContract(
             ),
           };
         }
+        // Google serves every model page in ~40 languages behind an `hl` query
+        // parameter, and its index occasionally links one. A translated page is
+        // not a second opinion about the model — it is the same facts written in
+        // a vocabulary this contract cannot read: `llamada_a_función` never
+        // matches the function-calling feature test, `texto`/`imagen` never
+        // normalize to modalities, and what survives is a model that appears to
+        // have lost tool calling and half its inputs. Refusing the localized
+        // rendering is what keeps a translation from being recorded as a
+        // capability change.
+        const locale = localeQueryParameter(result.data.source_url);
+        if (locale !== null) {
+          return {
+            success: false,
+            issues: [
+              `[source_url] localized rendering (hl=${locale}); capability vocabulary ` +
+              "on a translated page cannot be read against this contract",
+            ],
+          };
+        }
         return { success: true, data: result.data };
       } catch (err) {
         return { success: false, issues: [err instanceof Error ? err.message : String(err)] };
       }
+    },
+    /**
+     * Google publishes input modalities and a context window for every model on
+     * this page. A batch where not one record carries either did not observe a
+     * source that stopped saying so — it observed an extraction that stopped
+     * reading it.
+     *
+     * Source-specific on purpose, and deliberately about the *whole* batch:
+     * Unknown semantics are unchanged, and a single model missing a field is
+     * still just unobserved.
+     */
+    validateSemanticInvariants: (records): SemanticInvariantCheckResult[] => {
+      const results: SemanticInvariantCheckResult[] = [];
+      if (records.length === 0) return results;
+
+      const withModalities = records.filter(
+        (record) => normalizeModalities(record.input_modalities).length > 0,
+      ).length;
+      const withContext = records.filter(
+        (record) => normalizeExactTokenCount(record.context_window_raw) !== null,
+      ).length;
+
+      if (withModalities === 0) {
+        results.push({
+          passed: false,
+          code: "SEMANTIC_INVARIANT_VIOLATION",
+          reason:
+            `None of the ${records.length} Gemini catalog records yielded an input ` +
+            "modality. This page publishes supported data types per model, so a uniform " +
+            "absence is an extraction fault rather than a source change.",
+        });
+      }
+      if (withContext === 0) {
+        results.push({
+          passed: false,
+          code: "CAPABILITY_TOKEN_LIMITS_MISSING",
+          reason:
+            `None of the ${records.length} Gemini catalog records yielded a context ` +
+            "window. This page publishes one per model, so a uniform absence is an " +
+            "extraction fault rather than a source change.",
+        });
+      }
+
+      return results;
     },
   });
 }

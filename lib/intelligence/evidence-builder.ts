@@ -263,10 +263,16 @@ export function transformChangeEventToEvidence(
       providerName,
     );
 
-  const authority: AuthorityLevel =
-    category === "lifecycle" || category === "deprecations" || category === "retirements"
-      ? "authoritative"
-      : "verified_scrape";
+  // The same split Explorer and Source Detail derive from the source contract's
+  // `isAuthoritative`: a provider's own catalog and lifecycle pages are the
+  // authority for what their models are, a pricing page is a verified scrape.
+  // Catalog was missing here, so a capability change taken from Google's own
+  // model documentation rendered as "Verified scrape" in Changes while the same
+  // evidence read as official everywhere else.
+  const AUTHORITATIVE_CATEGORIES = ["catalog", "lifecycle", "deprecations", "retirements"];
+  const authority: AuthorityLevel = AUTHORITATIVE_CATEGORIES.includes(category)
+    ? "authoritative"
+    : "verified_scrape";
 
   const sourceUrl =
     options.sources?.find((s) => s.id === row.source_id)?.source_url ??
