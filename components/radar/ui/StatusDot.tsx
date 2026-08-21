@@ -3,6 +3,7 @@ import { healthStatusLabel } from "../utils";
 
 const statusColors: Record<HealthStatus, string> = {
   healthy: "bg-radar-signal",
+  operational: "bg-radar-info",
   degraded: "bg-radar-warn",
   down: "bg-radar-danger",
   unknown: "bg-radar-muted",

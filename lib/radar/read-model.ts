@@ -48,6 +48,49 @@ function aggregateStatus(statuses: readonly HealthStatus[]): HealthStatus {
   return "unknown";
 }
 
+/**
+ * Overall dashboard/system status only. Individual source and provider
+ * statuses still use `aggregateStatus` / `sourceStatus` unchanged.
+ *
+ * Isolated degraded or failed sources count toward `affected`. They do not
+ * make the whole ecosystem Down. Down stays reserved for a true global
+ * outage (no usable ecosystem sources / the read model itself unavailable).
+ */
+function isAffectedEcosystemStatus(status: HealthStatus): boolean {
+  return status === "degraded" || status === "down";
+}
+
+function ecosystemAffectedThreshold(total: number): number {
+  return Math.max(1, Math.floor(total * 0.2));
+}
+
+function aggregateEcosystemStatus(statuses: readonly HealthStatus[]): HealthStatus {
+  const total = statuses.length;
+  if (total === 0) return "unknown";
+  const affected = statuses.filter(isAffectedEcosystemStatus).length;
+  if (affected === 0) return statuses.includes("healthy") ? "healthy" : "unknown";
+  return affected <= ecosystemAffectedThreshold(total) ? "operational" : "degraded";
+}
+
+function ecosystemStatusHint(
+  status: HealthStatus,
+  statuses: readonly HealthStatus[],
+): string | undefined {
+  const total = statuses.length;
+  if (total === 0) return undefined;
+  if (status === "down" || status === "unknown") return undefined;
+  const affected = statuses.filter(isAffectedEcosystemStatus).length;
+  const healthy = total - affected;
+  if (status === "healthy") return `All ${total} sources verified`;
+  const attention =
+    affected === 1
+      ? status === "operational"
+        ? "1 source requires verification"
+        : "1 source requires attention"
+      : `${affected} sources require attention`;
+  return `${healthy}/${total} sources healthy · ${attention}`;
+}
+
 function dashboardChangeType(type: string): DashboardChangeEvent["type"] {
   if (type === "model_added") return "model_launch";
   if (type === "model_removed") return "model_removal";
@@ -304,13 +347,17 @@ export function buildRadarDashboardData(
     };
   });
 
+  const ecosystemStatuses = ecosystemSources.map((source) =>
+    sourceStatus(source.last_run_status),
+  );
+  const ecosystemStatus = aggregateEcosystemStatus(ecosystemStatuses);
+
   return {
     isMock: false,
     fixtureVersion: "live-supabase",
     ecosystem: {
-      status: aggregateStatus(
-        ecosystemSources.map((source) => sourceStatus(source.last_run_status)),
-      ),
+      status: ecosystemStatus,
+      statusHint: ecosystemStatusHint(ecosystemStatus, ecosystemStatuses),
       // Two different questions, answered separately and named for what they
       // are: how many models carry a canonical price right now, and how many
       // model identities are on record at all. The Model Explorer lists the

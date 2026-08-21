@@ -53,6 +53,7 @@ export function RadarDashboard({ data, loading = false }: RadarDashboardProps) {
               pricedModels={data.ecosystem.pricedModels}
               modelIdentities={data.ecosystem.modelIdentities}
               status={data.ecosystem.status}
+              statusHint={data.ecosystem.statusHint}
             />
             <div className="flex min-w-0 flex-col gap-3">
               <EcosystemStatus

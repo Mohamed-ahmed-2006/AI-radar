@@ -69,6 +69,7 @@ export function changeTypeLabel(type: ChangeType): string {
 export function healthStatusLabel(status: HealthStatus): string {
   const labels: Record<HealthStatus, string> = {
     healthy: "Healthy",
+    operational: "Operational",
     degraded: "Degraded",
     down: "Down",
     unknown: "Unknown",

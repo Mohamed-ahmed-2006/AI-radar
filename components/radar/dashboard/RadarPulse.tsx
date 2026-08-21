@@ -11,10 +11,12 @@ export function RadarPulse({
   pricedModels,
   modelIdentities,
   status,
+  statusHint,
 }: {
   pricedModels: number;
   modelIdentities: number;
   status: EcosystemSummary["status"];
+  statusHint?: string;
 }) {
   return (
     <div className="radar-pulse-card">
@@ -27,6 +29,9 @@ export function RadarPulse({
       <div className="radar-pulse-copy">
         <p className="radar-pulse-kicker">Ecosystem</p>
         <p className="radar-pulse-value capitalize">{status}</p>
+        {statusHint ? (
+          <p className="mt-1 text-xs text-radar-text-secondary">{statusHint}</p>
+        ) : null}
       </div>
       <p className="radar-pulse-meta">
         <span className="tabular-nums font-semibold text-radar-text-primary">

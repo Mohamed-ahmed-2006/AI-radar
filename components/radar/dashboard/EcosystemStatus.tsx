@@ -31,6 +31,7 @@ export function EcosystemStatus({ data, sentinel, loading }: EcosystemStatusProp
 
   const statusMap = {
     healthy: "positive" as const,
+    operational: "neutral" as const,
     degraded: "warning" as const,
     down: "negative" as const,
     unknown: "neutral" as const,
@@ -52,6 +53,7 @@ export function EcosystemStatus({ data, sentinel, loading }: EcosystemStatusProp
             </span>
           }
           status={statusMap[data.status]}
+          hint={data.statusHint}
         />
         <StatCard
           label="Models priced"

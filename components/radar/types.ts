@@ -2,7 +2,7 @@
 
 import type { AuthorityLevel } from "../../lib/intelligence/contracts";
 
-export type HealthStatus = "healthy" | "degraded" | "down" | "unknown";
+export type HealthStatus = "healthy" | "operational" | "degraded" | "down" | "unknown";
 
 export type ChangeType =
   | "price_change"
@@ -96,6 +96,8 @@ export interface ProvenanceRecord {
 
 export interface EcosystemSummary {
   status: HealthStatus;
+  /** Fleet remainder for the overall status only, e.g. "9/10 sources healthy". */
+  statusHint?: string;
   /**
    * Distinct provider+model pairs that currently carry a canonical price.
    *

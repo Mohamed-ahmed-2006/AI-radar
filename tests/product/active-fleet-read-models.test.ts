@@ -185,9 +185,21 @@ test("Dashboard: a provider with no snapshots renders its name, never its UUID",
   }
 });
 
-test("Ecosystem: the isolated demo source cannot make the AI ecosystem Down", () => {
-  // Gemini's catalog is genuinely partial, so degraded is the truthful verdict.
-  assert.equal(dashboard(FLEET).ecosystem.status, "degraded");
+test("Ecosystem: one isolated degraded source does not degrade the whole system", () => {
+  const data = dashboard(FLEET);
+
+  // Gemini's catalog is genuinely partial. That source — and Google as a
+  // provider — stay degraded. The overall verdict does not.
+  assert.equal(data.ecosystem.status, "operational");
+  assert.equal(
+    data.ecosystem.statusHint,
+    "2/3 sources healthy · 1 source requires verification",
+  );
+  assert.equal(
+    data.sources.find((source) => source.id === GEMINI_CATALOG.source_id)?.status,
+    "degraded",
+  );
+  assert.equal(data.providers.find((provider) => provider.id === GEMINI.id)?.status, "degraded");
 
   // Even a demo source that is currently failing is reported on its own.
   const brokenDemo = dashboard([
@@ -196,6 +208,7 @@ test("Ecosystem: the isolated demo source cannot make the AI ecosystem Down", ()
     { ...DEMO_CURRENT, last_run_status: "failed" as const },
   ]);
   assert.equal(brokenDemo.ecosystem.status, "healthy");
+  assert.equal(brokenDemo.ecosystem.statusHint, "All 2 sources verified");
   assert.equal(brokenDemo.ecosystem.activeAlerts, 0);
   assert.equal(
     brokenDemo.sources.find((source) => source.id === DEMO_CURRENT.source_id)?.status,
@@ -204,13 +217,103 @@ test("Ecosystem: the isolated demo source cannot make the AI ecosystem Down", ()
   );
 });
 
-test("Ecosystem: a real provider failing still takes the ecosystem down", () => {
+test("Ecosystem: a real provider failing does not take the ecosystem down", () => {
   const data = dashboard([
     { ...ANTHROPIC_PRICING, last_run_status: "failed" as const },
     DEMO_CURRENT,
   ]);
-  assert.equal(data.ecosystem.status, "down");
+  assert.equal(data.ecosystem.status, "operational");
   assert.equal(data.ecosystem.activeAlerts, 1);
+  assert.equal(
+    data.sources.find((source) => source.id === ANTHROPIC_PRICING.source_id)?.status,
+    "down",
+    "the failed source still reports its own true state",
+  );
+});
+
+test("Ecosystem: overall status uses the isolated-source threshold, not any-degraded", () => {
+  const healthy = (id: string) => health({ source_id: id });
+  const degraded = (id: string) =>
+    health({ source_id: id, last_run_status: "partial" as const });
+
+  // 10 sources, 1 degraded: floor(10 * 0.20) = 2 → operational.
+  const nineHealthy = dashboard([
+    degraded("src-1"),
+    healthy("src-2"),
+    healthy("src-3"),
+    healthy("src-4"),
+    healthy("src-5"),
+    healthy("src-6"),
+    healthy("src-7"),
+    healthy("src-8"),
+    healthy("src-9"),
+    healthy("src-10"),
+  ]);
+  assert.equal(nineHealthy.ecosystem.status, "operational");
+  assert.equal(
+    nineHealthy.ecosystem.statusHint,
+    "9/10 sources healthy · 1 source requires verification",
+  );
+  assert.equal(nineHealthy.sources.find((source) => source.id === "src-1")?.status, "degraded");
+
+  // 10 sources, 1 failed → operational; the source itself stays down.
+  const nineHealthyOneFailed = dashboard([
+    health({ source_id: "src-1", last_run_status: "failed" as const }),
+    healthy("src-2"),
+    healthy("src-3"),
+    healthy("src-4"),
+    healthy("src-5"),
+    healthy("src-6"),
+    healthy("src-7"),
+    healthy("src-8"),
+    healthy("src-9"),
+    healthy("src-10"),
+  ]);
+  assert.equal(nineHealthyOneFailed.ecosystem.status, "operational");
+  assert.equal(
+    nineHealthyOneFailed.ecosystem.statusHint,
+    "9/10 sources healthy · 1 source requires verification",
+  );
+  assert.equal(nineHealthyOneFailed.sources.find((source) => source.id === "src-1")?.status, "down");
+
+  // 10 sources, 2 degraded → still operational.
+  const eightHealthy = dashboard([
+    degraded("src-1"),
+    degraded("src-2"),
+    healthy("src-3"),
+    healthy("src-4"),
+    healthy("src-5"),
+    healthy("src-6"),
+    healthy("src-7"),
+    healthy("src-8"),
+    healthy("src-9"),
+    healthy("src-10"),
+  ]);
+  assert.equal(eightHealthy.ecosystem.status, "operational");
+  assert.equal(
+    eightHealthy.ecosystem.statusHint,
+    "8/10 sources healthy · 2 sources require attention",
+  );
+
+  // 10 sources, 3 degraded → degraded.
+  const sevenHealthy = dashboard([
+    degraded("src-1"),
+    degraded("src-2"),
+    degraded("src-3"),
+    healthy("src-4"),
+    healthy("src-5"),
+    healthy("src-6"),
+    healthy("src-7"),
+    healthy("src-8"),
+    healthy("src-9"),
+    healthy("src-10"),
+  ]);
+  assert.equal(sevenHealthy.ecosystem.status, "degraded");
+  assert.equal(
+    sevenHealthy.ecosystem.statusHint,
+    "7/10 sources healthy · 3 sources require attention",
+  );
+  assert.equal(sevenHealthy.sources.find((source) => source.id === "src-1")?.status, "degraded");
 });
 
 test("Freshness: a configured source carries its registry cadence, an on-demand one carries none", () => {
