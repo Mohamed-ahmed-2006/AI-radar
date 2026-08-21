@@ -278,6 +278,8 @@ export function changeEvent(
     previous_snapshot_id: "snap-old",
     current_snapshot_id: "snap-new",
     previous_lifecycle_snapshot_id: null,
+    previous_capability_snapshot_id: null,
+    current_capability_snapshot_id: null,
     current_lifecycle_snapshot_id: null,
     summary: "GPT-5 input price halved",
     detected_at: minutesAgo(55),

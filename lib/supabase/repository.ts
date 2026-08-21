@@ -842,6 +842,8 @@ export interface ChangeEventInput {
   currentSnapshotId?: string | null;
   previousLifecycleSnapshotId?: string | null;
   currentLifecycleSnapshotId?: string | null;
+  previousCapabilitySnapshotId?: string | null;
+  currentCapabilitySnapshotId?: string | null;
   summary?: string | null;
   detectedAt?: string;
 }
@@ -896,6 +898,8 @@ function changeEventSemanticValue(input: ChangeEventInput): string {
     currentSnapshotId: input.currentSnapshotId ?? null,
     previousLifecycleSnapshotId: input.previousLifecycleSnapshotId ?? null,
     currentLifecycleSnapshotId: input.currentLifecycleSnapshotId ?? null,
+    previousCapabilitySnapshotId: input.previousCapabilitySnapshotId ?? null,
+    currentCapabilitySnapshotId: input.currentCapabilitySnapshotId ?? null,
     summary: input.summary ?? null,
     detectedAt: input.detectedAt ?? null,
   });
@@ -963,6 +967,8 @@ export async function saveChangeEvents(
           current_snapshot_id: input.currentSnapshotId ?? null,
           previous_lifecycle_snapshot_id: input.previousLifecycleSnapshotId ?? null,
           current_lifecycle_snapshot_id: input.currentLifecycleSnapshotId ?? null,
+          previous_capability_snapshot_id: input.previousCapabilitySnapshotId ?? null,
+          current_capability_snapshot_id: input.currentCapabilitySnapshotId ?? null,
           summary: input.summary ?? null,
           ...(input.detectedAt && { detected_at: input.detectedAt }),
         })),

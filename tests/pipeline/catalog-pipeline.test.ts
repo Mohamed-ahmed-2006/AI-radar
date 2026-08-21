@@ -138,6 +138,24 @@ test("ingestCatalogProvider detects capability changes on subsequent collection"
   assert.ok(contextChangeEvent);
   assert.equal(contextChangeEvent.oldValue, 200000);
   assert.equal(contextChangeEvent.newValue, 1000000);
+
+  // The snapshot references belong to the capability columns. Writing them into
+  // `currentSnapshotId` — the *pricing* pair — violated
+  // `change_events_current_snapshot_id_fkey`, and could not fail until a
+  // capability actually changed. The first run that produced a real capability
+  // diff took the whole ingestion down with it.
+  for (const event of repository.changeEvents) {
+    assert.equal(event.currentSnapshotId ?? null, null);
+    assert.equal(event.previousSnapshotId ?? null, null);
+    assert.ok(
+      event.currentCapabilitySnapshotId,
+      "a capability event must cite the snapshot it diffed to",
+    );
+    assert.ok(
+      event.previousCapabilitySnapshotId,
+      "a capability event must cite the snapshot it diffed from",
+    );
+  }
 });
 
 test("catalog absence never deletes models or modifies lifecycle state", async () => {

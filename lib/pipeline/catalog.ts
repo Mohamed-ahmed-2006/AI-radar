@@ -437,7 +437,17 @@ export async function ingestCatalogProvider(
     const savedSnapshots = await repository.saveCapabilitySnapshots(snapshotInputs);
     const snapshotByModelId = new Map(savedSnapshots.map((s) => [s.model_id, s]));
 
-    // Save detected change events
+    // Save detected change events.
+    //
+    // The snapshot references go in the capability columns. `currentSnapshotId`
+    // is the *pricing* pair — its comment has always said so — and writing a
+    // capability_snapshots id there violated the foreign key. It could not fail
+    // until a capability actually changed, and none ever had: the token limits
+    // normalized to null on every run, so consecutive runs were identical and no
+    // diff was produced.
+    const previousSnapshotByApiId = new Map(
+      previousSnapshots.map((snapshot) => [snapshot.api_model_id, snapshot]),
+    );
     if (changeEvents.length > 0) {
       const changeEventInputs: ChangeEventInput[] = changeEvents.map((evt) => {
         const model = modelMap.get(evt.apiModelId);
@@ -451,7 +461,9 @@ export async function ingestCatalogProvider(
           fieldName: evt.field,
           oldValue: evt.oldValue as unknown as Json,
           newValue: evt.newValue as unknown as Json,
-          currentSnapshotId: snapshot ? snapshot.id : null,
+          previousCapabilitySnapshotId:
+            previousSnapshotByApiId.get(evt.apiModelId)?.id ?? null,
+          currentCapabilitySnapshotId: snapshot ? snapshot.id : null,
           summary: capabilityChangeSummary(evt),
           detectedAt: observedAt,
         };

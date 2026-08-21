@@ -222,8 +222,8 @@ export type ChangeEventRow = {
   current_snapshot_id: string | null;
   previous_lifecycle_snapshot_id: string | null;
   current_lifecycle_snapshot_id: string | null;
-  previous_capability_snapshot_id?: string | null;
-  current_capability_snapshot_id?: string | null;
+  previous_capability_snapshot_id: string | null;
+  current_capability_snapshot_id: string | null;
   summary: string | null;
   detected_at: string;
   created_at: string;

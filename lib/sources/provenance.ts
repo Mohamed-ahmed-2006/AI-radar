@@ -225,10 +225,18 @@ async function resolveChangeEvent(
 ): Promise<ProvenanceRecord> {
   const context = await loadContext(port, event.source_id, event.run_id);
 
+  // One event carries at most one domain's pair, so first-non-null reads the
+  // pair that domain wrote.
   const currentSnapshotId =
-    event.current_snapshot_id ?? event.current_lifecycle_snapshot_id ?? null;
+    event.current_snapshot_id ??
+    event.current_lifecycle_snapshot_id ??
+    event.current_capability_snapshot_id ??
+    null;
   const previousSnapshotId =
-    event.previous_snapshot_id ?? event.previous_lifecycle_snapshot_id ?? null;
+    event.previous_snapshot_id ??
+    event.previous_lifecycle_snapshot_id ??
+    event.previous_capability_snapshot_id ??
+    null;
 
   // The observation instant is the snapshot's, not the detection instant:
   // change detection can run later than collection.
